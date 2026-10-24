@@ -996,7 +996,9 @@ const ListenerRealLiveRoom = () => {
               {show.stationName && String(show.stationName).trim().toLowerCase() !== String(show.title).trim().toLowerCase() && (
                 <span className="listener-v2-room-station">{show.stationName}</span>
               )}
-              {show.creator && String(show.creator).trim().toLowerCase() !== String(show.title).trim().toLowerCase() && (
+              {show.creator && ![show.title, show.stationName].some((name) =>
+                String(name || '').trim().toLowerCase() === String(show.creator).trim().toLowerCase()
+              ) && (
                 <span className="listener-v2-room-creator">{show.creator}</span>
               )}
               {show.description &&

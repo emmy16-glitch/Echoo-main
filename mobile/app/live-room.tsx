@@ -7,9 +7,11 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -153,9 +155,15 @@ export default function LiveRoomScreen() {
           </View>
         ) : null}
 
-        {isCurrentLive && !nativeModuleUnavailable && !error
-          ? roomContent
-          : null}
+        {isCurrentLive && !nativeModuleUnavailable && !error ? (
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ flexGrow: 1, paddingBottom: 12 }}
+            showsVerticalScrollIndicator={false}
+          >
+            {roomContent}
+          </ScrollView>
+        ) : null}
       </View>
     </SafeAreaView>
   );
@@ -183,10 +191,12 @@ function LiveRoomContent({
   palette: EchooColors;
 }) {
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const { width, height } = useWindowDimensions();
+  const artworkSize = Math.max(165, Math.min(width - 56, height * 0.35, 320));
 
   return (
     <View style={styles.roomSurface}>
-      <View style={styles.artworkWrap}>
+      <View style={[styles.artworkWrap, { width: artworkSize, height: artworkSize, alignSelf: 'center' }]}>
         {coverArt ? (
           <Image source={{ uri: coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
         ) : (
@@ -255,17 +265,17 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   waveBar: { width: 4, borderRadius: 3, backgroundColor: '#FFFFFF' },
   roomCopy: { paddingTop: 18 },
   stationName: { color: palette.blue, fontSize: 12.5, fontWeight: '900' },
-  roomTitle: { color: palette.ink, fontSize: 27, lineHeight: 31, fontWeight: '900', letterSpacing: -0.8, marginTop: 4 },
+  roomTitle: { color: palette.ink, fontSize: 23, lineHeight: 28, fontWeight: '900', letterSpacing: -0.8, marginTop: 4 },
   listenerLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 7 },
   listenerText: { color: palette.muted, fontSize: 11.5, fontWeight: '700' },
   statusCard: { marginTop: 16, minHeight: 74, borderRadius: 18, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, padding: 13, flexDirection: 'row', alignItems: 'center', gap: 11 },
   statusCopy: { flex: 1 },
   statusTitle: { color: palette.ink, fontSize: 13.5, fontWeight: '900' },
   statusText: { color: palette.muted, fontSize: 10.8, lineHeight: 15, marginTop: 3 },
-  controls: { flexDirection: 'row', gap: 10, marginTop: 'auto', paddingTop: 16 },
+  controls: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 'auto', paddingTop: 16 },
   secondaryControl: { minHeight: 52, borderRadius: 16, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.surface, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   secondaryControlText: { color: palette.ink, fontSize: 12.5, fontWeight: '900' },
-  primaryControl: { flex: 1, minHeight: 52, borderRadius: 16, backgroundColor: palette.blue, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 12 },
+  primaryControl: { flexGrow: 1, flexShrink: 1, flexBasis: 170, minHeight: 52, borderRadius: 16, backgroundColor: palette.blue, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 12 },
   primaryControlDisabled: { opacity: 0.72 },
   primaryControlText: { color: '#FFFFFF', fontSize: 12.5, fontWeight: '900' },
 });

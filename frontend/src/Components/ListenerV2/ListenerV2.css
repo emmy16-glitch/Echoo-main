@@ -1255,3 +1255,47 @@ html.listener-v2-full-player-open body { overflow:hidden; }
   .listener-v2-followed-accounts { gap: 8px; }
   .listener-v2-followed-account { max-width: calc(50% - 4px); flex: 1 1 calc(50% - 4px); font-size: 13px; }
 }
+
+/* Phone sizing: all Listener content stays inside the visual viewport. */
+@media (max-width: 767px) {
+  .listener-v2-root,
+  .listener-v2-main,
+  .listener-v2-page {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .listener-v2-main { padding-inline: clamp(10px, 3.5vw, 20px); }
+  .listener-v2-panel { min-width: 0; padding: clamp(12px, 4vw, 20px); }
+  .listener-v2-live-meta,
+  .listener-v2-collection-row,
+  .listener-v2-audio-list > article,
+  .listener-v2-station-card { min-width: 0; max-width: 100%; }
+  .listener-v2-collection-row {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) 20px;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    white-space: normal;
+  }
+  .listener-v2-collection-row > div { min-width: 0; }
+  .listener-v2-collection-row strong,
+  .listener-v2-collection-row span {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  .listener-v2-category-tabs {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+}
+@media (max-width: 359px) {
+  .listener-v2-live-meta { gap: 6px; padding-left: 8px; }
+  .listener-v2-live-cta { padding-inline: 6px; font-size: 12px; }
+  .listener-v2-live-card { grid-template-columns: 60px minmax(0, 1fr); }
+  .listener-v2-live-art { width: 56px; height: 56px; }
+  .listener-v2-panel { padding-inline: 11px; }
+}

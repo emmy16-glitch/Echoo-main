@@ -7,7 +7,7 @@ import collectionService from '../../services/collectionService';
 // When no collections exist, leave the Listener home uncluttered.
 export default function PublishedCollectionsPreview() {
   const navigate = useNavigate();
-  const [collections, setCollections] = useState([]);
+  const [collections, setCollections] = useState(() => collectionService.peekPublic({ limit: 4 }) || []);
 
   useEffect(() => {
     let active = true;
@@ -28,7 +28,7 @@ export default function PublishedCollectionsPreview() {
       </header>
       <div className="listener-v2-audio-list">
         {collections.map((collection) => (
-          <button type="button" key={collection.id} className="listener-v2-collection-row" onClick={() => navigate(`/listen/collections/${encodeURIComponent(collection.id)}`)}>
+          <button type="button" key={collection.id} className="listener-v2-collection-row" onPointerEnter={() => { void collectionService.getById(collection.id).catch(() => undefined); }} onClick={() => navigate(`/listen/collections/${encodeURIComponent(collection.id)}`)}>
             <span className="listener-v2-audio-art">
               {collection.coverArt ? <img src={collection.coverArt} alt="" /> : <FiBookOpen />}
             </span>

@@ -26,7 +26,7 @@ const authenticate = (page) => page.addInitScript(() => {
 
 test('web Library distinguishes saved Collections from published series and opens recordings', async ({ page }) => {
   await authenticate(page);
-  await page.route('**/api/playlists?*', (route) => response(route, [saved, published]));
+  await page.route('**/api/collections/public?*', (route) => response(route, [saved, published]));
   await page.route('**/api/collections/saved/mine*', (route) => response(route, [saved]));
   await page.route(`**/api/collections/${publicId}`, (route) => response(route, published));
   await page.goto('/listen/library?tab=collections');
@@ -38,17 +38,28 @@ test('web Library distinguishes saved Collections from published series and open
 
   const exploreSection = page.getByRole('region', { name: 'Published Collections' });
   await expect(exploreSection.getByText('Thursday Bible Study')).toBeVisible();
+  await expect(exploreSection.getByText('School of Doctrine – Day 01')).toHaveCount(0);
   await exploreSection.getByRole('button', { name: /Thursday Bible Study/ }).click();
   await expect(page).toHaveURL(new RegExp(`/listen/collections/${publicId}$`));
   await expect(page.getByRole('heading', { name: 'Thursday Bible Study' })).toBeVisible();
 });
 
 test('published Collections can be found from Discover without opening the Channel profile', async ({ page }) => {
-  await page.route('**/api/playlists?*', (route) => response(route, [published]));
+  await page.route('**/api/collections/public?*', (route) => response(route, [published]));
   await page.goto('/listen');
   const preview = page.getByRole('region', { name: 'Published Collections' });
   await expect(preview.getByText('Thursday Bible Study')).toBeVisible();
   await preview.getByRole('button', { name: 'Explore all' }).click();
   await expect(page).toHaveURL(/\/listen\/library\?tab=collections$/);
   await expect(page.getByRole('heading', { name: 'Explore Collections' })).toBeVisible();
+});
+
+test('Collection count uses trackCount when the response has no broadcastCount field', async ({ page }) => {
+  await page.route('**/api/collections/public?*', (route) => response(route, [{
+    id: publicId, title: 'Thursday Bible Study', station, mode: 'series',
+    isPublic: true, trackCount: 6, tracks: [], recordings: [],
+  }]));
+  await page.goto('/listen');
+  const preview = page.getByRole('region', { name: 'Published Collections' });
+  await expect(preview.getByText('6 recordings')).toBeVisible();
 });

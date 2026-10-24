@@ -670,3 +670,22 @@
     overflow-y: auto;
   }
 }
+
+/* Brave and Chrome can paint an opaque fill over remembered input values. */
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-input-shell input {
+  color-scheme: dark;
+  caret-color: #f4f8ff;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-input-shell input:is(:-webkit-autofill, :-webkit-autofill:hover, :-webkit-autofill:focus, :-webkit-autofill:active) {
+  -webkit-text-fill-color: #f4f8ff !important;
+  caret-color: #f4f8ff;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  box-shadow: 0 0 0 1000px transparent inset !important;
+  -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+  transition: background-color 99999s ease-out 0s;
+}
+.echoo-auth-reference:is(.is-login,.is-signup,.is-recovery) .ear-input-shell input:-moz-autofill {
+  background: transparent !important;
+  color: #f4f8ff !important;
+}

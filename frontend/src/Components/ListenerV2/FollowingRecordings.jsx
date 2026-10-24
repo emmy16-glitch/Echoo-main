@@ -5,11 +5,12 @@ import followService from '../../services/followService';
 import audioService from '../../services/audioService';
 import { isAuthenticated } from '../../services/guestSession';
 import { buildMediaUrl } from '../../services/api';
+import { uniqueStations } from '../../services/stationDedup';
 
 const idOf = (value) => String(value?.id || value?._id || '');
 
 const followTargets = (stations, creators) => [
-  ...stations.map((station) => ({
+  ...uniqueStations(stations).map((station) => ({
     key: `station:${idOf(station)}`,
     name: station.name || 'Channel',
     image: station.brandCover || station.coverArt || station.logo,
