@@ -177,3 +177,15 @@ for (const { width, height } of [
     expect(layout.chat?.top).toBeGreaterThanOrEqual(layout.player.bottom - 2);
   });
 }
+
+test('opening guest chat in portrait then rotating to tablet hides the backdrop', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockGuestRoom(page);
+  await page.goto(`/listen/live/${broadcastId}`);
+  await page.getByRole('button', { name: 'Chat', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Live chat' })).toBeVisible();
+  await page.setViewportSize({ width: 820, height: 600 });
+  await expect(page.locator('.listener-v2-room-chat-backdrop')).toHaveCount(0);
+  await expect(page.locator('.listener-v2-room-chat')).toBeVisible();
+  await expect(page.locator('.listener-v2-room-chat')).not.toHaveAttribute('aria-modal', 'true');
+});
