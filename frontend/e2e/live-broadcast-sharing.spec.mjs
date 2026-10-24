@@ -178,3 +178,34 @@ test('the slug listener URL resolves live state through the canonical station ID
   await expect(page.getByRole('button', { name: 'Listen Live' })).toHaveCount(0);
   await expect(page).toHaveURL(new RegExp(`/listen/stations/${STATION_SLUG}$`));
 });
+
+test('Listener live room does not repeat Channel name as both station and creator', async ({ page }) => {
+  await authenticate(page, listener);
+  await page.route(`**/api/broadcasts/${BROADCAST_ID}/public*`, (route) => route.fulfill({
+    json: { data: {
+      ...liveBroadcast,
+      title: 'Layers Of Truth live - 12 Oct',
+      creatorName: 'Layers of Truth',
+      stationName: 'Layers of Truth',
+      status: 'scheduled',
+    } },
+  }));
+  await page.goto(`/listen/live/${BROADCAST_ID}`);
+  await expect(page.locator('.listener-v2-room-event-copy h1')).toContainText('Layers Of Truth live');
+  await expect(page.locator('.listener-v2-room-station')).toHaveCount(1);
+  await expect(page.locator('.listener-v2-room-creator')).toHaveCount(0);
+});
+
+test('Auth autofill matches the translucent style of ordinary fields', async ({ page }) => {
+  await page.goto('/login');
+  const input = page.locator('#echoo-login-identifier');
+  await expect(input).toBeVisible();
+  const background = await input.evaluate((node) => ({
+    field: getComputedStyle(node).backgroundColor,
+    shell: getComputedStyle(node.closest('.ear-input-shell')).backgroundColor,
+  }));
+  expect(background.field).toMatch(/rgba?\(0, 0, 0, 0\)|transparent/);
+  expect(background.shell).toMatch(/^rgba\(/);
+  await page.goto('/register');
+  await expect(page.locator('#echoo-signup-password')).toBeVisible();
+});
