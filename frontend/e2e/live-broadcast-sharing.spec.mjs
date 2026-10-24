@@ -181,7 +181,7 @@ test('the slug listener URL resolves live state through the canonical station ID
 
 test('Listener live room does not repeat Channel name as both station and creator', async ({ page }) => {
   await authenticate(page, listener);
-  await page.route(`**/api/broadcasts/${BROADCAST_ID}/public*`, (route) => route.fulfill({
+  await page.route(`**/api/broadcasts/${BROADCAST_ID}*`, (route) => route.fulfill({
     json: { data: {
       ...liveBroadcast,
       title: 'Layers Of Truth live - 12 Oct',
