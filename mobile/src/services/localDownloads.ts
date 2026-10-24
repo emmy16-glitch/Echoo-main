@@ -1,4 +1,3 @@
-import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
 import {
@@ -14,6 +13,8 @@ import {
 type FileSystemModule = {
   documentDirectory?: string | null;
   makeDirectoryAsync: (fileUri: string, options?: { intermediates?: boolean }) => Promise<void>;
+  readAsStringAsync: (fileUri: string) => Promise<string>;
+  writeAsStringAsync: (fileUri: string, contents: string) => Promise<void>;
   downloadAsync: (
     uri: string,
     fileUri: string,
@@ -36,8 +37,6 @@ export type LocalDownload = EchooDownload & {
   track: EchooAudio | null;
 };
 
-const STORE_KEY = 'echoo.localDownloads.v1';
-const MEMORY_STORE: { value: string } = { value: '[]' };
 const statusListeners = new Set<() => void>();
 const statusSnapshot = new Map<string, { status: LocalDownload['status']; progress: number }>();
 
@@ -80,31 +79,40 @@ async function getAccountScope() {
   throw new Error('Could not identify the signed-in account for offline storage.');
 }
 
-async function localStoreKey() {
-  return `${STORE_KEY}:${await getAccountScope()}`;
+// Downloaded audio and its index belong to the same account-scoped app-private folder.
+// Store the index as a file, not in SecureStore (which has strict key and value limits).
+async function downloadIndexLocation() {
+  const accountId = await getAccountScope();
+  const FileSystem = await loadFileSystem();
+  if (!FileSystem.documentDirectory) throw new Error('Offline storage is unavailable.');
+  const directory = `${FileSystem.documentDirectory}echoo-downloads/${encodeURIComponent(accountId)}/`;
+  return { FileSystem, directory, path: `${directory}downloads.json` };
 }
 
 async function readStoredDownloads(): Promise<Record<string, LocalDownload>> {
-  const key = await localStoreKey();
-  const raw = Platform.OS === 'web'
-    ? MEMORY_STORE.value
-    : await SecureStore.getItemAsync(key);
-  if (!raw) return {};
+  if (Platform.OS === 'web') return {};
+  const { FileSystem, path } = await downloadIndexLocation();
   try {
-    return JSON.parse(raw);
-  } catch {
-    return {};
+    const raw = await FileSystem.readAsStringAsync(path);
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Offline downloads index is invalid.');
+    }
+    return parsed as Record<string, LocalDownload>;
+  } catch (error) {
+    // Missing index is normal on first launch. Preserve an existing but corrupt
+    // index rather than silently overwriting it and losing download references.
+    const info = await FileSystem.getInfoAsync?.(path).catch(() => null);
+    if (!info?.exists) return {};
+    throw new Error('Could not read saved offline downloads.', { cause: error });
   }
 }
 
 async function writeStoredDownloads(downloads: Record<string, LocalDownload>) {
-  const key = await localStoreKey();
-  const serialized = JSON.stringify(downloads);
-  if (Platform.OS === 'web') {
-    MEMORY_STORE.value = serialized;
-    return;
-  }
-  await SecureStore.setItemAsync(key, serialized);
+  if (Platform.OS === 'web') return;
+  const { FileSystem, directory, path } = await downloadIndexLocation();
+  await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
+  await FileSystem.writeAsStringAsync(path, JSON.stringify(downloads));
 }
 
 function getExtension(track: EchooAudio) {
@@ -225,7 +233,7 @@ export async function downloadAudioToDevice(
       : await FileSystem.downloadAsync(url, destination, options);
 
     if (!result || result.status < 200 || result.status >= 300) {
-      throw new Error('Could not download this audio to your device.');
+      throw new Error('Could not save this audio for offline listening.');
     }
 
     const info = await FileSystem.getInfoAsync?.(result.uri);
