@@ -95,6 +95,10 @@ for (const { width, height } of [
     await expect(chat.getByRole('button', { name: 'Sign in' })).toBeVisible();
     await expect(chat.getByRole('button', { name: 'Close live chat' })).toBeVisible();
     await expect(chat.locator('.lex-chat-composer')).toHaveCount(0);
+    await expect.poll(async () => {
+      const metrics = await screenHealth(page);
+      return Boolean(metrics.chat && metrics.chat.top >= -2 && metrics.chat.bottom <= height + 2);
+    }).toBe(true);
     const open = await screenHealth(page);
     expect(open.documentWidth).toBeLessThanOrEqual(width + 2);
     expect(open.chat?.top).toBeGreaterThanOrEqual(-2);
@@ -112,6 +116,10 @@ test('guest chat reflows when a phone switches to landscape while open', async (
   await expect(page.locator('.listener-v2-live-room')).toBeVisible();
   await page.getByRole('button', { name: 'Chat', exact: true }).click();
   await page.setViewportSize({ width: 667, height: 375 });
+  await expect.poll(async () => {
+    const metrics = await screenHealth(page);
+    return Boolean(metrics.chat && metrics.chat.top >= -2 && metrics.chat.bottom <= 377);
+  }).toBe(true);
   const metrics = await screenHealth(page);
   expect(metrics.chat?.top).toBeGreaterThanOrEqual(-2);
   expect(metrics.chat?.bottom).toBeLessThanOrEqual(377);
