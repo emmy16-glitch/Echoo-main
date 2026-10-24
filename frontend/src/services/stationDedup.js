@@ -11,8 +11,10 @@ const channelKey = (item) => {
   const owner = ownerOf(item);
   const name = normalize(item?.name);
   if (owner && name) return `owner:${owner}:${name}`;
-  if (name) return `name:${name}`;
-  return idOf(item) ? `id:${idOf(item)}` : '';
+  // Different owners can run Channels with the same display name.
+  // Without an owner or unique slug, rely on the record ID.
+  if (idOf(item)) return `id:${idOf(item)}`;
+  return '';
 };
 const priority = (item) =>
   (item?.isLive ? 100 : 0) +
