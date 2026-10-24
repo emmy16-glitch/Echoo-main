@@ -316,7 +316,7 @@ export default function CreatorLiveScreen() {
       return true;
     });
     return () => subscription.remove();
-  }, [live, busy, broadcastId]);
+  }, [live, busy, confirmEnd]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
