@@ -42,6 +42,7 @@ import {
 } from '../../services/navigationDataCache';
 import { getCreatorProfilePath } from '../../services/profileIdentifier';
 import { buildGeneratedStationBrandCoverUrl } from '../../stationBranding/stationBranding';
+import { uniqueStations } from '../../services/stationDedup';
 import AccountExperienceMenu from '../Shared/AccountExperienceMenu';
 import FollowingRecordings from './FollowingRecordings';
 import ContinueListening from './ContinueListening';
@@ -1297,7 +1298,7 @@ const ListenerV2Following = () => {
         throw new Error('Following could not load.');
       }
       if (stationResult.status === 'fulfilled') {
-        const nextStations = Array.isArray(stationResult.value?.data) ? stationResult.value.data : [];
+        const nextStations = uniqueStations(Array.isArray(stationResult.value?.data) ? stationResult.value.data : []);
         setStations(nextStations);
         writeNavigationData('listener-following-stations', nextStations, { ttlMs: 2 * 60_000 });
       }
@@ -1489,8 +1490,8 @@ const ListenerV2Categories = () => {
       if (!isGuest) requests.push(followService.getFollowingStations());
       const [stationsResult, followedResult] = await Promise.allSettled(requests);
       if (stationsResult.status === 'rejected') throw stationsResult.reason;
-      const nextStations = (Array.isArray(stationsResult.value?.data) ? stationsResult.value.data : [])
-        .filter((item) => item?.isPublic !== false);
+      const nextStations = uniqueStations((Array.isArray(stationsResult.value?.data) ? stationsResult.value.data : [])
+        .filter((item) => item?.isPublic !== false));
       const nextFollowingIds = followedResult?.status === 'fulfilled'
         ? (followedResult.value?.data || []).map(idOf).filter(Boolean)
         : [];
@@ -1639,7 +1640,7 @@ const ListenerV2Search = () => {
         setData({
           tracks: Array.isArray(results.tracks) ? results.tracks.map(normalizePlayable).filter(Boolean) : [],
           creators: Array.isArray(results.creators) ? results.creators : [],
-          stations: Array.isArray(results.stations) ? results.stations : [],
+          stations: uniqueStations(Array.isArray(results.stations) ? results.stations : []),
         });
         setError('');
       } catch (searchError) {
