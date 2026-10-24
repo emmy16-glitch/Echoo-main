@@ -1,4 +1,3 @@
-import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
 import {
@@ -14,6 +13,8 @@ import {
 type FileSystemModule = {
   documentDirectory?: string | null;
   makeDirectoryAsync: (fileUri: string, options?: { intermediates?: boolean }) => Promise<void>;
+  readAsStringAsync: (fileUri: string) => Promise<string>;
+  writeAsStringAsync: (fileUri: string, contents: string) => Promise<void>;
   downloadAsync: (
     uri: string,
     fileUri: string,
@@ -36,10 +37,9 @@ export type LocalDownload = EchooDownload & {
   track: EchooAudio | null;
 };
 
-const STORE_KEY = 'echoo.localDownloads.v1';
-const MEMORY_STORE: { value: string } = { value: '[]' };
 const statusListeners = new Set<() => void>();
 const statusSnapshot = new Map<string, { status: LocalDownload['status']; progress: number }>();
+let indexMutationQueue: Promise<void> = Promise.resolve();
 
 function emitStatusChange() {
   statusListeners.forEach((listener) => listener());
@@ -80,31 +80,52 @@ async function getAccountScope() {
   throw new Error('Could not identify the signed-in account for offline storage.');
 }
 
-async function localStoreKey() {
-  return `${STORE_KEY}:${await getAccountScope()}`;
+// Downloaded audio and its index belong to the same account-scoped app-private folder.
+// Store the index as a file, not in SecureStore (which has strict key and value limits).
+async function downloadIndexLocation() {
+  const accountId = await getAccountScope();
+  const FileSystem = await loadFileSystem();
+  if (!FileSystem.documentDirectory) throw new Error('Offline storage is unavailable.');
+  const directory = `${FileSystem.documentDirectory}echoo-downloads/${encodeURIComponent(accountId)}/`;
+  return { FileSystem, directory, path: `${directory}downloads.json` };
 }
 
 async function readStoredDownloads(): Promise<Record<string, LocalDownload>> {
-  const key = await localStoreKey();
-  const raw = Platform.OS === 'web'
-    ? MEMORY_STORE.value
-    : await SecureStore.getItemAsync(key);
-  if (!raw) return {};
+  if (Platform.OS === 'web') return {};
+  const { FileSystem, path } = await downloadIndexLocation();
   try {
-    return JSON.parse(raw);
+    const raw = await FileSystem.readAsStringAsync(path);
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('Offline downloads index is invalid.');
+    }
+    return parsed as Record<string, LocalDownload>;
   } catch {
-    return {};
+    // Missing index is normal on first launch. Preserve an existing but corrupt
+    // index rather than silently overwriting it and losing download references.
+    const info = await FileSystem.getInfoAsync?.(path).catch(() => null);
+    if (!info?.exists) return {};
+    throw new Error('Could not read saved offline downloads.');
   }
 }
 
 async function writeStoredDownloads(downloads: Record<string, LocalDownload>) {
-  const key = await localStoreKey();
-  const serialized = JSON.stringify(downloads);
-  if (Platform.OS === 'web') {
-    MEMORY_STORE.value = serialized;
-    return;
-  }
-  await SecureStore.setItemAsync(key, serialized);
+  if (Platform.OS === 'web') return;
+  const { FileSystem, directory, path } = await downloadIndexLocation();
+  await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
+  await FileSystem.writeAsStringAsync(path, JSON.stringify(downloads));
+}
+
+// Serialize index changes so two finished downloads cannot overwrite each other.
+async function mutateStoredDownloads(change: (downloads: Record<string, LocalDownload>) => void) {
+  const update = async () => {
+    const stored = await readStoredDownloads();
+    change(stored);
+    await writeStoredDownloads(stored);
+  };
+  const pending = indexMutationQueue.then(update, update);
+  indexMutationQueue = pending.catch(() => undefined);
+  await pending;
 }
 
 function getExtension(track: EchooAudio) {
@@ -118,17 +139,14 @@ export async function getLocalDownloads(): Promise<LocalDownload[]> {
   const stored = await readStoredDownloads();
   const FileSystem = Platform.OS === 'web' ? null : await loadFileSystem();
   const rows: LocalDownload[] = [];
-  const validStored: Record<string, LocalDownload> = {};
-  for (const [trackId, download] of Object.entries(stored)) {
+  for (const download of Object.values(stored)) {
     const info: { exists: boolean; size?: number } = download.localUri && FileSystem?.getInfoAsync
       ? await FileSystem.getInfoAsync(download.localUri).catch(() => ({ exists: false }))
       : { exists: false };
     if (download.status === 'completed' && download.localUri && info.exists && (info.size == null || Number(info.size) > 0)) {
       rows.push(download);
-      validStored[trackId] = download;
     }
   }
-  if (Object.keys(validStored).length !== Object.keys(stored).length) await writeStoredDownloads(validStored);
   statusSnapshot.clear();
   rows.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
   rows.forEach((download) => {
@@ -225,7 +243,7 @@ export async function downloadAudioToDevice(
       : await FileSystem.downloadAsync(url, destination, options);
 
     if (!result || result.status < 200 || result.status >= 300) {
-      throw new Error('Could not download this audio to your device.');
+      throw new Error('Could not save this audio for offline listening.');
     }
 
     const info = await FileSystem.getInfoAsync?.(result.uri);
@@ -243,9 +261,12 @@ export async function downloadAudioToDevice(
       createdAt: serverDownload.createdAt || new Date().toISOString(),
     };
 
-    const stored = await readStoredDownloads();
-    stored[track.id] = completed;
-    await writeStoredDownloads(stored);
+    if (await getAccountScope() !== accountId) {
+      throw new Error('The signed-in account changed during this download. Please try again.');
+    }
+    await mutateStoredDownloads((stored) => {
+      stored[track.id] = completed;
+    });
     setTrackStatus(track.id, 'completed', 100);
     onProgress?.(100);
 
@@ -279,9 +300,9 @@ export async function deleteLocalDownload(download: LocalDownload) {
     await removeDownload(download.id).catch(() => undefined);
   }
 
-  const stored = await readStoredDownloads();
-  delete stored[download.trackId];
-  await writeStoredDownloads(stored);
+  await mutateStoredDownloads((stored) => {
+    delete stored[download.trackId];
+  });
   statusSnapshot.delete(download.trackId);
   emitStatusChange();
 }
