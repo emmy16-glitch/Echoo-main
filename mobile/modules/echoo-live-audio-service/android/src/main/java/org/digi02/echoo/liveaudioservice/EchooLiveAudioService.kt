@@ -105,7 +105,7 @@ class EchooLiveAudioService : Service() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
       // A broadcaster needs microphone foreground eligibility while minimized.
       // The service is started on a visible screen after RECORD_AUDIO approval.
-      val serviceType = if (kind == "broadcast") {
+      val serviceType = if (kind == "broadcast" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
         ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
       } else {
         ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
