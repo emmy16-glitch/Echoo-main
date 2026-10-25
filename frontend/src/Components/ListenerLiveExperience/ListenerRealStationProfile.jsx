@@ -10,6 +10,7 @@ import {
 import batch3Service from '../../services/batch3Service';
 import followService from '../../services/followService';
 import collectionService from '../../services/collectionService';
+import ListenerRealLiveRoom from './ListenerRealLiveRoom';
 import { getCreatorProfilePath } from '../../services/profileIdentifier';
 import '../../styles/echoo-batch3.css';
 
@@ -26,6 +27,7 @@ const ListenerRealStationProfile = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isPermanentLink = location.pathname.startsWith('/listen/stations/');
+  const permanentLiveRoom = isPermanentLink && location.state?.permanentLiveRoom === true;
 
   const [station, setStation] = useState(null);
   const [live, setLive] = useState(null);
@@ -70,12 +72,14 @@ const ListenerRealStationProfile = () => {
         // The permanent Channel link always resolves the *current* live session.
         // A session's listener room supplies guest audio and read-only guest chat.
         // Replace history so Back does not immediately reopen this live room.
-        if (isPermanentLink && activeLive?.id && activeLive.status === 'live') {
-          navigate(`/listen/live/${encodeURIComponent(activeLive.id)}`, {
-            replace: true,
-            state: { show: { ...activeLive, station: nextStation, stationId: canonicalStationId } },
-          });
+        if (isPermanentLink && activeLive?.id && activeLive.status === 'live' && !permanentLiveRoom) {
+          // Route state turns the existing Channel page into a guest-capable
+          // listening room. The URL itself remains the permanent Channel URL.
+          navigate(location.pathname, { replace: true, state: { permanentLiveRoom: true } });
           return;
+        }
+        if (isPermanentLink && !activeLive?.id && permanentLiveRoom) {
+          navigate(location.pathname, { replace: true, state: null });
         }
       } else {
         setLive(null);
@@ -111,7 +115,7 @@ const ListenerRealStationProfile = () => {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [stationId, isPermanentLink, navigate]);
+  }, [stationId, isPermanentLink, permanentLiveRoom, location.pathname, navigate]);
 
   useEffect(() => {
     load();
@@ -183,6 +187,13 @@ const ListenerRealStationProfile = () => {
         </div>
       </div>
     );
+  }
+
+  if (permanentLiveRoom && live?.id && live.status === 'live') {
+    return <ListenerRealLiveRoom
+      broadcastIdOverride={live.id}
+      initialShowOverride={{ ...live, station, stationId: station.id }}
+    />;
   }
 
   const artwork = station.brandCover || station.coverArt || station.logo || null;
