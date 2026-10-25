@@ -29,7 +29,9 @@ const ListenerRealStationProfile = () => {
   const isPermanentLink = location.pathname.startsWith('/listen/stations/');
   const permanentLiveRoom = isPermanentLink && location.state?.permanentLiveRoom === true;
   const permanentLiveRoomRef = useRef(permanentLiveRoom);
-  permanentLiveRoomRef.current = permanentLiveRoom;
+  useEffect(() => {
+    permanentLiveRoomRef.current = permanentLiveRoom;
+  }, [permanentLiveRoom]);
 
   const [station, setStation] = useState(null);
   const [live, setLive] = useState(null);
