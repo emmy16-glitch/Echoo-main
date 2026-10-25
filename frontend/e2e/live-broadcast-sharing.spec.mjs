@@ -104,7 +104,7 @@ test('LIVE controls copy the permanent live URL and survive refresh', async ({ p
   await page.goto('/creator-studio');
   await expect(page.getByRole('button', { name: 'Copy live link' })).toBeVisible();
 
-  const expectedUrl = `${new URL(page.url()).origin}/listen/live/${BROADCAST_ID}`;
+  const expectedUrl = `${new URL(page.url()).origin}/listen/stations/${STATION_SLUG}`;
   await page.getByRole('button', { name: 'Copy live link' }).click();
   await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.__copiedText)).toBe(expectedUrl);
