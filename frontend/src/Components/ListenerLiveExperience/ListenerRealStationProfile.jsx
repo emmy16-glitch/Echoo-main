@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   FaArrowLeft,
   FaBroadcastTower,
@@ -24,6 +24,8 @@ const honestCount = (value) => {
 const ListenerRealStationProfile = () => {
   const { stationId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isPermanentLink = location.pathname.startsWith('/listen/stations/');
 
   const [station, setStation] = useState(null);
   const [live, setLive] = useState(null);
@@ -63,7 +65,18 @@ const ListenerRealStationProfile = () => {
       ]);
 
       if (liveResult.status === 'fulfilled') {
-        setLive(liveResult.value?.data || null);
+        const activeLive = liveResult.value?.data || null;
+        setLive(activeLive);
+        // The permanent Channel link always resolves the *current* live session.
+        // A session's listener room supplies guest audio and read-only guest chat.
+        // Replace history so Back does not immediately reopen this live room.
+        if (isPermanentLink && activeLive?.id && activeLive.status === 'live') {
+          navigate(`/listen/live/${encodeURIComponent(activeLive.id)}`, {
+            replace: true,
+            state: { show: { ...activeLive, station: nextStation, stationId: canonicalStationId } },
+          });
+          return;
+        }
       } else {
         setLive(null);
       }
@@ -98,7 +111,7 @@ const ListenerRealStationProfile = () => {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [stationId]);
+  }, [stationId, isPermanentLink, navigate]);
 
   useEffect(() => {
     load();
