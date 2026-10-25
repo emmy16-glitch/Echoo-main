@@ -16,7 +16,7 @@ import batch4Service, { normalizeChatMessage } from '../../services/batch4Servic
 import followService from '../../services/followService';
 import realtimeService from '../../services/realtimeService';
 import { getGuestSession } from '../../services/guestSession';
-import { copyTextToClipboard } from '../../services/stationPublicUrl';
+import { copyTextToClipboard, getPublicStationUrl } from '../../services/stationPublicUrl';
 import savedMomentService from '../../services/savedMomentService';
 import { apiRequest, buildMediaUrl } from '../../services/api';
 import {
@@ -657,13 +657,12 @@ const ListenerRealLiveRoom = () => {
     : null;
 
   const publicLiveUrl = () => {
-    const configuredOrigin = String(import.meta.env?.VITE_PUBLIC_APP_ORIGIN || '').trim().replace(/\/$/, '');
-    const pageHref = window.location.href;
-    return configuredOrigin
-      ? `${configuredOrigin}/listen/live/${encodeURIComponent(broadcastId)}`
-      : /^https?:\/\//i.test(pageHref)
-        ? pageHref.split('?')[0]
-        : '';
+    // Share the durable Channel URL even when this particular broadcast ends.
+    // The Channel route resolves the next active live session for guests.
+    const channel = show?.station && typeof show.station === 'object'
+      ? show.station
+      : { id: show?.stationId, slug: show?.stationSlug, isPublic: show?.isPublic };
+    return getPublicStationUrl(channel);
   };
 
   const openLiveInBrowser = async () => {
@@ -693,7 +692,7 @@ const ListenerRealLiveRoom = () => {
         showShareMessage('Shared');
       } else {
         await copyTextToClipboard(url);
-        showShareMessage('Live link copied');
+        showShareMessage('Channel link copied');
       }
     } catch (error) {
       if (error?.name === 'AbortError') return;
