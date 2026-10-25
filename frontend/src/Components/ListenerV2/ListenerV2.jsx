@@ -432,7 +432,8 @@ const ListenerV2Layout = () => {
   const { requestAuth, isGuest } = useGuestAuth();
 
   const profileImage = buildMediaUrl(user?.profileImage || user?.avatar);
-  const isLiveRoom = /^\/listen\/live\/[^/]+/.test(location.pathname);
+  const isLiveRoom = /^\/listen\/live\/[^/]+/.test(location.pathname) ||
+    (location.pathname.startsWith('/listen/stations/') && location.state?.permanentLiveRoom === true);
 
   const activeKey = useMemo(() => {
     if (location.pathname.includes('/library/following')) return 'following';
