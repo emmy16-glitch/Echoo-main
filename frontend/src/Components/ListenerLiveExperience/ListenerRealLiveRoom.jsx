@@ -120,8 +120,9 @@ const mergeById = (items, incoming) => {
   return next;
 };
 
-const ListenerRealLiveRoom = () => {
-  const { broadcastId } = useParams();
+const ListenerRealLiveRoom = ({ broadcastIdOverride = null, initialShowOverride = null }) => {
+  const { broadcastId: routeBroadcastId } = useParams();
+  const broadcastId = broadcastIdOverride || routeBroadcastId;
   const location = useLocation();
   const navigate = useNavigate();
   const { setLiveSession, livePlayerState: liveState } = useOutletContext() || {};
@@ -136,6 +137,7 @@ const ListenerRealLiveRoom = () => {
     import.meta.env.DEV &&
     new URLSearchParams(location.search).get('preview') === 'reference';
   const initialShow =
+    initialShowOverride ||
     location.state?.show ||
     (previewMode
       ? referenceLiveShows.find((item) => item.id === broadcastId) ||
