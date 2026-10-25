@@ -244,8 +244,8 @@ test('live actions persist, roll back failures, copy links, and open and close c
   await actions.click();
   await expect(page.getByRole('menuitem', { name: 'Saved', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('menuitem', { name: 'Copy link', exact: true }).click();
-  await expect(page.getByText('Live link copied', { exact: true })).toBeVisible();
-  expect(await page.evaluate(() => window.copiedLink)).toContain('/listen/live/507f1f77bcf86cd799439031');
+  await expect(page.getByText('Channel link copied', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => window.copiedLink)).toContain('/listen/stations/echoo-e2e-station');
   if (await page.locator('.listener-v2-room-chat-toggle').isVisible()) {
     await page.locator('.listener-v2-room-chat-toggle').click();
     await expect(page.getByRole('textbox', { name: 'Message live chat' })).toBeInViewport();

@@ -16,7 +16,7 @@ import batch4Service, { normalizeChatMessage } from '../../services/batch4Servic
 import followService from '../../services/followService';
 import realtimeService from '../../services/realtimeService';
 import { getGuestSession } from '../../services/guestSession';
-import { copyTextToClipboard } from '../../services/stationPublicUrl';
+import { copyTextToClipboard, getPublicStationUrl } from '../../services/stationPublicUrl';
 import savedMomentService from '../../services/savedMomentService';
 import { apiRequest, buildMediaUrl } from '../../services/api';
 import {
@@ -120,8 +120,9 @@ const mergeById = (items, incoming) => {
   return next;
 };
 
-const ListenerRealLiveRoom = () => {
-  const { broadcastId } = useParams();
+const ListenerRealLiveRoom = ({ broadcastIdOverride = null, initialShowOverride = null }) => {
+  const { broadcastId: routeBroadcastId } = useParams();
+  const broadcastId = broadcastIdOverride || routeBroadcastId;
   const location = useLocation();
   const navigate = useNavigate();
   const { setLiveSession, livePlayerState: liveState } = useOutletContext() || {};
@@ -136,6 +137,7 @@ const ListenerRealLiveRoom = () => {
     import.meta.env.DEV &&
     new URLSearchParams(location.search).get('preview') === 'reference';
   const initialShow =
+    initialShowOverride ||
     location.state?.show ||
     (previewMode
       ? referenceLiveShows.find((item) => item.id === broadcastId) ||
@@ -657,13 +659,12 @@ const ListenerRealLiveRoom = () => {
     : null;
 
   const publicLiveUrl = () => {
-    const configuredOrigin = String(import.meta.env?.VITE_PUBLIC_APP_ORIGIN || '').trim().replace(/\/$/, '');
-    const pageHref = window.location.href;
-    return configuredOrigin
-      ? `${configuredOrigin}/listen/live/${encodeURIComponent(broadcastId)}`
-      : /^https?:\/\//i.test(pageHref)
-        ? pageHref.split('?')[0]
-        : '';
+    // Share the durable Channel URL even when this particular broadcast ends.
+    // The Channel route resolves the next active live session for guests.
+    const channel = show?.station && typeof show.station === 'object'
+      ? show.station
+      : { id: show?.stationId, slug: show?.stationSlug, isPublic: show?.isPublic };
+    return getPublicStationUrl(channel);
   };
 
   const openLiveInBrowser = async () => {
@@ -693,7 +694,7 @@ const ListenerRealLiveRoom = () => {
         showShareMessage('Shared');
       } else {
         await copyTextToClipboard(url);
-        showShareMessage('Live link copied');
+        showShareMessage('Channel link copied');
       }
     } catch (error) {
       if (error?.name === 'AbortError') return;

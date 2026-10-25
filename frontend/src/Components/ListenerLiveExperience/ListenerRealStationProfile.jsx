@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   FaArrowLeft,
   FaBroadcastTower,
@@ -10,6 +10,7 @@ import {
 import batch3Service from '../../services/batch3Service';
 import followService from '../../services/followService';
 import collectionService from '../../services/collectionService';
+import ListenerRealLiveRoom from './ListenerRealLiveRoom';
 import { getCreatorProfilePath } from '../../services/profileIdentifier';
 import '../../styles/echoo-batch3.css';
 
@@ -24,6 +25,13 @@ const honestCount = (value) => {
 const ListenerRealStationProfile = () => {
   const { stationId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isPermanentLink = location.pathname.startsWith('/listen/stations/');
+  const permanentLiveRoom = isPermanentLink && location.state?.permanentLiveRoom === true;
+  const permanentLiveRoomRef = useRef(permanentLiveRoom);
+  useEffect(() => {
+    permanentLiveRoomRef.current = permanentLiveRoom;
+  }, [permanentLiveRoom]);
 
   const [station, setStation] = useState(null);
   const [live, setLive] = useState(null);
@@ -55,16 +63,45 @@ const ListenerRealStationProfile = () => {
       setFollowerCount(Number(nextStation.followerCount) || 0);
       const canonicalStationId = nextStation.id;
 
+      // The permanent link only needs the current live lookup to open audio.
+      // Do not hold guest entry behind optional follow/Collection requests.
+      const liveRequest = batch3Service.getLiveBroadcastForStation(canonicalStationId);
+      if (isPermanentLink) {
+        try {
+          const response = await liveRequest;
+          const activeLive = response?.data || null;
+          setLive(activeLive);
+          if (activeLive?.id && activeLive.status === 'live') {
+            if (!permanentLiveRoomRef.current) {
+              navigate(location.pathname, {
+                replace: true,
+                state: { permanentLiveRoom: true },
+              });
+            }
+            return;
+          }
+          if (permanentLiveRoomRef.current) {
+            navigate(location.pathname, { replace: true, state: null });
+          }
+        } catch {
+          // A transient status request must not remove a healthy live room.
+          // The normal Channel view can still try again and display its content.
+        }
+      }
+
       const [liveResult, upcomingResult, followResult, collectionResult] = await Promise.allSettled([
-        batch3Service.getLiveBroadcastForStation(canonicalStationId),
+        liveRequest,
         batch3Service.getUpcomingForStation(canonicalStationId),
-        followService.getStationStatus(canonicalStationId),
+        // Guests can see a Channel without an authenticated Follow request.
+        typeof window !== 'undefined' && !localStorage.getItem('accessToken')
+          ? Promise.resolve(null)
+          : followService.getStationStatus(canonicalStationId),
         collectionService.getForStation(canonicalStationId),
       ]);
 
       if (liveResult.status === 'fulfilled') {
         setLive(liveResult.value?.data || null);
-      } else {
+      } else if (!silent) {
         setLive(null);
       }
 
@@ -98,7 +135,7 @@ const ListenerRealStationProfile = () => {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [stationId]);
+  }, [stationId, isPermanentLink, location.pathname, navigate]);
 
   useEffect(() => {
     load();
@@ -170,6 +207,13 @@ const ListenerRealStationProfile = () => {
         </div>
       </div>
     );
+  }
+
+  if (permanentLiveRoom && live?.id && live.status === 'live') {
+    return <ListenerRealLiveRoom
+      broadcastIdOverride={live.id}
+      initialShowOverride={{ ...live, station, stationId: station.id }}
+    />;
   }
 
   const artwork = station.brandCover || station.coverArt || station.logo || null;

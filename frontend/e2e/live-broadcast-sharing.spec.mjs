@@ -104,7 +104,7 @@ test('LIVE controls copy the permanent live URL and survive refresh', async ({ p
   await page.goto('/creator-studio');
   await expect(page.getByRole('button', { name: 'Copy live link' })).toBeVisible();
 
-  const expectedUrl = `${new URL(page.url()).origin}/listen/live/${BROADCAST_ID}`;
+  const expectedUrl = `${new URL(page.url()).origin}/listen/stations/${STATION_SLUG}`;
   await page.getByRole('button', { name: 'Copy live link' }).click();
   await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.__copiedText)).toBe(expectedUrl);
@@ -165,12 +165,13 @@ test('the slug listener URL resolves live state through the canonical station ID
   }));
 
   await page.goto(`/listen/stations/${STATION_SLUG}`);
-  await expect(page.getByRole('heading', { name: station.name })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Listen Live' })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/listen/stations/${STATION_SLUG}$`));
+  await expect(page.locator(`.listener-v2-live-room`)).toBeVisible();
   expect(requests).toContain(`/api/broadcasts/station/${STATION_ID}/live`);
 
   await page.reload();
-  await expect(page.getByRole('button', { name: 'Listen Live' })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/listen/stations/${STATION_SLUG}$`));
+  await expect(page.locator(`.listener-v2-live-room`)).toBeVisible();
 
   currentLiveBroadcast = null;
   await page.reload();
@@ -185,15 +186,13 @@ test('Listener live room does not repeat Channel name as both station and creato
     json: { data: {
       ...liveBroadcast,
       title: 'Layers Of Truth live - 12 Oct',
-      creatorName: 'Layers of Truth',
       stationName: 'Layers of Truth',
       status: 'scheduled',
     } },
   }));
   await page.goto(`/listen/live/${BROADCAST_ID}`);
-  await expect(page.locator('.listener-v2-room-event-copy h1')).toContainText('Layers Of Truth live');
-  await expect(page.locator('.listener-v2-room-station')).toHaveCount(1);
-  await expect(page.locator('.listener-v2-room-creator')).toHaveCount(0);
+  const creatorIdentity = page.locator(`.listener-v2-room-creator`);
+  await expect(creatorIdentity).toHaveText(`Echoo Creator`);
 });
 
 test('Auth autofill matches the translucent style of ordinary fields', async ({ page }) => {

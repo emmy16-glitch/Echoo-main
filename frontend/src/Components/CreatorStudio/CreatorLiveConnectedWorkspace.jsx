@@ -35,7 +35,7 @@ import {
   stopLiveKitPublishing,
 } from '../../services/livekitPublisher';
 import realtimeService from '../../services/realtimeService';
-import { copyTextToClipboard } from '../../services/stationPublicUrl';
+import { copyTextToClipboard, getPublicStationUrl } from '../../services/stationPublicUrl';
 import {
   prepareEndBroadcastDeviceSave,
   retryAutosave,
@@ -1154,22 +1154,21 @@ const CreatorLiveConnectedWorkspace = ({
   };
 
   const copyLiveLink = async () => {
-    if (!currentLiveBroadcast?.id || typeof window === 'undefined') return;
-    const path = `/listen/live/${encodeURIComponent(currentLiveBroadcast.id)}`;
+    // Share the public Channel identity, never the temporary broadcast ID.
+    // One link continues to work after this live session ends and the next starts.
+    const channel = selectedStation;
+    const url = getPublicStationUrl(channel);
+    if (!url) {
+      setError('This Channel needs a public address before its link can be shared.');
+      return;
+    }
     try {
-      // new URL() throws on file:// (packaged desktop: origin 'null') — a
-      // share link needs an http(s) origin the desktop shell cannot provide.
-      const configuredOrigin = String(import.meta.env?.VITE_PUBLIC_APP_ORIGIN || '')
-        .trim()
-        .replace(/\/$/, '');
-      const shareOrigin = configuredOrigin || window.location.origin;
-      const url = new URL(path, shareOrigin).toString();
       await copyTextToClipboard(url);
       setError('');
       setLinkCopied(true);
       window.setTimeout(() => setLinkCopied(false), 1800);
     } catch {
-      setError('Could not copy the live link. Copy it from your browser after opening the Listener experience.');
+      setError('Could not copy the Channel link. Open Channel and copy its public link.');
     }
   };
 
