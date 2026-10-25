@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   FaArrowLeft,
@@ -28,6 +28,8 @@ const ListenerRealStationProfile = () => {
   const location = useLocation();
   const isPermanentLink = location.pathname.startsWith('/listen/stations/');
   const permanentLiveRoom = isPermanentLink && location.state?.permanentLiveRoom === true;
+  const permanentLiveRoomRef = useRef(permanentLiveRoom);
+  permanentLiveRoomRef.current = permanentLiveRoom;
 
   const [station, setStation] = useState(null);
   const [live, setLive] = useState(null);
@@ -68,7 +70,7 @@ const ListenerRealStationProfile = () => {
           const activeLive = response?.data || null;
           setLive(activeLive);
           if (activeLive?.id && activeLive.status === 'live') {
-            if (!permanentLiveRoom) {
+            if (!permanentLiveRoomRef.current) {
               navigate(location.pathname, {
                 replace: true,
                 state: { permanentLiveRoom: true },
@@ -76,7 +78,7 @@ const ListenerRealStationProfile = () => {
             }
             return;
           }
-          if (permanentLiveRoom) {
+          if (permanentLiveRoomRef.current) {
             navigate(location.pathname, { replace: true, state: null });
           }
         } catch {
@@ -131,7 +133,7 @@ const ListenerRealStationProfile = () => {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [stationId, isPermanentLink, permanentLiveRoom, location.pathname, navigate]);
+  }, [stationId, isPermanentLink, location.pathname, navigate]);
 
   useEffect(() => {
     load();
