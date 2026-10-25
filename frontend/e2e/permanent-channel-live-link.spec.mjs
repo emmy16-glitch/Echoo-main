@@ -46,11 +46,13 @@ test('the same public Channel URL takes guests to whichever broadcast is live', 
   await expect(page).toHaveURL(new RegExp(`/listen/live/${FIRST_BROADCAST_ID}$`));
   await expect(page.locator('.listener-v2-live-room')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Chat', exact: true })).toBeVisible();
+  await expect(page.locator('.listener-v2-root--room')).toBeVisible();
 
   live.current = SECOND_BROADCAST_ID;
   await page.goto(PERMANENT_PATH);
   await expect(page).toHaveURL(new RegExp(`/listen/live/${SECOND_BROADCAST_ID}$`));
   await expect(page.locator('.listener-v2-room-event-copy h1')).toContainText('Monday live teaching');
+  await expect(page.getByRole('button', { name: 'Chat', exact: true })).toBeVisible();
 });
 
 test('guests share the permanent Channel URL, not a one-time broadcast link', async ({ page }) => {
