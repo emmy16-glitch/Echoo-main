@@ -1294,7 +1294,7 @@ html.listener-v2-full-player-open body { overflow:hidden; }
 }
 @media (max-width: 359px) {
   .listener-v2-live-meta { gap: 6px; padding-left: 8px; }
-  .listener-v2-live-cta { padding-inline: 6px; font-size: 12px; }
+  .listener-v2-live-cta { padding-inline: 6px; font-size: 13px; }
   .listener-v2-live-card { grid-template-columns: 60px minmax(0, 1fr); }
   .listener-v2-live-art { width: 56px; height: 56px; }
   .listener-v2-panel { padding-inline: 11px; }

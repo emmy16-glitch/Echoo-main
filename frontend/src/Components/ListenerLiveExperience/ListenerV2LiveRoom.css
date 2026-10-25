@@ -473,7 +473,7 @@ routes through the same playback path as the center play button. */
   .listener-v2-room-toolbar-actions > button { min-width: 0; padding-inline: 7px; }
 }
 @media (max-width: 359px) {
-  .listener-v2-room-toolbar-actions > button { font-size: 11px; }
+  .listener-v2-room-toolbar-actions > button { font-size: 13px; }
   .listener-v2-room-event-copy { padding-inline: 8px; }
   .listener-v2-room-controls { padding-inline: 8px !important; }
 }
