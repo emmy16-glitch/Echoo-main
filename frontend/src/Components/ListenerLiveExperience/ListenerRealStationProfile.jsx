@@ -59,29 +59,45 @@ const ListenerRealStationProfile = () => {
       setFollowerCount(Number(nextStation.followerCount) || 0);
       const canonicalStationId = nextStation.id;
 
+      // The permanent link only needs the current live lookup to open audio.
+      // Do not hold guest entry behind optional follow/Collection requests.
+      const liveRequest = batch3Service.getLiveBroadcastForStation(canonicalStationId);
+      if (isPermanentLink) {
+        try {
+          const response = await liveRequest;
+          const activeLive = response?.data || null;
+          setLive(activeLive);
+          if (activeLive?.id && activeLive.status === 'live') {
+            if (!permanentLiveRoom) {
+              navigate(location.pathname, {
+                replace: true,
+                state: { permanentLiveRoom: true },
+              });
+            }
+            return;
+          }
+          if (permanentLiveRoom) {
+            navigate(location.pathname, { replace: true, state: null });
+          }
+        } catch {
+          // A transient status request must not remove a healthy live room.
+          // The normal Channel view can still try again and display its content.
+        }
+      }
+
       const [liveResult, upcomingResult, followResult, collectionResult] = await Promise.allSettled([
-        batch3Service.getLiveBroadcastForStation(canonicalStationId),
+        liveRequest,
         batch3Service.getUpcomingForStation(canonicalStationId),
-        followService.getStationStatus(canonicalStationId),
+        // Guests can see a Channel without an authenticated Follow request.
+        typeof window !== 'undefined' && !localStorage.getItem('accessToken')
+          ? Promise.resolve(null)
+          : followService.getStationStatus(canonicalStationId),
         collectionService.getForStation(canonicalStationId),
       ]);
 
       if (liveResult.status === 'fulfilled') {
-        const activeLive = liveResult.value?.data || null;
-        setLive(activeLive);
-        // The permanent Channel link always resolves the *current* live session.
-        // A session's listener room supplies guest audio and read-only guest chat.
-        // Replace history so Back does not immediately reopen this live room.
-        if (isPermanentLink && activeLive?.id && activeLive.status === 'live' && !permanentLiveRoom) {
-          // Route state turns the existing Channel page into a guest-capable
-          // listening room. The URL itself remains the permanent Channel URL.
-          navigate(location.pathname, { replace: true, state: { permanentLiveRoom: true } });
-          return;
-        }
-        if (isPermanentLink && !activeLive?.id && permanentLiveRoom) {
-          navigate(location.pathname, { replace: true, state: null });
-        }
-      } else {
+        setLive(liveResult.value?.data || null);
+      } else if (!silent) {
         setLive(null);
       }
 
