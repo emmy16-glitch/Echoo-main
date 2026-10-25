@@ -405,7 +405,10 @@ export async function updateStation(req, res, next) {
       }
 
       station.name = cleanName;
-      station.slug = nextSlug;
+      // A public Channel link is a permalink: renaming a Channel must not
+      // invalidate URLs listeners have already bookmarked or shared.
+      // Only legacy rows without a slug receive one on their first rename.
+      if (!station.slug) station.slug = nextSlug;
     }
 
     if (description !== undefined) station.description = description;
