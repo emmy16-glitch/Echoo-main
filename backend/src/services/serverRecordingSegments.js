@@ -95,6 +95,7 @@ export async function startServerRecordingSegments({
   let errorText = '';
   let lastCount = -1;
   let lastBytes = -1;
+  let progressChain = Promise.resolve();
   const confirmed = new Map();
   let resolveClosed;
   const closed = new Promise((resolve) => { resolveClosed = resolve; });
@@ -113,6 +114,14 @@ export async function startServerRecordingSegments({
   child.on('close', (code) => {
     stopped = true;
     if (code !== 0) fail(new Error(`Segment encoder stopped with code ${code}`));
+    if (failed) {
+      clearInterval(interval);
+      // Persist the degraded checkpoint once, not every 15s for a multi-hour
+      // live session whose optional recorder has already crashed.
+      void refresh(true).catch((error) => {
+        console.warn('[Echoo Recording Segments] failed state update:', error?.message || error);
+      });
+    }
     resolveClosed();
   });
   child.stderr?.on('data', (data) => { errorText = String(data).slice(-500); });
@@ -126,14 +135,18 @@ export async function startServerRecordingSegments({
     if (parts.length !== lastCount || bytes !== lastBytes || final || failed) {
       lastCount = parts.length;
       lastBytes = bytes;
-      await onProgress({
+      const snapshot = {
         status: failed ? 'degraded' : final ? 'completed' : 'recording',
         completedSegments: parts.length,
         segmentBytes: bytes,
         segmentSeconds,
         updatedAt: new Date(),
         error: failed ? errorText : null,
-      });
+      };
+      // Serialise metadata writes so an older 15-second poll cannot overwrite
+      // the final completed/degraded state after End Broadcast.
+      progressChain = progressChain.catch(() => undefined).then(() => onProgress(snapshot));
+      await progressChain;
     }
     return { count: parts.length, bytes, files: parts.map((item) => path.join(dir, item.name)) };
   };
