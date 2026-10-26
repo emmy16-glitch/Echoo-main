@@ -7,7 +7,10 @@ import Broadcast from '../models/Broadcast.js';
 import LiveKitProvider from '../providers/livekit.js';
 import { assertFfmpegAvailable } from './audioTrimService.js';
 import { getReplayOutputFile } from './broadcastOutputService.js';
-import { preserveInterruptedRecording } from './serverRecordingPreservation.js';
+import {
+  preserveInterruptedRecording,
+  preservePriorRecordingOutput,
+} from './serverRecordingPreservation.js';
 import { prepareServerRecordingSegments, watchServerRecordingSegments } from './serverRecordingSegments.js';
 
 const SAMPLE_RATE = 48_000;
@@ -20,6 +23,7 @@ const PROVIDER_CONTROL_TIMEOUT_MS = 5_000;
 const PROVIDER_START_TIMEOUT_MS = 15_000;
 const WRITE_CHAIN_DRAIN_TIMEOUT_MS = 30_000;
 const sessions = new Map();
+const sessionCreationPromises = new Map();
 const startPromises = new Map();
 const expectedTracks = new Map();
 const desiredTracks = new Map();
@@ -219,6 +223,9 @@ const createSession = async (broadcastId) => {
   const replay = getReplayOutputFile(broadcastId);
   if (!replay?.path) throw new Error('Could not resolve the server replay path.');
   await fs.mkdir(path.dirname(replay.path), { recursive: true });
+  // Never let FFmpeg -y overwrite the output of a previous interrupted
+  // session, even when a stale provider callback arrives unexpectedly.
+  await preservePriorRecordingOutput(replay.path);
   // Prepare both sinks BEFORE starting the ONE encoder. If the optional
   // segment directory fails, the canonical MP3 still records normally.
   let segmentPlan = null;
@@ -233,7 +240,10 @@ const createSession = async (broadcastId) => {
   // Persist the attempt before receiving any PCM so a process crash cannot
   // lose the only pointer to sealed backup files.
   if (segmentPlan) {
-    await persist(broadcastId, {
+    // Unlike telemetry, the attempt pointer is safety-critical. A failed
+    // MongoDB write must reject the recorder start rather than lose its only
+    // durable reference to segments after a process crash.
+    const checkpoint = await Broadcast.updateOne({ _id: broadcastId }, { $set: {
       'serverRecording.segments.status': 'recording',
       'serverRecording.segments.attemptId': segmentPlan.attemptId,
       'serverRecording.segments.completedSegments': 0,
@@ -243,7 +253,8 @@ const createSession = async (broadcastId) => {
       'serverRecording.segments.error': null,
       'serverRecording.segments.recoveryStatus': 'idle',
       'serverRecording.segments.recoveryError': null,
-    });
+    } });
+    if (!checkpoint.matchedCount) throw new Error('Cannot persist server recording attempt: broadcast not found.');
   }
 
   let resolveClosed;
@@ -349,8 +360,24 @@ const createSession = async (broadcastId) => {
   return session;
 };
 
-const getOrCreateSession = async (broadcastId) =>
-  sessions.get(broadcastId) || createSession(broadcastId);
+// A LiveKit Egress may retry its WebSocket while an initial connection is
+// preparing the archive directory. Single-flight this entire asynchronous
+// stage or two simultaneous starts could launch two encoders with -y.
+const getOrCreateSession = async (broadcastId) => {
+  const existing = sessions.get(broadcastId);
+  if (existing) return existing;
+  const pending = sessionCreationPromises.get(broadcastId);
+  if (pending) return pending;
+  const creation = createSession(broadcastId);
+  sessionCreationPromises.set(broadcastId, creation);
+  try {
+    return await creation;
+  } finally {
+    if (sessionCreationPromises.get(broadcastId) === creation) {
+      sessionCreationPromises.delete(broadcastId);
+    }
+  }
+};
 
 const finishSession = (session) => {
   if (!session) return null;

@@ -23,3 +23,21 @@ export async function preserveInterruptedRecording(outputPath) {
     return { partialBytes: 0, partialAvailable: false };
   }
 }
+
+/** Protects an existing output from FFmpeg's -y overwrite across retry races.
+ * Unlike regular failed-session preservation, even a short nonempty fragment
+ * is retained for operator inspection. Failure is fatal to recorder startup.
+ */
+export async function preservePriorRecordingOutput(outputPath) {
+  if (!outputPath) throw new Error('Recording output path required.');
+  const stat = await fs.lstat(outputPath).catch((error) => {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  });
+  if (!stat) return false;
+  if (!stat.isFile()) throw new Error('Recording output is not a regular file.');
+  const previousPath = `${outputPath}.interrupted-${Date.now()}-${randomUUID().slice(0, 8)}.mp3`;
+  await fs.rename(outputPath, previousPath);
+  console.warn('[Echoo Server Recording] retained earlier output before encoder restart:', previousPath);
+  return true;
+}

@@ -20,14 +20,17 @@ const sealedParts = async (directory, leaveLastOpen = true, cache = new Map()) =
     .filter((name) => PART_RE.test(name)).sort();
   const closed = leaveLastOpen ? names.slice(0, -1) : names;
   const parts = [];
-  for (const name of closed) {
-    if (cache.has(name)) {
-      parts.push({ name, bytes: cache.get(name) });
-      continue;
-    }
+  // Check the actual filesystem on EVERY refresh. Cached metadata can refer
+  // to NFS parts lost or truncated after the initial successful checkpoint.
+  for (const [index, name] of closed.entries()) {
+    if (name !== `part-${String(index).padStart(6, '0')}.mp3`) break;
     const handle = path.join(directory, name);
-    const stat = await fs.stat(handle).catch(() => null);
-    if (!stat?.isFile() || stat.size < 4096) continue;
+    const stat = await fs.lstat(handle).catch(() => null);
+    if (!stat?.isFile() || stat.size < 4096) break;
+    if (cache.get(name) !== undefined && cache.get(name) !== stat.size) {
+      // An already-sealed part was modified. Do not report it as protected.
+      break;
+    }
     // Only declare completed MP3 parts protected after flushing their bytes.
     const fd = await fs.open(handle, 'r');
     try { await fd.sync(); } finally { await fd.close(); }
@@ -51,7 +54,7 @@ export const inspectServerRecordingSegments = async ({
   let count = 0;
   let bytes = 0;
   for (let index = 0; index < expected; index += 1) {
-    const stat = await fs.stat(
+    const stat = await fs.lstat(
       path.join(directory, `part-${String(index).padStart(6, '0')}.mp3`)
     ).catch(() => null);
     if (!stat?.isFile() || stat.size < 4096) break;
@@ -111,7 +114,10 @@ export function watchServerRecordingSegments(config, {
       (elapsedSeconds - Math.max(30, config.segmentSeconds * 0.05)) / config.segmentSeconds
     ));
     const backupMissing = files.length < expectedMinimum || (final && files.length === 0);
-    const degraded = failed || backupMissing;
+    const expectedPartNames = (await fs.readdir(config.dir).catch(() => []))
+      .filter(name => PART_RE.test(name));
+    const corruptOrMissing = files.length < Math.max(0, expectedPartNames.length - ((!final || failed) ? 1 : 0));
+    const degraded = failed || backupMissing || corruptOrMissing;
     const nextBytes = files.reduce((a, f) => a + f.bytes, 0);
     if (count !== files.length || bytes !== nextBytes || final) {
       count = files.length; bytes = nextBytes;
@@ -124,8 +130,8 @@ export function watchServerRecordingSegments(config, {
         updatedAt: new Date(),
         error: failed
           ? 'Segment recording was interrupted; only sealed parts are recoverable.'
-          : backupMissing
-            ? 'The backup sink did not produce the expected sealed segments; check FFmpeg and persistent storage.'
+          : backupMissing || corruptOrMissing
+            ? 'Server backup segments are missing, altered or incomplete; check persistent storage.'
             : null,
       };
       chain = chain.catch(() => null).then(() => onProgress(update));
