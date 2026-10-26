@@ -67,7 +67,7 @@ export const inspectServerRecordingSegments = async ({
   if (expected === 0) return { verified: true, completedSegments: 0, segmentBytes: 0 };
   const id = safeId(broadcastId);
   const attempt = String(attemptId || '');
-  if (!id || !/^\\d{13}-[a-f0-9]{8}$/.test(attempt)) {
+  if (!id || !/^\d{13}-[a-f0-9]{8}$/.test(attempt)) {
     return { verified: false, completedSegments: 0, segmentBytes: 0 };
   }
   const directory = path.join(baseDir(), id, attempt);
