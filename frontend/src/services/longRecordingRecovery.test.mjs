@@ -51,3 +51,15 @@ test('persistent recording progress survives navigation, refresh and network fai
   assert.match(studio, /<ServerRecordingProgress \/>/);
   assert.match(broadcast, /echoo:recording-track-broadcast/);
 });
+
+test('live recording progress does not push End Broadcast below the viewport', async () => {
+  const studio = await read('../Components/CreatorStudio/CreatorStudio.jsx');
+  const styles = await read('../Components/CreatorStudio/CreatorBroadcastApproved.css');
+  const panel = await read('../Components/CreatorStudio/ServerRecordingProgress.jsx');
+  assert.match(studio, /studio-persistent-recording is-live-workspace/);
+  assert.match(studio, /<ServerRecordingProgress compact=\{activeNav === 'Broadcast'\}/);
+  assert.match(styles, /\.studio-persistent-recording\.is-live-workspace \{/);
+  assert.match(styles, /position: fixed;/);
+  assert.match(panel, /compact && live && !expanded/);
+  assert.match(panel, /setExpanded\(true\)/);
+});

@@ -785,7 +785,9 @@ const CreatorStudioBody = () => {
         {error && <div className="studio-alert error eb-shake" key={error}><FaExclamationCircle /><span>{error}</span><button type="button" onClick={() => setError('')}><FaTimes /></button></div>}
         {notice && <div className="studio-alert success eb-toast-in" key={notice}><FaCloudUploadAlt /><span>{notice}</span><button type="button" onClick={() => setNotice('')}><FaTimes /></button></div>}
 
-        <ServerRecordingProgress />
+        <div className={activeNav === 'Broadcast' ? 'studio-persistent-recording is-live-workspace' : 'studio-persistent-recording'}>
+          <ServerRecordingProgress compact={activeNav === 'Broadcast'} />
+        </div>
         {backgroundRecordingProgress && !['Broadcast', 'Recordings'].includes(activeNav) && (
           <div className={`studio-global-progress is-${backgroundRecordingProgress.stage}`} role="status" aria-live="polite">
             <div className="studio-global-progress__head">

@@ -32,7 +32,7 @@ const rememberSnapshot = (broadcastId, progress) => {
   } catch { /* Storage is best effort; MongoDB remains authoritative. */ }
 };
 
-export default function ServerRecordingProgress({ liveBroadcastId = '', hideSaved = false }) {
+export default function ServerRecordingProgress({ liveBroadcastId = '', hideSaved = false, compact = false }) {
   const [broadcastId, setBroadcastId] = useState(() => loadSnapshot()?.broadcastId || loadBroadcastId());
   const [progress, setProgress] = useState(() => loadSnapshot()?.progress || null);
   const [lastCheckedAt, setLastCheckedAt] = useState(() => loadSnapshot()?.checkedAt || 0);
@@ -44,6 +44,7 @@ export default function ServerRecordingProgress({ liveBroadcastId = '', hideSave
   const [recoveryError, setRecoveryError] = useState('');
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState('');
+  const [expanded, setExpanded] = useState(false);
   const [clockNow, setClockNow] = useState(() => Date.now());
   const latestBroadcastRef = useRef(broadcastId);
   useEffect(() => {
@@ -193,6 +194,29 @@ export default function ServerRecordingProgress({ liveBroadcastId = '', hideSave
     : failed ? 'Recording needs recovery'
     : 'Saving recording to ECHOO';
   const updated = lastCheckedAt ? new Date(lastCheckedAt).toLocaleTimeString() : '';
+  // Keep a small, always-visible live save indicator without shifting or
+  // covering the End Broadcast and Monitor Mix controls. Details are optional.
+  if (compact && live && !expanded) {
+    return (
+      <section className="ec2-operation-progress ec2-operation-progress--floating-compact"
+        role="status" aria-live="polite" data-testid="server-recording-progress">
+        <div className="ec2-operation-progress__head">
+          <strong>{title}</strong>
+          <span>{!connected ? 'Offline' : 'Live'}</span>
+        </div>
+        <div className="ec2-operation-progress__bar" role="progressbar"
+          aria-label="Protected server backup coverage" aria-valuemin={0}
+          aria-valuemax={100} aria-valuenow={coverage}>
+          <i style={{ width: `${coverage}%` }} />
+        </div>
+        <div className="ec2-operation-progress__compact-footer">
+          <small>{!connected ? 'Reconnecting • last confirmed data retained'
+            : `${count} protected parts • ${Math.floor(protectedSeconds / 60)} min secured`}</small>
+          <button type="button" onClick={() => setExpanded(true)}>Details</button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="ec2-operation-progress" role="status" aria-live="polite"
@@ -201,6 +225,10 @@ export default function ServerRecordingProgress({ liveBroadcastId = '', hideSave
         <strong>{title}</strong>
         <span>{done ? 'Saved' : !connected ? 'Offline' : live ? 'Live' : pending ? 'Finalizing' : 'Attention'}</span>
       </div>
+      {compact && live && expanded && (
+        <button type="button" className="ec2-operation-progress__collapse"
+          onClick={() => setExpanded(false)}>Show less</button>
+      )}
       <div className="ec2-operation-progress__bar" role="progressbar" aria-label="Protected server backup coverage"
         aria-valuemin={0} aria-valuemax={100} aria-valuenow={coverage}>
         <i style={{ width: `${coverage}%` }} />

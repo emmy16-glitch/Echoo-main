@@ -1431,3 +1431,53 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
 @media (prefers-reduced-motion: reduce) {
   .ec2-operation-progress__bar.is-indeterminate > i { animation: none; transform: translateX(0); }
 }
+
+/* Persistent broadcast recording status: overlay without reflowing any
+   End Broadcast, monitor or live mixer control. It remains mounted in
+   Creator Studio while route content changes. */
+.studio-persistent-recording.is-live-workspace {
+  position: fixed;
+  top: 84px;
+  right: 18px;
+  width: min(340px, calc(100vw - 32px));
+  max-height: calc(100dvh - 106px);
+  overflow-y: auto;
+  z-index: 34;
+  pointer-events: none;
+}
+.studio-persistent-recording.is-live-workspace > * { pointer-events: auto; }
+.studio-persistent-recording.is-live-workspace .ec2-operation-progress {
+  box-shadow: 0 8px 22px rgba(11, 36, 68, .13);
+  margin: 0;
+}
+.ec2-operation-progress--floating-compact {
+  padding: 10px 12px;
+  gap: 6px;
+}
+.ec2-operation-progress__compact-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.ec2-operation-progress__compact-footer small { font-size: 11px; color: #506381; }
+.ec2-operation-progress__compact-footer button,
+.ec2-operation-progress__collapse {
+  background: none;
+  border: 0;
+  color: #205dc4;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+@media (max-width: 640px) {
+  .studio-persistent-recording.is-live-workspace {
+    top: auto;
+    bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    right: 10px;
+    width: min(290px, calc(100vw - 20px));
+    max-height: 55dvh;
+  }
+}
