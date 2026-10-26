@@ -264,26 +264,6 @@ const createSession = async (broadcastId) => {
   );
   session.child = child;
 
-  // The rolling recorder is an independently bounded backup. Failures do not
-  // propagate to the primary MP3 encoder or the LiveKit publishing connection.
-  try {
-    session.segmentRecorder = await startServerRecordingSegments({
-      broadcastId,
-      bitrate: bitrate(),
-      onProgress: (progress) => persist(broadcastId, {
-        'serverRecording.segments.status': progress.status,
-        'serverRecording.segments.completedSegments': progress.completedSegments,
-        'serverRecording.segments.segmentBytes': progress.segmentBytes,
-        'serverRecording.segments.segmentSeconds': progress.segmentSeconds,
-        'serverRecording.segments.attemptId': progress.attemptId,
-        'serverRecording.segments.updatedAt': progress.updatedAt,
-        'serverRecording.segments.error': progress.error,
-      }),
-    });
-  } catch (error) {
-    console.warn('[Echoo Recording] optional server segments unavailable:', error?.message || error);
-  }
-
   let stderr = '';
   child.stderr?.on('data', (data) => {
     stderr = `${stderr}${String(data)}`.slice(-4000);
@@ -318,6 +298,34 @@ const createSession = async (broadcastId) => {
     }
     session.resolveClosed();
     if (session.failed) void finishSession(session);
+  });
+
+  // Optional segments start asynchronously. Never await optional filesystem
+  // I/O before registering FFmpeg error/close listeners or returning the
+  // primary recording session. This also prevents an unhandled spawn error.
+  void startServerRecordingSegments({
+    broadcastId,
+    bitrate: bitrate(),
+    onProgress: (progress) => persist(broadcastId, {
+      'serverRecording.segments.status': progress.status,
+      'serverRecording.segments.completedSegments': progress.completedSegments,
+      'serverRecording.segments.segmentBytes': progress.segmentBytes,
+      'serverRecording.segments.segmentSeconds': progress.segmentSeconds,
+      'serverRecording.segments.attemptId': progress.attemptId,
+      'serverRecording.segments.updatedAt': progress.updatedAt,
+      'serverRecording.segments.error': progress.error,
+    }),
+  }).then((recorder) => {
+    if (!recorder) return;
+    if (session.stopping || session.failed) {
+      // End may happen while the secondary encoder is initializing.
+      // Close it independently, never resurrect a recorder after off air.
+      void recorder.finish().catch(() => undefined);
+      return;
+    }
+    session.segmentRecorder = recorder;
+  }).catch((error) => {
+    console.warn('[Echoo Recording] optional server segments unavailable:', error?.message || error);
   });
 
   sessions.set(broadcastId, session);
