@@ -40,6 +40,34 @@ sudo systemctl restart cloudflared-kaduna-cng.service
 Do not create an A/AAAA record for the server. The Tunnel-managed CNAME is
 the DNS record required for the hostname.
 
+## Ten-minute server recording on digi02
+
+The dedicated **digi02 production server** enables recording segments. Render
+remains a disposable test environment and must not be treated as the recording
+archive. Set these values in the **real production** `backend/.env`
+(the template alone cannot change the running server):
+
+```env
+LIVEKIT_SERVER_RECORDING_ENABLED=true
+SERVER_RECORDING_SEGMENTS_ENABLED=true
+REPLAY_ARCHIVE_DIR=/mnt/storage/media/echoo/replay
+AUDIO_REPLAY_MP3_BITRATE=320k
+```
+
+The archive holds `<broadcastId>.mp3` plus private ten-minute segments under
+`segments/<broadcastId>/<attemptId>/part-000000.mp3`. This is the persistent
+digi02 media mount, not browser/Render storage. The deploy script refuses to
+restart production unless that mount is writable and the actual FFmpeg tee
+muxer produces a primary MP3 and independently closed segments in a temporary
+probe. The preflight cleans up the probe files.
+
+**If the mount is still read-only**, correct NFS export/mount permissions first.
+Do not silently replace the archive with an ephemeral fallback. Confirm
+`/api/health/recording` after deployment, then run a short real broadcast and
+verify server segment counts/bytes and listener audio before trusting long
+sessions. Segment files are recoverable backups; automatic stitching into a
+complete replay after primary recorder failure is not yet implemented.
+
 ## Deploy
 
 ```bash
