@@ -77,6 +77,10 @@ export async function reconstructServerRecordingFromSegments({
     if (error?.code === 'ENOENT') return [];
     throw error;
   });
+  // Never follow a symlink masquerading as a recording attempt directory.
+  // An archive may be restored or altered while a recovery job is waiting.
+  const directoryInfo = await fs.lstat(directory).catch(() => null);
+  if (!directoryInfo?.isDirectory()) return incomplete('segment-directory-invalid');
   const names = entries.filter(name => FILE_PATTERN.test(name)).sort();
   if (!names.length) return incomplete('segments-missing');
   if (names.length > MAX_PARTS) return incomplete('too-many-parts');
@@ -98,6 +102,7 @@ export async function reconstructServerRecordingFromSegments({
 
   const parts = [];
   let totalDuration = 0;
+  let totalBytes = 0;
   for (let i = 0; i < usableCount; i += 1) {
     const filePath = path.join(directory, names[i]);
     const stat = await fs.lstat(filePath).catch(() => null);
@@ -111,7 +116,20 @@ export async function reconstructServerRecordingFromSegments({
     if (i < usableCount - 1 && duration + Math.max(3, secondsPerPart * 0.02) < secondsPerPart) {
       return incomplete('short-intermediate-segment');
     }
+    // ffprobe reads headers and can accept an MP3 with damaged frames.
+    // An offline, single-threaded decode with fail-fast errors verifies the
+    // actual audio packets. This never touches the live WebRTC pipeline.
+    try {
+      await run(process.env.FFMPEG_PATH || 'ffmpeg', [
+        '-nostdin', '-hide_banner', '-v', 'error', '-xerror',
+        '-threads', '1', '-i', filePath, '-map', '0:a:0',
+        '-f', 'null', '-',
+      ], Math.max(60_000, Math.min(12 * 60_000, Math.ceil(duration * 1000))));
+    } catch {
+      return incomplete('segment-decode-failed');
+    }
     totalDuration += duration;
+    totalBytes += stat.size;
     parts.push(filePath);
   }
 
@@ -123,10 +141,17 @@ export async function reconstructServerRecordingFromSegments({
       availableSeconds: totalDuration, expectedSeconds: expectedDurationSeconds,
     });
   }
-  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+  const targetDir = path.dirname(outputPath);
+  await fs.mkdir(targetDir, { recursive: true });
+  // Keep a full temporary copy plus adequate headroom while committing the
+  // reconstructed MP3. A full NFS volume must not destroy the source segments.
+  const stats = await fs.statfs(targetDir).catch(() => null);
+  if (stats && Number(stats.bavail) * Number(stats.bsize) < totalBytes * 1.2 + 1024 * 1024) {
+    return incomplete('insufficient-replay-storage');
+  }
   const token = randomUUID();
-  const listPath = path.join(path.dirname(outputPath), '.echoo-' + token + '.concat.txt');
-  const tempPath = path.join(path.dirname(outputPath), '.echoo-' + token + '.mp3');
+  const listPath = path.join(targetDir, '.echoo-' + token + '.concat.txt');
+  const tempPath = path.join(targetDir, '.echoo-' + token + '.mp3');
   const safeLines = parts.map(part => "file '" + part.replace(/'/g, "'\\''") + "'").join('\n');
   try {
     await fs.writeFile(listPath, safeLines + '\n', { flag: 'wx', mode: 0o600 });
