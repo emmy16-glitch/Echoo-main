@@ -7,6 +7,7 @@ import Broadcast from '../models/Broadcast.js';
 import LiveKitProvider from '../providers/livekit.js';
 import { assertFfmpegAvailable } from './audioTrimService.js';
 import { getReplayOutputFile } from './broadcastOutputService.js';
+import { preserveInterruptedRecording } from './serverRecordingPreservation.js';
 
 const SAMPLE_RATE = 48_000;
 const CHANNELS = 2;
@@ -163,26 +164,6 @@ const validateRecordingRequest = (request) => {
   const payload = signaturePayload({ broadcastId, trackSid, expiresAt });
   if (!safeEqual(signature, sign(payload))) return null;
   return { broadcastId, trackSid };
-};
-
-// Never delete the last server-side bytes of a failed multi-hour recording.
-// A partial MP3 is explicitly not a verified replay. Keep it separate from the
-// canonical path for diagnosis/manual recovery and to prevent accidental
-// publication of an interrupted take.
-const preserveInterruptedRecording = async (outputPath) => {
-  if (!outputPath) return { partialBytes: 0, partialAvailable: false };
-  try {
-    const stat = await fs.stat(outputPath);
-    if (!stat.isFile() || stat.size < 4096) return { partialBytes: 0, partialAvailable: false };
-    const protectedPath = `${outputPath}.interrupted.mp3`;
-    await fs.rename(outputPath, protectedPath);
-    return { partialBytes: stat.size, partialAvailable: true };
-  } catch (error) {
-    if (error?.code !== 'ENOENT') {
-      console.warn('[Echoo Server Recording] could not preserve interrupted MP3:', error?.message || error);
-    }
-    return { partialBytes: 0, partialAvailable: false };
-  }
 };
 
 const persist = async (broadcastId, patch) => {
