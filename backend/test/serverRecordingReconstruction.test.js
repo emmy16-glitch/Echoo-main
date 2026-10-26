@@ -117,3 +117,12 @@ test('replay background finalization uses segment reconstruction only after reco
   assert.match(source, /serverRecording\.segments\.recoveryStatus/);
   assert.match(source, /replaySource === 'server-segments'/);
 });
+
+test('backend startup and orphan sweep requeue a lost replay finalization job', async () => {
+  const processing = await fs.readFile(new URL('../src/services/broadcastProcessingService.js', import.meta.url), 'utf8');
+  const sweep = await fs.readFile(new URL('../src/services/livekitOrphanSweep.js', import.meta.url), 'utf8');
+  assert.match(processing, /requeueMissingRecordingFinalizations/);
+  assert.match(processing, /serverRecording\.segments\.attemptId/);
+  assert.match(processing, /enqueueBroadcastProcessing\(broadcast\._id, \{ transcriptionEnabled: false \}\)/);
+  assert.match(sweep, /enqueueBroadcastProcessing\(doc\._id, \{ transcriptionEnabled: false \}\)/);
+});

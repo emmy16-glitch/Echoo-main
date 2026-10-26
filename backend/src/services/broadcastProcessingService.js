@@ -376,6 +376,29 @@ async function processNextJob() {
   }
 }
 
+// A server crash can occur after End Broadcast commits status=completed but
+// before it inserts the audio_finalization job. Recover those lost enqueue
+// operations from durable recording metadata on service restart.
+export async function requeueMissingRecordingFinalizations() {
+  const candidates = await Broadcast.find({
+    status: 'completed',
+    isDeleted: false,
+    replayAudio: null,
+    replayAudioId: null,
+    'serverRecording.segments.attemptId': { $exists: true, $ne: null },
+  }).select('_id').limit(200);
+  let requeued = 0;
+  for (const broadcast of candidates) {
+    const job = await BroadcastProcessingJob.findOne({
+      broadcastId: broadcast._id, jobType: 'audio_finalization',
+    }).select('_id');
+    if (job) continue;
+    await enqueueBroadcastProcessing(broadcast._id, { transcriptionEnabled: false });
+    requeued += 1;
+  }
+  return requeued;
+}
+
 export function startBroadcastProcessingWorker(io) {
   socketServer = io;
   if (workerTimer) return;
@@ -396,6 +419,9 @@ export function startBroadcastProcessingWorker(io) {
   ).catch(() => null);
   BroadcastProcessingJob.syncIndexes().catch(() => null);
   BroadcastAudioChunk.syncIndexes().catch(() => null);
+  void requeueMissingRecordingFinalizations().catch(error => {
+    console.warn('[Echoo Replay] startup finalization recovery warning:', error?.message || error);
+  });
   workerTimer = setInterval(() => void processNextJob(), POLL_MS);
   workerTimer.unref?.();
   void processNextJob();
