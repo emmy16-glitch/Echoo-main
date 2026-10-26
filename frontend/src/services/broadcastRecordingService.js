@@ -18,8 +18,8 @@ const OPFS_DIRECTORY = 'echoo-live-recordings';
 const OPFS_MANIFEST_KEY = 'echoo:recoverable-broadcast-recording:v1';
 const OPFS_MANIFESTS_KEY = 'echoo:recoverable-broadcast-recordings:v2';
 const OPFS_CHECKPOINT_MS = 15_000;
-// A week-long storage budget, never a hard recording-duration cutoff.
-const LONG_SESSION_TARGET_SECONDS = 7 * 24 * 60 * 60;
+// Twelve-hour storage planning target; never a live-streaming duration cutoff.
+const LONG_SESSION_TARGET_SECONDS = 12 * 60 * 60;
 const LOSSLESS_STORAGE_RESERVE_BYTES = 512 * 1024 * 1024;
 const LOSSLESS_LONG_SESSION_TARGET_BYTES =
   WAV_TARGET_SAMPLE_RATE *
@@ -270,7 +270,7 @@ const resolveLongSessionCompressedBitrate = async () => {
   const estimate = await storageHeadroom();
   if (!estimate) {
     return {
-      bitrate: 128000,
+      bitrate: OPUS_FALLBACK_BITRATE,
       estimatedAvailableBytes: null,
       fullTargetExpected: null,
     };
@@ -1128,7 +1128,7 @@ const startLosslessRecording = async ({ broadcastId, title }) => {
 
   if (!(await hasLongSessionLosslessHeadroom())) {
     const error = new Error(
-      'Local storage headroom is too small for a week-long lossless safety master; using disk-backed Opus recovery instead.'
+      'Local storage headroom is insufficient for a 12-hour lossless safety recording; using disk-backed Opus recovery instead.'
     );
     error.code = 'LOSSLESS_STORAGE_HEADROOM_LOW';
     throw error;
@@ -1515,7 +1515,7 @@ const startFallbackRecording = async ({ broadcastId, mediaTrack, title }) => {
     window.dispatchEvent(new CustomEvent('echoo:toast', {
       detail: {
         type: 'warning',
-        message: 'Local storage is insufficient for a week-long recovery recording. Echoo reduced the safety-recording bitrate and will keep the live stream running; free device storage before a very long broadcast for stronger local recovery.',
+        message: 'Local storage is low for a 12-hour recovery recording. Echoo reduced the safety-recording bitrate and will keep the live stream running; free device storage before a very long broadcast for stronger local recovery.',
       },
     }));
   }
