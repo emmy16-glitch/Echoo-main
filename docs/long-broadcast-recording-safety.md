@@ -11,7 +11,7 @@ Echoo's live audio transport and recording recovery are separate. Recording erro
 
 ## Ten-minute server recording parts (staged)
 
-The independent server segment recorder is available behind `SERVER_RECORDING_SEGMENTS_ENABLED=true`, **disabled by default until hosting capacity is tested**. When enabled, it receives a second copy of the already-published LiveKit Track Egress PCM, encodes MP3 parts using a separate FFmpeg process, and closes each part approximately every 10 minutes. Segments are stored privately under:
+The single-FFmpeg tee segment output is available behind `SERVER_RECORDING_SEGMENTS_ENABLED=true`, **disabled by default until hosting capacity is tested**. When enabled, it receives a second copy of the already-published LiveKit Track Egress PCM, encodes audio once and writes both the continuous MP3 and sealed ten-minute MP3 parts through the FFmpeg tee muxer. Segments are stored privately under:
 
 ```
 REPLAY_ARCHIVE_DIR/segments/<broadcastId>/<recorderAttempt>/part-000000.mp3
@@ -19,7 +19,7 @@ REPLAY_ARCHIVE_DIR/segments/<broadcastId>/<recorderAttempt>/part-000000.mp3
 
 For example, set `REPLAY_ARCHIVE_DIR=/srv/echoo-recordings` on a **persistent disk** mounted to the backend server. This directory must survive restarts and deployments. Do not put it inside a disposable Render/CI/Docker container filesystem. Back up completed parts to an independent storage service before calling them disaster-safe; local persistent disk alone does not protect against disk loss.
 
-The sidecar is **never awaited in the critical PCM forwarding path**, has a bounded 4 MiB write backlog and stops itself if it falls behind. It uses an extra FFmpeg process and disk writes, so enabling it does increase backend CPU and I/O load. Verify adequate headroom while 500 listeners are connected before turning it on in production. Segment failures do not deliberately interrupt WebRTC audio, but no software can guarantee zero dropouts under exhausted host resources.
+The backup uses the **same MP3 encoder** as the continuous replay, not a second FFmpeg process. FFmpeg's tee muxer provides an independent FIFO output for segments with `onfail=ignore`, so a failed backup destination does not abort the main MP3. Creating and checking additional MP3 files still adds disk I/O, which must be benchmarked. Verify adequate headroom while 500 listeners are connected before turning it on in production. Segment failures do not deliberately interrupt WebRTC audio, but no software can guarantee zero dropouts under exhausted host resources.
 
 Completed part counts and bytes are stored in MongoDB. The creator-only `GET /api/broadcasts/:broadcastId/recording-progress` endpoint powers a progress panel that is recovered from the server after refresh. It never exposes recording paths or claims a full replay is saved until `replayStatus=ready`. If the browser refreshes, its microphone/WebRTC publication still stops: server-side progress survives but a connected creator publisher does not.
 
@@ -41,3 +41,8 @@ The browser safety recording plans for 12 hours of capacity and chooses a compre
 ## Explicit limitations
 
 No web app can keep a creator's microphone publishing uninterrupted after that browser tab refreshes, crashes, loses OS microphone permission, or the device powers off. The correct long-term answer for publisher continuity is independent ingest and redundant audio capture, not a promise of zero failures. This change protects previously captured audio and enables recovery; a future milestone can introduce durable multi-segment server recording and automatic stitching/verification. 
+
+
+## One encoder clarification
+
+ECHOO's LiveKit audio publishing remains its own WebRTC transport. **Only recording** uses FFmpeg. With the backup enabled, the recording recorder uses **one FFmpeg process and one MP3 encoding pass**, teeing the MP3 data to the primary full recording and the ten-minute segment sink. The backup sink has `onfail=ignore` and `use_fifo=1`. No second MP3 process runs. Tests cover backup destination failure without loss of the primary MP3.
