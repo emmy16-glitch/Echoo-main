@@ -11,13 +11,13 @@ Echoo's live audio transport and recording recovery are separate. Recording erro
 
 ## Ten-minute server recording parts (staged)
 
-The single-FFmpeg tee segment output is available behind `SERVER_RECORDING_SEGMENTS_ENABLED=true`, **disabled by default until hosting capacity is tested**. When enabled, it receives a second copy of the already-published LiveKit Track Egress PCM, encodes audio once and writes both the continuous MP3 and sealed ten-minute MP3 parts through the FFmpeg tee muxer. Segments are stored privately under:
+The single-FFmpeg tee segment output is available behind `SERVER_RECORDING_SEGMENTS_ENABLED=true`. **The digi02 production deployment template enables it and the deployment script requires a writable persistent archive and a successful FFmpeg tee test.** Other environments, including temporary Render staging, do not enable it automatically. When enabled, it receives a second copy of the already-published LiveKit Track Egress PCM, encodes audio once and writes both the continuous MP3 and sealed ten-minute MP3 parts through the FFmpeg tee muxer. Segments are stored privately under:
 
 ```
 REPLAY_ARCHIVE_DIR/segments/<broadcastId>/<recorderAttempt>/part-000000.mp3
 ```
 
-For example, set `REPLAY_ARCHIVE_DIR=/srv/echoo-recordings` on a **persistent disk** mounted to the backend server. This directory must survive restarts and deployments. Do not put it inside a disposable Render/CI/Docker container filesystem. Back up completed parts to an independent storage service before calling them disaster-safe; local persistent disk alone does not protect against disk loss.
+For digi02, use `REPLAY_ARCHIVE_DIR=/mnt/storage/media/echoo/replay` on its **persistent media mount**. This directory must survive restarts and deployments. Do not put it inside a disposable Render/CI/Docker container filesystem. Back up completed parts to an independent storage service before calling them disaster-safe; local persistent disk alone does not protect against disk loss.
 
 The backup uses the **same MP3 encoder** as the continuous replay, not a second FFmpeg process. FFmpeg's tee muxer provides an independent FIFO output for segments with `onfail=ignore`, so a failed backup destination does not abort the main MP3. Creating and checking additional MP3 files still adds disk I/O, which must be benchmarked. Verify adequate headroom while 500 listeners are connected before turning it on in production. Segment failures do not deliberately interrupt WebRTC audio, but no software can guarantee zero dropouts under exhausted host resources.
 
