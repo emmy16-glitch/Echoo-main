@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import {
   prepareServerRecordingSegments, watchServerRecordingSegments,
-  inspectServerRecordingSegments, serverRecordingSegmentsEnabled,
+  inspectServerRecordingSegments, listSealedServerRecordingSegments, serverRecordingSegmentsEnabled,
 } from '../src/services/serverRecordingSegments.js';
 
 const ffmpeg = String(process.env.FFMPEG_PATH || 'ffmpeg').trim() || 'ffmpeg';
@@ -207,4 +207,54 @@ test('graceful API restart preserves partial recording and awaits durable cleanu
   assert.match(recorder, /await Promise\.allSettled\(closing\)/);
   assert.match(recorder, /recorderServerClosing/);
   assert.match(app, /await closeLiveKitRecordingWebSocket\(\)/);
+});
+
+
+test('creator can recover 54 protected ten-minute parts after a nine-hour capture', { skip: !available }, async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'echoo-nine-hour-index-'));
+  const previous = process.env.REPLAY_ARCHIVE_DIR;
+  const id = '507f1f77bcf86cd799439015';
+  const attempt = '1793010000000-cafebabe';
+  const dir = path.join(root, 'segments', id, attempt);
+  process.env.REPLAY_ARCHIVE_DIR = root;
+  try {
+    await fs.mkdir(dir, { recursive: true });
+    const sample = path.join(root, 'valid.mp3');
+    const ff = spawnSync(ffmpeg, [
+      '-hide_banner', '-loglevel', 'error', '-f', 'lavfi',
+      '-i', 'sine=frequency=750:sample_rate=48000',
+      '-t', '1', '-c:a', 'libmp3lame', '-b:a', '128k', sample,
+    ], { encoding: 'utf8', timeout: 20_000 });
+    assert.equal(ff.status, 0, ff.stderr);
+    for (let index = 0; index < 54; index += 1) {
+      await fs.copyFile(sample, path.join(dir, 'part-' + String(index).padStart(6, '0') + '.mp3'));
+    }
+    const full = await listSealedServerRecordingSegments({
+      broadcastId: id, attemptId: attempt, segmentStatus: 'completed',
+    });
+    assert.equal(full.length, 54);
+    const interrupted = await listSealedServerRecordingSegments({
+      broadcastId: id, attemptId: attempt, segmentStatus: 'degraded',
+    });
+    assert.equal(interrupted.length, 53, 'never expose the potentially open final part');
+    await fs.rm(path.join(dir, 'part-000017.mp3'));
+    const missing = await listSealedServerRecordingSegments({
+      broadcastId: id, attemptId: attempt, segmentStatus: 'completed',
+    });
+    assert.equal(missing.length, 17, 'a missing middle segment must stop the contiguous recovery catalog');
+  } finally {
+    if (previous === undefined) delete process.env.REPLAY_ARCHIVE_DIR;
+    else process.env.REPLAY_ARCHIVE_DIR = previous;
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test('server recording recovery downloads require creator authentication', async () => {
+  const routes = await fs.readFile(new URL('../src/routes/broadcastRoutes.js', import.meta.url), 'utf8');
+  const controller = await fs.readFile(new URL('../src/controllers/broadcastRecordingRecoveryDownloadsController.js', import.meta.url), 'utf8');
+  assert.match(routes, /recording-segments', authenticate, requireCreator, listRecordingRecoveryDownloads/);
+  assert.match(routes, /recording-segments\/:index', authenticate, requireCreator, downloadRecordingRecoverySegment/);
+  assert.match(controller, /creator: req.userId/);
+  assert.match(controller, /createReadStream/);
+  assert.doesNotMatch(controller, /readFile\(/);
 });
