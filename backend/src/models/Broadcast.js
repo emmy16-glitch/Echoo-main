@@ -230,6 +230,7 @@ const broadcastSchema = new mongoose.Schema(
         completedSegments: { type: Number, default: 0, min: 0 },
         segmentBytes: { type: Number, default: 0, min: 0 },
         segmentSeconds: { type: Number, default: 600, min: 1 },
+        attemptId: { type: String, default: null, maxlength: 32 },
         updatedAt: { type: Date, default: null },
         error: { type: String, default: null, maxlength: 500 },
       },
