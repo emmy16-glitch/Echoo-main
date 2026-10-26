@@ -12,9 +12,9 @@ test('recording readiness probes a real mounted writable volume, not just a dire
   const source = await fs.readFile(new URL('../src/services/serverRecordingStorageHealth.js', import.meta.url), 'utf8');
   const routes = await fs.readFile(new URL('../src/routes/index.js', import.meta.url), 'utf8');
   assert.match(source, /findmnt/);
-  assert.match(source, /mount === '\\/'/);
+  assert(source.includes("mount === '/'"));
   assert.match(source, /statfs/);
-  assert.match(source, /probe\\.sync\\(\\)/);
+  assert(source.includes('probe.sync()'));
   assert.match(routes, /persistentBackupStorage/);
   assert.match(routes, /checkServerRecordingStorageReadiness/);
 });
