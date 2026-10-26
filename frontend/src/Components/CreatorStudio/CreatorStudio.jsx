@@ -31,6 +31,7 @@ import ListenerLiveConnected from '../ListenerLive/ListenerLiveConnected';
 import { CreatorStudioStateProvider } from './CreatorStudioState';
 import AudioUploadQueueDialog from './AudioUploadQueueDialog.jsx';
 import CreatorUnifiedContentWorkspace from './CreatorUnifiedContentWorkspace.jsx';
+import ServerRecordingProgress from './ServerRecordingProgress.jsx';
 import { isNavigationDataFresh, readNavigationData, writeNavigationData } from '../../services/navigationDataCache';
 // Lazy workspaces keep the first Creator render small.  Cache the import
 // promise as well so an idle prefetch and a quick click share one request.
@@ -667,6 +668,8 @@ const CreatorStudioBody = () => {
         const queryTab = new URLSearchParams(location.search).get('tab');
         const contentTab = detailType === 'collections' || queryTab === 'collections' ? 'collections' : 'recordings';
         node = (
+          <>
+          <ServerRecordingProgress hideSaved />
           <CreatorUnifiedContentWorkspace
             tab={contentTab}
             tracks={Array.isArray(content?.tracks) ? content.tracks : []}
@@ -681,6 +684,7 @@ const CreatorStudioBody = () => {
             onOpenCollection={(id) => routerNavigate(`/creator-studio/content/collections/${encodeURIComponent(id)}`)}
             onCloseCollection={() => routerNavigate('/creator-studio/content?tab=collections')}
           />
+          </>
         );
         break;
       }

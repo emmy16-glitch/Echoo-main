@@ -8,7 +8,7 @@ const storedBroadcast = () => {
 
 // Server-derived status only. Local storage remembers just the last broadcast
 // identifier, not a success percentage or a recording file.
-export default function ServerRecordingProgress({ liveBroadcastId = '' }) {
+export default function ServerRecordingProgress({ liveBroadcastId = '', hideSaved = false }) {
   const [broadcastId, setBroadcastId] = useState(storedBroadcast);
   const [progress, setProgress] = useState(null);
   const [unavailable, setUnavailable] = useState(false);
@@ -76,7 +76,7 @@ export default function ServerRecordingProgress({ liveBroadcastId = '' }) {
     }
   };
 
-  if (!progress || unavailable) return null;
+  if (!progress || unavailable || (hideSaved && progress.fullReplaySaved === true)) return null;
   const count = Math.max(0, Number(progress.completedSegments) || 0);
   const duration = Math.floor((Number(progress.protectedSeconds) || 0) / 60);
   const bytes = Math.max(0, Number(progress.segmentBytes) || 0);

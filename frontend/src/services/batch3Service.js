@@ -139,7 +139,7 @@ const batch3Service = {
     }
     const response = await apiFetch(
       `/broadcasts/${encodeURIComponent(broadcastId)}/recording-segments/${index}`,
-      { cache: 'no-store', timeoutMs: 90_000 }
+      { cache: 'no-store', timeoutMs: 0 }
     );
     if (!response.ok) {
       throw new Error('This server recording segment is unavailable. Try refreshing the list.');
