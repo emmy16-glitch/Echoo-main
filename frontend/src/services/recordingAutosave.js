@@ -917,7 +917,7 @@ export const installRecordingAutosave = ({ recoverOnInstall = true } = {}) => {
   window.addEventListener(BROADCAST_RECORDING_READY_EVENT, onReady);
 
   // Offer any orphaned take from a closed/crashed tab.
-  recoverOrphanedLosslessRecording()
+  (recoverOnInstall ? recoverOrphanedLosslessRecording() : Promise.resolve(null))
     .then(async (recovered) => {
       if (!recovered?.recording?.blob?.size) return;
       if (disposed) {
