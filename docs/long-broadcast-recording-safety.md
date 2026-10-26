@@ -9,6 +9,22 @@ Echoo's live audio transport and recording recovery are separate. Recording erro
 - **Backend:** The server continuously writes MP3 from LiveKit Track Egress. A failed/aborted encoder now moves a nontrivial MP3 fragment to a private, uniquely named `*.interrupted-*.mp3`, instead of deleting it. The Broadcast document records `serverRecording.partialAvailable` and `partialBytes`. **These fragments are not complete verified replays and must not be published automatically.** 
 - **Finalization:** The server allows up to 30s for the write backlog and 60s for FFmpeg closure. It does not pause or block listener streaming.
 
+## Ten-minute server recording parts (staged)
+
+The independent server segment recorder is available behind `SERVER_RECORDING_SEGMENTS_ENABLED=true`, **disabled by default until hosting capacity is tested**. When enabled, it receives a second copy of the already-published LiveKit Track Egress PCM, encodes MP3 parts using a separate FFmpeg process, and closes each part approximately every 10 minutes. Segments are stored privately under:
+
+```
+REPLAY_ARCHIVE_DIR/segments/<broadcastId>/<recorderAttempt>/part-000000.mp3
+```
+
+For example, set `REPLAY_ARCHIVE_DIR=/srv/echoo-recordings` on a **persistent disk** mounted to the backend server. This directory must survive restarts and deployments. Do not put it inside a disposable Render/CI/Docker container filesystem. Back up completed parts to an independent storage service before calling them disaster-safe; local persistent disk alone does not protect against disk loss.
+
+The sidecar is **never awaited in the critical PCM forwarding path**, has a bounded 4 MiB write backlog and stops itself if it falls behind. It uses an extra FFmpeg process and disk writes, so enabling it does increase backend CPU and I/O load. Verify adequate headroom while 500 listeners are connected before turning it on in production. Segment failures do not deliberately interrupt WebRTC audio, but no software can guarantee zero dropouts under exhausted host resources.
+
+Completed part counts and bytes are stored in MongoDB. The creator-only `GET /api/broadcasts/:broadcastId/recording-progress` endpoint powers a progress panel that is recovered from the server after refresh. It never exposes recording paths or claims a full replay is saved until `replayStatus=ready`. If the browser refreshes, its microphone/WebRTC publication still stops: server-side progress survives but a connected creator publisher does not.
+
+**Current limitations:** The segments are retained as separately recoverable MP3 parts. Automatic gap-aware stitching from segments, offsite backup, Egress rotation ahead of 12 hours and end-to-end multiday verification remain future steps. The primary server replay still takes its existing fast path at End Broadcast if it succeeded; saving segments on the server avoids having to upload them from the browser again, but automatic replay reconstruction from failed primary audio is not implemented by this stage.
+
 ## Hosting must-haves
 
 1. Ensure the backend `REPLAY_ARCHIVE_DIR` directory and its surrounding disk survive deploys and restarts. The default is `backend/uploads/replay` resolved from process working directory. Use a dedicated persistent disk, not a temporary container filesystem.
