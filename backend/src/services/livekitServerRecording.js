@@ -8,7 +8,7 @@ import LiveKitProvider from '../providers/livekit.js';
 import { assertFfmpegAvailable } from './audioTrimService.js';
 import { getReplayOutputFile } from './broadcastOutputService.js';
 import { preserveInterruptedRecording } from './serverRecordingPreservation.js';
-import { startServerRecordingSegments } from './serverRecordingSegments.js';
+import { prepareServerRecordingSegments, watchServerRecordingSegments } from './serverRecordingSegments.js';
 
 const SAMPLE_RATE = 48_000;
 const CHANNELS = 2;
@@ -219,6 +219,16 @@ const createSession = async (broadcastId) => {
   const replay = getReplayOutputFile(broadcastId);
   if (!replay?.path) throw new Error('Could not resolve the server replay path.');
   await fs.mkdir(path.dirname(replay.path), { recursive: true });
+  // Prepare both sinks BEFORE starting the ONE encoder. If the optional
+  // segment directory fails, the canonical MP3 still records normally.
+  let segmentPlan = null;
+  try {
+    segmentPlan = await prepareServerRecordingSegments({
+      broadcastId, primaryOutputPath: replay.path,
+    });
+  } catch (error) {
+    console.warn('[Echoo Recording] segment output unavailable; primary replay continues:', error?.message || error);
+  }
 
   let resolveClosed;
   const closed = new Promise((resolve) => { resolveClosed = resolve; });
@@ -254,11 +264,12 @@ const createSession = async (broadcastId) => {
       '-ar', String(SAMPLE_RATE),
       '-ac', String(CHANNELS),
       '-i', 'pipe:0',
-      '-vn',
+      '-map', '0:a:0', '-vn',
       '-c:a', 'libmp3lame',
+      '-threads', '1',
       '-b:a', bitrate(),
-      '-f', 'mp3',
-      replay.path,
+      '-f', segmentPlan ? 'tee' : 'mp3',
+      segmentPlan ? segmentPlan.teeOutput : replay.path,
     ],
     { stdio: ['pipe', 'ignore', 'pipe'], windowsHide: true }
   );
@@ -300,33 +311,23 @@ const createSession = async (broadcastId) => {
     if (session.failed) void finishSession(session);
   });
 
-  // Optional segments start asynchronously. Never await optional filesystem
-  // I/O before registering FFmpeg error/close listeners or returning the
-  // primary recording session. This also prevents an unhandled spawn error.
-  void startServerRecordingSegments({
-    broadcastId,
-    bitrate: bitrate(),
-    onProgress: (progress) => persist(broadcastId, {
-      'serverRecording.segments.status': progress.status,
-      'serverRecording.segments.completedSegments': progress.completedSegments,
-      'serverRecording.segments.segmentBytes': progress.segmentBytes,
-      'serverRecording.segments.segmentSeconds': progress.segmentSeconds,
-      'serverRecording.segments.attemptId': progress.attemptId,
-      'serverRecording.segments.updatedAt': progress.updatedAt,
-      'serverRecording.segments.error': progress.error,
-    }),
-  }).then((recorder) => {
-    if (!recorder) return;
-    if (session.stopping || session.failed) {
-      // End may happen while the secondary encoder is initializing.
-      // Close it independently, never resurrect a recorder after off air.
-      void recorder.finish().catch(() => undefined);
-      return;
-    }
-    session.segmentRecorder = recorder;
-  }).catch((error) => {
-    console.warn('[Echoo Recording] optional server segments unavailable:', error?.message || error);
-  });
+  // No second process exists. A lightweight watcher only reads closed
+  // segments from the same FFmpeg tee muxer and commits their progress.
+  if (segmentPlan) {
+    session.segmentRecorder = watchServerRecordingSegments(segmentPlan, {
+      closed: session.closed,
+      isRecorderFailed: () => session.failed,
+      onProgress: (progress) => persist(broadcastId, {
+        'serverRecording.segments.status': progress.status,
+        'serverRecording.segments.completedSegments': progress.completedSegments,
+        'serverRecording.segments.segmentBytes': progress.segmentBytes,
+        'serverRecording.segments.segmentSeconds': progress.segmentSeconds,
+        'serverRecording.segments.attemptId': progress.attemptId,
+        'serverRecording.segments.updatedAt': progress.updatedAt,
+        'serverRecording.segments.error': progress.error,
+      }),
+    });
+  }
 
   sessions.set(broadcastId, session);
   return session;
@@ -341,8 +342,7 @@ const finishSession = (session) => {
 
   session.finishPromise = (async () => {
     session.stopping = true;
-    // Start closing the backup concurrently, rather than adding its duration
-    // to the primary recording shutdown/verification critical path.
+    // Segment watcher finishes after the SAME FFmpeg child closes.
     const segmentFinish = session.segmentRecorder?.finish().catch((error) => {
       console.warn('[Echoo Recording] backup segment finalization warning:', error?.message || error);
     });
@@ -422,8 +422,7 @@ const finishSession = (session) => {
         : String(session.error || 'Server recording produced no MP3 data.').slice(0, 1000),
     });
 
-    // A backup that needs longer processing must not delay finalizing the
-    // primary replay. Closed segments already on persistent disk remain safe.
+    // Monitoring completion never controls the primary LiveKit audio path.
     if (segmentFinish) {
       void segmentFinish.catch(() => undefined);
     }
@@ -561,7 +560,6 @@ const acceptRecordingSocket = async (socket, request) => {
     session.lastPcmAt = Date.now();
     // Enqueue only: segment disk/FFmpeg backpressure must never block PCM
     // delivery, the canonical recorder, or LiveKit listener audio.
-    session.segmentRecorder?.enqueue(buffer);
     session.writeChain = session.writeChain
       .then(async () => {
         try {
