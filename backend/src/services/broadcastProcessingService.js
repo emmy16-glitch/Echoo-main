@@ -379,24 +379,71 @@ async function processNextJob() {
 // A server crash can occur after End Broadcast commits status=completed but
 // before it inserts the audio_finalization job. Recover those lost enqueue
 // operations from durable recording metadata on service restart.
+const REPLAY_REPAIR_BATCH = 200;
+const REPLAY_REPAIR_INTERVAL_MS = 60_000;
+const REPLAY_FAILED_RETRY_MS = 30 * 60_000;
+let replayRepairCursor = null;
+let replayRepairTimer = null;
+let replayRepairRunning = false;
+
+export const eligibleFailedReplayJob = (job, nowMs = Date.now()) => {
+  if (!job || job.status !== 'failed') return false;
+  const attempts = Number(job.attempts || 0);
+  const limit = Math.max(1, Number(job.maxAttempts) || 60);
+  if (attempts >= limit) return false;
+  const when = new Date(job.completedAt || job.updatedAt || 0).getTime();
+  return Number.isFinite(when) && when > 0 &&
+    nowMs - when >= REPLAY_FAILED_RETRY_MS;
+};
+
+// Scan the unfinished archive in bounded pages, continuing where the prior
+// sweep stopped. Neither a 200-row cap nor a crash after a lost enqueue may
+// permanently strand another creator's already-recorded audio.
 export async function requeueMissingRecordingFinalizations() {
-  const candidates = await Broadcast.find({
-    status: 'completed',
-    isDeleted: false,
-    replayAudio: null,
-    replayAudioId: null,
-    'serverRecording.segments.attemptId': { $exists: true, $ne: null },
-  }).select('_id').limit(200);
+  if (replayRepairRunning) return 0;
+  replayRepairRunning = true;
   let requeued = 0;
-  for (const broadcast of candidates) {
-    const job = await BroadcastProcessingJob.findOne({
-      broadcastId: broadcast._id, jobType: 'audio_finalization',
-    }).select('_id');
-    if (job) continue;
-    await enqueueBroadcastProcessing(broadcast._id, { transcriptionEnabled: false });
-    requeued += 1;
+  try {
+    const query = {
+      status: { $in: ['completed', 'failed'] },
+      isDeleted: false,
+      replayAudio: null,
+      replayAudioId: null,
+      'serverRecording.segments.attemptId': { $exists: true, $ne: null },
+      ...(replayRepairCursor ? { _id: { $gt: replayRepairCursor } } : {}),
+    };
+    const candidates = await Broadcast.find(query)
+      .select('_id').sort({ _id: 1 }).limit(REPLAY_REPAIR_BATCH);
+    for (const broadcast of candidates) {
+      const job = await BroadcastProcessingJob.findOne({
+        broadcastId: broadcast._id, jobType: 'audio_finalization',
+      }).select('_id status attempts maxAttempts completedAt updatedAt');
+      if (!job) {
+        await enqueueBroadcastProcessing(broadcast._id, { transcriptionEnabled: false });
+        requeued += 1;
+      } else if (eligibleFailedReplayJob(job)) {
+        // Compare-and-set prevents repeated sweeps from resetting an already
+        // active finalization. Bounded retries preserve incomplete recovery
+        // evidence rather than publishing damaged or shortened recordings.
+        const update = await BroadcastProcessingJob.updateOne(
+          { _id: job._id, status: 'failed' },
+          { $set: { status: 'queued', availableAt: new Date(), completedAt: null,
+            error: 'Retrying sealed recording reconstruction after backoff' } },
+        );
+        if (update.modifiedCount) {
+          await Broadcast.updateOne({ _id: broadcast._id }, {
+            $set: { 'assetStatus.audio': 'processing', processingCompletedAt: null },
+          });
+          requeued += 1;
+        }
+      }
+    }
+    replayRepairCursor = candidates.length === REPLAY_REPAIR_BATCH
+      ? candidates[candidates.length - 1]._id : null;
+    return requeued;
+  } finally {
+    replayRepairRunning = false;
   }
-  return requeued;
 }
 
 export function startBroadcastProcessingWorker(io) {
@@ -419,9 +466,12 @@ export function startBroadcastProcessingWorker(io) {
   ).catch(() => null);
   BroadcastProcessingJob.syncIndexes().catch(() => null);
   BroadcastAudioChunk.syncIndexes().catch(() => null);
-  void requeueMissingRecordingFinalizations().catch(error => {
-    console.warn('[Echoo Replay] startup finalization recovery warning:', error?.message || error);
+  const recover = () => void requeueMissingRecordingFinalizations().catch(error => {
+    console.warn('[Echoo Replay] finalization recovery scan warning:', error?.message || error);
   });
+  recover();
+  replayRepairTimer = setInterval(recover, REPLAY_REPAIR_INTERVAL_MS);
+  replayRepairTimer.unref?.();
   workerTimer = setInterval(() => void processNextJob(), POLL_MS);
   workerTimer.unref?.();
   void processNextJob();
@@ -429,7 +479,9 @@ export function startBroadcastProcessingWorker(io) {
 
 export function stopBroadcastProcessingWorker() {
   if (workerTimer) clearInterval(workerTimer);
+  if (replayRepairTimer) clearInterval(replayRepairTimer);
   workerTimer = null;
+  replayRepairTimer = null;
   socketServer = null;
 }
 
