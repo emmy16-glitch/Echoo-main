@@ -123,6 +123,12 @@ const checkLiveKitReadiness = async () => {
 };
 
 const batch3Service = {
+  getServerRecordingProgress: async (broadcastId) =>
+    apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/recording-progress`, {
+      timeoutMs: 10_000,
+      cache: 'no-store',
+    }),
+
   getStations: async () => {
     return batch2Service.listStations({ page: 1, limit: 100 });
   },
