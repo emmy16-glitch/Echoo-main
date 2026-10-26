@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import Broadcast from '../src/models/Broadcast.js';
+import Audio from '../src/models/Audio.js';
 import { getBroadcastRecordingProgress } from '../src/controllers/broadcastRecordingProgressController.js';
 
 const makeResponse = () => ({
@@ -90,5 +91,33 @@ test('a creator cannot discover other accounts recordings through progress API',
     assert.equal(response.body.error.code, 'BROADCAST_NOT_FOUND');
   } finally {
     Broadcast.findOne = original;
+  }
+});
+
+
+test('recording progress refuses to claim 100% saved when the actual audio file vanished', async () => {
+  const original = Broadcast.findOne;
+  const originalAudio = Audio.findById;
+  const id = '507f1f77bcf86cd799439099';
+  Broadcast.findOne = () => ({ select: async () => ({
+    _id: id, status: 'completed', replayStatus: 'ready',
+    replayAudioId: '507f1f77bcf86cd799439077',
+    startedAt: new Date('2026-10-26T08:00:00Z'), endedAt: new Date('2026-10-26T08:01:00Z'),
+    serverRecording: { segments: { status: 'idle', completedSegments: 0 } },
+  }) });
+  Audio.findById = () => ({ select: async () => ({
+    filename: 'file-that-does-not-exist.mp3', fileSize: 20480,
+    storage: 'local', cloudKey: null, isDeleted: false,
+  }) });
+  try {
+    const response = makeResponse();
+    await getBroadcastRecordingProgress({ params: { broadcastId: id }, userId: id }, response,
+      error => { throw error; });
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.body.data.fullReplaySaved, false);
+    assert.equal(response.body.data.replayFileUnavailable, true);
+  } finally {
+    Broadcast.findOne = original;
+    Audio.findById = originalAudio;
   }
 });

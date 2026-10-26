@@ -1,4 +1,7 @@
 import Broadcast from '../models/Broadcast.js';
+import Audio from '../models/Audio.js';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { inspectServerRecordingSegments } from '../services/serverRecordingSegments.js';
 
 // Server-authoritative progress survives browser reloads. Only the creator can
@@ -9,7 +12,7 @@ export async function getBroadcastRecordingProgress(req, res, next) {
       _id: req.params.broadcastId,
       creator: req.userId,
       isDeleted: false,
-    }).select('status replayStatus endedAt startedAt serverRecording.startedAt serverRecording.status serverRecording.segments');
+    }).select('status replayStatus replayAudio replayAudioId endedAt startedAt serverRecording.startedAt serverRecording.status serverRecording.segments');
     if (!broadcast) {
       return res.status(404).json({
         error: { code: 'BROADCAST_NOT_FOUND', message: 'Broadcast not found.' },
@@ -34,6 +37,23 @@ export async function getBroadcastRecordingProgress(req, res, next) {
     const measuredMaximum = Number.isFinite(started) && started > 0 && Number.isFinite(ended)
       ? Math.max(0, Math.ceil((ended - started) / 1000))
       : Number.POSITIVE_INFINITY;
+    // The MongoDB replayStatus alone is not proof that audio can still be
+    // played. Validate that the private Audio record has a matching durable
+    // local file (or a registered cloud archive) before reporting 100% saved.
+    let verifiedReplaySaved = false;
+    if (broadcast.replayStatus === 'ready' && (broadcast.replayAudioId || broadcast.replayAudio)) {
+      const audio = await Audio.findById(broadcast.replayAudioId || broadcast.replayAudio)
+        .select('filename fileSize storage cloudKey isDeleted').catch(() => null);
+      if (audio && !audio.isDeleted) {
+        const storedName = path.basename(String(audio.filename || ''));
+        const filePath = storedName ? path.join(process.cwd(), 'uploads', 'audio', storedName) : '';
+        const stat = filePath ? await fs.stat(filePath).catch(() => null) : null;
+        verifiedReplaySaved = Boolean(
+          (stat?.isFile() && stat.size >= Math.max(4096, Number(audio.fileSize) || 0)) ||
+          (audio.storage === 'cloud' && audio.cloudKey)
+        );
+      }
+    }
     return res.status(200).set('Cache-Control', 'no-store').json({
       data: {
         broadcastId: String(broadcast._id),
@@ -53,7 +73,8 @@ export async function getBroadcastRecordingProgress(req, res, next) {
           ? 'Previously recorded server segments are missing from storage. Check persistent disk and backups.'
           : segments.status === 'degraded' ? segments.error : null,
         // A sealed backup segment is NOT an independently verified full replay.
-        fullReplaySaved: broadcast.replayStatus === 'ready',
+        fullReplaySaved: verifiedReplaySaved,
+        replayFileUnavailable: broadcast.replayStatus === 'ready' && !verifiedReplaySaved,
       },
     });
   } catch (error) {
