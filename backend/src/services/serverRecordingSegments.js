@@ -102,16 +102,18 @@ export async function startServerRecordingSegments({
   const state = () => ({ stopped, failed, error: errorText });
 
   const fail = (error) => {
-    if (failed || closing) return;
+    if (failed) return;
     failed = true;
     errorText = String(error?.message || error).slice(0, 500);
     try { child.stdin?.destroy(); } catch { /* ignore */ }
-    try { child.kill('SIGTERM'); } catch { /* ignore */ }
+    if (!stopped) {
+      try { child.kill('SIGTERM'); } catch { /* ignore */ }
+    }
   };
   child.on('error', fail);
   child.on('close', (code) => {
     stopped = true;
-    if (code !== 0 && !closing) fail(new Error(`Segment encoder stopped with code ${code}`));
+    if (code !== 0) fail(new Error(`Segment encoder stopped with code ${code}`));
     resolveClosed();
   });
   child.stderr?.on('data', (data) => { errorText = String(data).slice(-500); });
