@@ -117,7 +117,7 @@ export async function reconstructServerRecordingFromSegments({
 
   // Compare measured audio against the PCM/timeline coverage supplied by the
   // caller. A missing minute is NOT a successful "recovery".
-  const tolerance = Math.max(2, Math.min(8, expectedDurationSeconds * 0.001));
+  const tolerance = Math.max(0.25, Math.min(8, expectedDurationSeconds * 0.001));
   if (totalDuration + tolerance < expectedDurationSeconds) {
     return incomplete('recording-coverage-gap', {
       availableSeconds: totalDuration, expectedSeconds: expectedDurationSeconds,

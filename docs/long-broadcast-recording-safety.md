@@ -23,7 +23,30 @@ The backup uses the **same MP3 encoder** as the continuous replay, not a second 
 
 Completed part counts and bytes are stored in MongoDB. The creator-only `GET /api/broadcasts/:broadcastId/recording-progress` endpoint powers a progress panel that is recovered from the server after refresh. It never exposes recording paths or claims a full replay is saved until `replayStatus=ready`. If the browser refreshes, its microphone/WebRTC publication still stops: server-side progress survives but a connected creator publisher does not.
 
-**Current limitations:** The segments are retained as separately recoverable MP3 parts. Automatic gap-aware stitching from segments, offsite backup, Egress rotation ahead of 12 hours and end-to-end multiday verification remain future steps. The primary server replay still takes its existing fast path at End Broadcast if it succeeded; saving segments on the server avoids having to upload them from the browser again, but automatic replay reconstruction from failed primary audio is not implemented by this stage.
+## Automatic server reconstruction after a failed primary replay
+
+When End Broadcast or the persisted background processing job runs, the normal
+complete MP3 still takes the fast path. If it is missing or invalid, the server
+automatically attempts to reconstruct from saved segments using FFmpeg's
+stream-copy concat demuxer, without a second MP3 encode. It checks sequential
+part numbers, rejects unreadable or missing files, checks expected coverage
+against the recorded PCM/timeline, and verifies the reconstructed MP3 before
+linking it as an ECHOO recording. The background processing job retries after
+backend restarts. Creator progress reports reconstruction status separately.
+The original recovery parts are never deleted by a failed reconstruction.
+
+A crashed recorder's final open part is excluded: ECHOO will not claim it is
+sealed just because it has an MP3 header. Missing network audio, unavailable
+disk parts, or gaps beyond the coverage tolerance result in an **incomplete**
+status, keeping the creator's browser recovery master eligible for upload.
+This cannot manufacture audio that was never transmitted. Automatic
+reconstruction of verified parts is not the same as uninterrupted broadcasting.
+
+**Remaining limitations:** Cross-attempt seamless stitching after multiple
+server restarts, offsite backups, Egress rotation before provider limits and
+end-to-end multiday recording verification are not yet delivered. This stage
+does not promise gapless continuity across any browser refresh, microphone
+permission revocation, device crash or total network outage.
 
 ## Hosting must-haves
 
@@ -40,7 +63,7 @@ The browser safety recording plans for 12 hours of capacity and chooses a compre
 
 ## Explicit limitations
 
-No web app can keep a creator's microphone publishing uninterrupted after that browser tab refreshes, crashes, loses OS microphone permission, or the device powers off. The correct long-term answer for publisher continuity is independent ingest and redundant audio capture, not a promise of zero failures. This change protects previously captured audio and enables recovery; a future milestone can introduce durable multi-segment server recording and automatic stitching/verification. 
+No web app can keep a creator's microphone publishing uninterrupted after that browser tab refreshes, crashes, loses OS microphone permission, or the device powers off. The correct long-term answer for publisher continuity is independent ingest and redundant audio capture, not a promise of zero failures. This change protects previously captured audio and enables recovery; a future milestone must add truly redundant ingest, durable capture continuity and explicit cross-attempt gap validation. 
 
 
 ## One encoder clarification

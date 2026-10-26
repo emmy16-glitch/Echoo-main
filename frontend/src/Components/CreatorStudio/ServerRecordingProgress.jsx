@@ -66,12 +66,23 @@ export default function ServerRecordingProgress({ liveBroadcastId = '' }) {
       ))) : 0;
   const headline = fullReplaySaved
     ? 'Recording saved to ECHOO'
+    : progress.reconstructionStatus === 'recovering'
+      ? 'Rebuilding your recording from server backups'
+    : progress.reconstructionStatus === 'incomplete'
+      ? 'Recording recovery needs additional audio'
+    : progress.reconstructionStatus === 'failed'
+      ? 'Recording reconstruction will retry'
     : progress.segmentStatus === 'degraded'
       ? 'Server segment backup needs attention'
       : count
         ? `${count} server recording ${count === 1 ? 'segment' : 'segments'} protected`
         : segmentsActive ? 'Preparing the first server recording segment' : '';
   if (!headline) return null;
+  const reconstructionNote = progress.reconstructionStatus === 'recovering'
+    ? 'Server segments are being verified and joined after the broadcast. Your existing files remain protected.'
+    : ['incomplete', 'failed'].includes(progress.reconstructionStatus)
+      ? 'ECHOO could not verify a full replay from the server parts. Keep browser recovery files until a saved replay is confirmed.'
+      : '';
 
   return (
     <section className="ec2-operation-progress" role="status" aria-live="polite" data-testid="server-recording-progress">
@@ -89,6 +100,7 @@ export default function ServerRecordingProgress({ liveBroadcastId = '' }) {
             : `Approximately ${coverage}% of elapsed audio is in completed server parts; this is not the final replay verification.`}</small>
         </>
       )}
+      {reconstructionNote && !fullReplaySaved && <small>{reconstructionNote}</small>}
       <small>
         {fullReplaySaved
           ? 'The complete recording is verified and available in ECHOO.'
