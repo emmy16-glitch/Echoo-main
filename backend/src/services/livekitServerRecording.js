@@ -165,6 +165,26 @@ const validateRecordingRequest = (request) => {
   return { broadcastId, trackSid };
 };
 
+// Never delete the last server-side bytes of a failed multi-hour recording.
+// A partial MP3 is explicitly not a verified replay. Keep it separate from the
+// canonical path for diagnosis/manual recovery and to prevent accidental
+// publication of an interrupted take.
+const preserveInterruptedRecording = async (outputPath) => {
+  if (!outputPath) return { partialBytes: 0, partialAvailable: false };
+  try {
+    const stat = await fs.stat(outputPath);
+    if (!stat.isFile() || stat.size < 4096) return { partialBytes: 0, partialAvailable: false };
+    const protectedPath = `${outputPath}.interrupted.mp3`;
+    await fs.rename(outputPath, protectedPath);
+    return { partialBytes: stat.size, partialAvailable: true };
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      console.warn('[Echoo Server Recording] could not preserve interrupted MP3:', error?.message || error);
+    }
+    return { partialBytes: 0, partialAvailable: false };
+  }
+};
+
 const persist = async (broadcastId, patch) => {
   await Broadcast.updateOne(
     { _id: broadcastId },
@@ -369,16 +389,18 @@ const finishSession = (session) => {
     }
 
     const completed = !session.failed && fileBytes > 0;
-    if (!completed && session.outputPath) {
-      await fs.rm(session.outputPath, { force: true }).catch(() => null);
-      fileBytes = 0;
-    }
+    const partial = completed
+      ? { partialBytes: 0, partialAvailable: false }
+      : await preserveInterruptedRecording(session.outputPath);
+    if (!completed) fileBytes = 0;
     await persist(session.broadcastId, {
       'serverRecording.status': completed ? 'completed' : 'failed',
       'serverRecording.endedAt': new Date(),
       'serverRecording.egressId': null,
       'serverRecording.pcmBytes': session.pcmBytes,
       'serverRecording.fileBytes': fileBytes,
+      'serverRecording.partialBytes': partial.partialBytes,
+      'serverRecording.partialAvailable': partial.partialAvailable,
       'serverRecording.error': completed
         ? null
         : String(session.error || 'Server recording produced no MP3 data.').slice(0, 1000),
@@ -962,10 +984,10 @@ export const stopLiveKitServerRecording = async (broadcastId) => {
 
   const alreadyCompleted =
     broadcast?.serverRecording?.status === 'completed' && fileBytes > 0;
-  if (!alreadyCompleted && replay?.path) {
-    await fs.rm(replay.path, { force: true }).catch(() => null);
-    fileBytes = 0;
-  }
+  const partial = alreadyCompleted
+    ? { partialBytes: 0, partialAvailable: false }
+    : await preserveInterruptedRecording(replay?.path);
+  if (!alreadyCompleted) fileBytes = 0;
 
   ownedEgressIds.delete(id);
   await persist(id, {
@@ -973,6 +995,8 @@ export const stopLiveKitServerRecording = async (broadcastId) => {
     'serverRecording.endedAt': new Date(),
     'serverRecording.egressId': null,
     'serverRecording.fileBytes': fileBytes,
+    'serverRecording.partialBytes': partial.partialBytes,
+    'serverRecording.partialAvailable': partial.partialAvailable,
     'serverRecording.error': alreadyCompleted
       ? null
       : 'The server recorder was interrupted before a complete MP3 was confirmed. Browser recovery is required.',
