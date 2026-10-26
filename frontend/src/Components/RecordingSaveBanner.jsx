@@ -18,6 +18,10 @@ import {
   uploadRecoveredTake,
 } from '../services/recordingAutosave.js';
 import {
+  getBroadcastRecordingState,
+  flushRecordingForPageHide,
+} from '../services/broadcastRecordingService.js';
+import {
   openDesktopRecording,
   openDesktopRecordingsFolder,
   showDesktopRecording,
@@ -52,15 +56,24 @@ export function RecordingAutosaveMount() {
       }
     };
     const protect = (event) => {
-      if (!savingInBackground) return;
+      // A browser refresh terminates a WebRTC publisher and its in-memory
+      // recorder. Warn while the creator is still live, not only after End.
+      if (!savingInBackground && !getBroadcastRecordingState().recording) return;
       event.preventDefault();
       event.returnValue = '';
     };
+    const checkpointOnHide = () => {
+      // The periodic OPFS checkpoint is authoritative; this is best-effort
+      // insurance for navigation/reload. It never waits on or blocks LiveKit.
+      void flushRecordingForPageHide().catch(() => {});
+    };
     window.addEventListener(RECORDING_UPLOAD_EVENT, onUpload);
     window.addEventListener('beforeunload', protect);
+    window.addEventListener('pagehide', checkpointOnHide);
     return () => {
       window.removeEventListener(RECORDING_UPLOAD_EVENT, onUpload);
       window.removeEventListener('beforeunload', protect);
+      window.removeEventListener('pagehide', checkpointOnHide);
     };
   }, []);
 
