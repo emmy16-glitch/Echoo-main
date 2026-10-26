@@ -13,6 +13,7 @@ import {
   isRealMp3Bytes,
   estimateReplayDurationSeconds,
   isTrustedCompletedServerReplay,
+  isStoredReplayAccessible,
 } from '../src/services/broadcastReplayService.js';
 
 // Server replay finalization contract:
@@ -317,4 +318,52 @@ test('nine-hour recording duration is not considered complete when the last hour
     pcmBytes: 48000 * 2 * 2 * nineHours,
     probedDurationSeconds: nineHours, expectedWallSeconds: nineHours,
   }), true);
+});
+
+test('stale replay metadata cannot make a missing audio file appear saved', async () => {
+  const { broadcast, creatorId } = await makeBroadcast();
+  const bid = String(broadcast._id);
+  await storeChunks(bid, creatorId, 2);
+  const first = await finalizeBroadcastReplay({
+    broadcastId: bid, creatorId: String(creatorId), expectedChunkCount: 2,
+  });
+  assert.equal(first.status, 'ready');
+  const audio = await Audio.findById(first.audioId);
+  assert.equal(await isStoredReplayAccessible(audio), true);
+  const storedFile = path.join(process.cwd(), 'uploads', 'audio', audio.filename);
+  await fs.rm(storedFile, { force: true });
+  assert.equal(await isStoredReplayAccessible(audio), false);
+  const retry = await finalizeBroadcastReplay({
+    broadcastId: bid, creatorId: String(creatorId), expectedChunkCount: 2,
+  });
+  assert.equal(retry.status, 'incomplete');
+  assert.equal(retry.audioId, null);
+  assert.equal(retry.reason, 'linked-replay-file-missing');
+  assert.equal(await Audio.countDocuments({ fileKey: 'replay-' + bid }), 1);
+});
+
+test('replay verification rejects symlinks, truncated files and path traversal', async () => {
+  const filename = 'replay-' + new mongoose.Types.ObjectId() + '.mp3';
+  const dir = path.join(process.cwd(), 'uploads', 'audio');
+  const file = path.join(dir, filename);
+  await fs.mkdir(dir, { recursive: true });
+  try {
+    await fs.writeFile(file, Buffer.alloc(8192, 1));
+    assert.equal(await isStoredReplayAccessible({
+      filename, fileSize: 8192, storage: 'local',
+    }), true);
+    assert.equal(await isStoredReplayAccessible({
+      filename, fileSize: 8193, storage: 'local',
+    }), false);
+    assert.equal(await isStoredReplayAccessible({
+      filename: '../' + filename, fileSize: 0, storage: 'local',
+    }), false);
+    await fs.rm(file);
+    await fs.symlink(path.join(dir, 'nonexistent.mp3'), file);
+    assert.equal(await isStoredReplayAccessible({
+      filename, fileSize: 4096, storage: 'local',
+    }), false);
+  } finally {
+    await fs.rm(file, { force: true });
+  }
 });
