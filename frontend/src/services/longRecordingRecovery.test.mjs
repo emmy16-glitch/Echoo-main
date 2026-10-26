@@ -28,7 +28,7 @@ test('recovered master is not forgotten before server acknowledgement', async ()
 
 test('long browser recordings checkpoint independently of the live stream', async () => {
   const source = await read('./broadcastRecordingService.js');
-  assert.match(source, /const LONG_SESSION_TARGET_SECONDS = 12 \* 60 \* 60/);
+  assert.match(source, /const LONG_SESSION_TARGET_SECONDS = 7 \* 24 \* 60 \* 60/);
   assert.match(source, /const OPFS_CHECKPOINT_MS = 15_000/);
   assert.match(source, /queueLosslessCheckpoint/);
   assert.match(source, /queueCompressedCheckpoint/);
