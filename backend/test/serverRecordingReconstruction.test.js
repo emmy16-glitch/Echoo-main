@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { reconstructServerRecordingFromSegments } from '../src/services/serverRecordingReconstruction.js';
+import { eligibleFailedReplayJob } from '../src/services/broadcastProcessingService.js';
 
 const ffmpeg = process.env.FFMPEG_PATH || 'ffmpeg';
 const ffprobe = process.env.FFPROBE_PATH || 'ffprobe';
@@ -125,4 +126,25 @@ test('backend startup and orphan sweep requeue a lost replay finalization job', 
   assert.match(processing, /serverRecording\.segments\.attemptId/);
   assert.match(processing, /enqueueBroadcastProcessing\(broadcast\._id, \{ transcriptionEnabled: false \}\)/);
   assert.match(sweep, /enqueueBroadcastProcessing\(doc\._id, \{ transcriptionEnabled: false \}\)/);
+});
+
+test('requeue policy retries failed recorded audio after bounded backoff, but never completed jobs', () => {
+  const now = Date.now();
+  const job = {
+    status: 'failed', attempts: 1, maxAttempts: 5,
+    completedAt: new Date(now - 31 * 60_000),
+  };
+  assert.equal(eligibleFailedReplayJob(job, now), true);
+  assert.equal(eligibleFailedReplayJob({ ...job, status: 'completed' }, now), false);
+  assert.equal(eligibleFailedReplayJob({ ...job, attempts: 5 }, now), false);
+  assert.equal(eligibleFailedReplayJob({ ...job, completedAt: new Date(now - 10_000) }, now), false);
+  assert.equal(eligibleFailedReplayJob({ ...job, completedAt: null, updatedAt: null }, now), false);
+});
+
+test('recovery reconciliation pages through all rows and stops its own timer', async () => {
+  const processing = await fs.readFile(new URL('../src/services/broadcastProcessingService.js', import.meta.url), 'utf8');
+  assert.match(processing, /replayRepairCursor/);
+  assert.match(processing, /sort\(\{ _id: 1 \}\)\.limit\(REPLAY_REPAIR_BATCH\)/);
+  assert.match(processing, /setInterval\(recover, REPLAY_REPAIR_INTERVAL_MS\)/);
+  assert.match(processing, /clearInterval\(replayRepairTimer\)/);
 });

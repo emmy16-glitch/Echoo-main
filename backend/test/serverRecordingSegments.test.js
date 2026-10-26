@@ -140,7 +140,7 @@ test('segment monitor flags missing backup files even when primary FFmpeg did no
     const result = await watcher.finish();
     assert.equal(result.count, 0);
     assert.equal(statuses.at(-1).status, 'degraded');
-    assert.match(statuses.at(-1).error, /backup sink did not produce/);
+    assert.match(statuses.at(-1).error, /backup segments are missing/);
   } finally {
     await fs.rm(tmp, { recursive: true, force: true });
   }
@@ -161,4 +161,39 @@ test('systemd startup enforces persistent recording storage on every restart', a
   assert(gate.includes('findmnt -n -T "$STORAGE_DIR" -o TARGET'));
   assert(gate.includes('"$storage_mount" == "/"'));
   assert(gate.includes('mktemp "$REPLAY_DIR/'));
+});
+
+test('the segment monitor downgrades previously sealed files that vanish or change', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'echoo-sealed-recheck-'));
+  try {
+    const updates = [];
+    const first = path.join(dir, 'part-000000.mp3');
+    const active = path.join(dir, 'part-000001.mp3');
+    await fs.writeFile(first, Buffer.alloc(10000, 0x44));
+    await fs.writeFile(active, Buffer.alloc(10000, 0x44));
+    const watcher = watchServerRecordingSegments({
+      dir, segmentSeconds: 600, attemptId: 'mock'
+    }, {
+      onProgress: async update => updates.push(update),
+      closed: Promise.resolve(),
+    });
+    const initial = await watcher.refresh();
+    assert.equal(initial.count, 1);
+    await fs.writeFile(first, Buffer.alloc(8000, 0x66));
+    const modified = await watcher.refresh();
+    assert.equal(modified.count, 0);
+    assert.equal(updates.at(-1).status, 'degraded');
+    const result = await watcher.finish();
+    assert.equal(result.count, 0);
+    assert.equal(updates.at(-1).status, 'degraded');
+  } finally { await fs.rm(dir, { force: true, recursive: true }); }
+});
+
+test('recording startup serializes concurrent encoder requests and requires MongoDB checkpoint', async () => {
+  const source = await fs.readFile(new URL('../src/services/livekitServerRecording.js', import.meta.url), 'utf8');
+  assert.match(source, /sessionCreationPromises\.get\(broadcastId\)/);
+  assert.match(source, /sessionCreationPromises\.set\(broadcastId, creation\)/);
+  assert.match(source, /await preservePriorRecordingOutput\(replay\.path\)/);
+  assert.match(source, /const checkpoint = await Broadcast\.updateOne/);
+  assert.match(source, /if \(!checkpoint\.matchedCount\) throw/);
 });
