@@ -148,6 +148,6 @@ test('segment monitor flags missing backup files even when primary FFmpeg did no
 
 test('digi02 deployment checks the actual mounted filesystem, not just write permission', async () => {
   const script = await fs.readFile(new URL('../../deploy/deploy-echoo.sh', import.meta.url), 'utf8');
-  assert.match(script, /findmnt -n -T "\\$STORAGE_DIR" -o TARGET/);
+  assert(script.includes('findmnt -n -T "$STORAGE_DIR" -o TARGET'));
   assert.match(script, /storage_mount.*== "\/"/);
 });
