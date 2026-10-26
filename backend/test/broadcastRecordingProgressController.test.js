@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import Broadcast from '../src/models/Broadcast.js';
 import Audio from '../src/models/Audio.js';
+import BroadcastProcessingJob from '../src/models/BroadcastProcessingJob.js';
 import { getBroadcastRecordingProgress } from '../src/controllers/broadcastRecordingProgressController.js';
 
 const makeResponse = () => ({
@@ -18,6 +19,8 @@ const makeResponse = () => ({
 
 test('recording progress is owner-scoped and never exposes private archive paths', async () => {
   const original = Broadcast.findOne;
+  const originalJob = BroadcastProcessingJob.findOne;
+  BroadcastProcessingJob.findOne = () => ({ select: () => ({ lean: async () => null }) });
   const originalReplayDir = process.env.REPLAY_ARCHIVE_DIR;
   const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'echoo-progress-'));
   process.env.REPLAY_ARCHIVE_DIR = temp;
@@ -72,6 +75,7 @@ test('recording progress is owner-scoped and never exposes private archive paths
     assert.match(missing.body.data.error, /missing from storage/);
   } finally {
     Broadcast.findOne = original;
+    BroadcastProcessingJob.findOne = originalJob;
     if (originalReplayDir === undefined) delete process.env.REPLAY_ARCHIVE_DIR;
     else process.env.REPLAY_ARCHIVE_DIR = originalReplayDir;
     await fs.rm(temp, { recursive: true, force: true });
@@ -120,4 +124,36 @@ test('recording progress refuses to claim 100% saved when the actual audio file 
     Broadcast.findOne = original;
     Audio.findById = originalAudio;
   }
+});
+
+test('recording recovery returns durable job state without claiming 100% before save', async () => {
+  const previous = Broadcast.findOne;
+  const previousJob = BroadcastProcessingJob.findOne;
+  const id = '507f1f77bcf86cd799439088';
+  Broadcast.findOne = () => ({ select: async () => ({
+    _id: id, status: 'completed', replayStatus: 'incomplete',
+    serverRecording: { segments: { completedSegments: 0, status: 'degraded' } },
+  }) });
+  BroadcastProcessingJob.findOne = () => ({ select: () => ({ lean: async () => ({
+    status: 'failed', attempts: 4, maxAttempts: 60, progress: 90,
+    error: 'Server incomplete; local recovery needed',
+  }) }) });
+  try {
+    const response = makeResponse();
+    await getBroadcastRecordingProgress({params:{broadcastId:id},userId:id},response,error=>{throw error;});
+    assert.equal(response.body.data.finalization.status,'failed');
+    assert.equal(response.body.data.finalization.percent,90);
+    assert.equal(response.body.data.fullReplaySaved,false);
+  } finally {
+    Broadcast.findOne=previous;
+    BroadcastProcessingJob.findOne=previousJob;
+  }
+});
+
+test('creator retry is authenticated and limited to completed broadcasts', async () => {
+  const routes=await fs.readFile(new URL('../src/routes/broadcastRoutes.js',import.meta.url),'utf8');
+  const source=await fs.readFile(new URL('../src/controllers/broadcastRecordingProgressController.js',import.meta.url),'utf8');
+  assert.match(routes,/recording-progress\/retry', authenticate, requireCreator, retryBroadcastRecordingFinalization/);
+  assert.match(source,/BROADCAST_STILL_ACTIVE/);
+  assert.match(source,/retryRecordingFinalization\(broadcast\._id\)/);
 });

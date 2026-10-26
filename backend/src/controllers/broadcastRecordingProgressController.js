@@ -1,4 +1,6 @@
 import Broadcast from '../models/Broadcast.js';
+import BroadcastProcessingJob from '../models/BroadcastProcessingJob.js';
+import { retryRecordingFinalization } from '../services/broadcastProcessingService.js';
 import Audio from '../models/Audio.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -54,6 +56,9 @@ export async function getBroadcastRecordingProgress(req, res, next) {
         );
       }
     }
+    const job = await BroadcastProcessingJob.findOne({
+      broadcastId: broadcast._id, jobType: 'audio_finalization',
+    }).select('status progress attempts maxAttempts availableAt error updatedAt').lean().catch(() => null);
     return res.status(200).set('Cache-Control', 'no-store').json({
       data: {
         broadcastId: String(broadcast._id),
@@ -75,9 +80,47 @@ export async function getBroadcastRecordingProgress(req, res, next) {
         // A sealed backup segment is NOT an independently verified full replay.
         fullReplaySaved: verifiedReplaySaved,
         replayFileUnavailable: broadcast.replayStatus === 'ready' && !verifiedReplaySaved,
+        finalization: {
+          status: verifiedReplaySaved ? 'completed' : (job?.status || 'idle'),
+          attempts: Number(job?.attempts) || 0,
+          // Never report 100% until the actual MP3 exists and is linked.
+          percent: verifiedReplaySaved ? 100 : Math.min(99, Math.max(0, Number(job?.progress) || 0)),
+          error: job?.status === 'failed' ? job.error || 'Recording finalization failed.' : null,
+          updatedAt: job?.updatedAt || null,
+        },
       },
     });
   } catch (error) {
     next(error);
   }
+}
+
+export async function retryBroadcastRecordingFinalization(req, res, next) {
+  try {
+    const id = String(req.params.broadcastId || '');
+    if (!/^[a-f0-9]{24}$/i.test(id)) {
+      return res.status(400).json({ error: { code: 'INVALID_BROADCAST_ID', message: 'Invalid broadcast ID.' } });
+    }
+    const broadcast = await Broadcast.findOne({
+      _id: id, creator: req.userId, isDeleted: false,
+    }).select('_id status replayAudio replayAudioId');
+    if (!broadcast) {
+      return res.status(404).json({ error: { code: 'BROADCAST_NOT_FOUND', message: 'Broadcast not found.' } });
+    }
+    if (broadcast.replayAudio || broadcast.replayAudioId) {
+      return res.status(200).set('Cache-Control', 'no-store').json({
+        data: { status: 'completed', broadcastId: id },
+      });
+    }
+    if (!['completed', 'failed'].includes(broadcast.status)) {
+      return res.status(409).json({ error: {
+        code: 'BROADCAST_STILL_ACTIVE',
+        message: 'Finish the broadcast before retrying recording finalization.',
+      } });
+    }
+    const result = await retryRecordingFinalization(broadcast._id);
+    return res.status(202).set('Cache-Control', 'no-store').json({
+      data: { ...result, broadcastId: id, preservedExistingAudio: true },
+    });
+  } catch (error) { next(error); }
 }

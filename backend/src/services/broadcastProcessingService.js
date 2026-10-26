@@ -446,6 +446,38 @@ export async function requeueMissingRecordingFinalizations() {
   }
 }
 
+
+// Manual recovery never restarts live audio. It only resumes an existing,
+// idempotent post-broadcast finalization job using durable server files and
+// already-accepted recovery chunks. Compare-and-set leaves active jobs alone.
+export async function retryRecordingFinalization(broadcastId) {
+  const existing = await BroadcastProcessingJob.findOne({
+    broadcastId, jobType: 'audio_finalization',
+  }).select('_id status attempts maxAttempts');
+  if (!existing) {
+    await enqueueBroadcastProcessing(broadcastId, { transcriptionEnabled: false });
+    return { status: 'queued' };
+  }
+  if (existing.status === 'completed') return { status: 'completed' };
+  if (existing.status === 'queued' || existing.status === 'processing') {
+    return { status: existing.status };
+  }
+  const updated = await BroadcastProcessingJob.updateOne(
+    { _id: existing._id, status: 'failed' },
+    { $set: {
+      status: 'queued', availableAt: new Date(), completedAt: null,
+      startedAt: null, error: null, attempts: 0,
+    } }
+  );
+  if (updated.modifiedCount) {
+    await Broadcast.updateOne({ _id: broadcastId }, {
+      $set: { 'assetStatus.audio': 'processing', processingCompletedAt: null },
+    });
+    void processNextJob();
+  }
+  return { status: 'queued' };
+}
+
 export function startBroadcastProcessingWorker(io) {
   socketServer = io;
   if (workerTimer) return;
