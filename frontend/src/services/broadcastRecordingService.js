@@ -1514,7 +1514,7 @@ const startFallbackRecording = async ({ broadcastId, mediaTrack, title }) => {
     window.dispatchEvent(new CustomEvent('echoo:toast', {
       detail: {
         type: 'warning',
-        message: 'Local storage is very low for an 8-hour recovery recording. Echoo reduced the safety-recording bitrate and will keep the live stream running; free device storage before a very long broadcast for stronger local recovery.',
+        message: 'Local storage is very low for a 12-hour recovery recording. Echoo reduced the safety-recording bitrate and will keep the live stream running; free device storage before a very long broadcast for stronger local recovery.',
       },
     }));
   }
