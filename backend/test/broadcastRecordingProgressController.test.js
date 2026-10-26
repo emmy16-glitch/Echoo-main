@@ -102,6 +102,8 @@ test('a creator cannot discover other accounts recordings through progress API',
 test('recording progress refuses to claim 100% saved when the actual audio file vanished', async () => {
   const original = Broadcast.findOne;
   const originalAudio = Audio.findById;
+  const originalJob = BroadcastProcessingJob.findOne;
+  BroadcastProcessingJob.findOne = () => ({ select: () => ({ lean: async () => null }) });
   const id = '507f1f77bcf86cd799439099';
   Broadcast.findOne = () => ({ select: async () => ({
     _id: id, status: 'completed', replayStatus: 'ready',
@@ -123,6 +125,7 @@ test('recording progress refuses to claim 100% saved when the actual audio file 
   } finally {
     Broadcast.findOne = original;
     Audio.findById = originalAudio;
+    BroadcastProcessingJob.findOne = originalJob;
   }
 });
 
