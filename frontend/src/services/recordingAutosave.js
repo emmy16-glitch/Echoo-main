@@ -904,7 +904,7 @@ export const uploadRecoveredTake = async ({ recording, broadcast } = {}) => {
 };
 
 // Headless mount: listens for finished broadcasts + offers boot recovery.
-export const installRecordingAutosave = () => {
+export const installRecordingAutosave = ({ recoverOnInstall = true } = {}) => {
   let disposed = false;
   let onlineRecoveryHandler = null;
 
