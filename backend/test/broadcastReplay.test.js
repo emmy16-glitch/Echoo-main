@@ -244,3 +244,20 @@ test('empty sessions create nothing', async () => {
   assert.equal(result.audioId, null);
   assert.equal(await Audio.countDocuments({ fileKey: `replay-${bid}` }), 0);
 });
+
+test('normal-looking MP3 is rejected when network outage left an audio coverage gap', () => {
+  const base = {
+    status: 'completed',
+    persistedFileBytes: 10000,
+    actualFileBytes: 10000,
+    pcmBytes: 48000 * 2 * 2 * 570,
+    probedDurationSeconds: 570,
+    expectedWallSeconds: 600,
+  };
+  assert.equal(isTrustedCompletedServerReplay(base), false);
+  assert.equal(isTrustedCompletedServerReplay({
+    ...base,
+    pcmBytes: 48000 * 2 * 2 * 599,
+    probedDurationSeconds: 599,
+  }), true);
+});

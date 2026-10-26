@@ -331,6 +331,7 @@ export const isTrustedCompletedServerReplay = ({
   actualFileBytes = 0,
   pcmBytes = 0,
   probedDurationSeconds = 0,
+  expectedWallSeconds = 0,
 } = {}) => {
   const actual = Math.max(0, Number(actualFileBytes) || 0);
   const persisted = Math.max(0, Number(persistedFileBytes) || 0);
@@ -348,6 +349,13 @@ export const isTrustedCompletedServerReplay = ({
     const expectedDuration = pcm / (48000 * 2 * 2);
     const tolerance = Math.max(3, expectedDuration * 0.02);
     if (duration + tolerance < expectedDuration) return false;
+  }
+  // A connection gap may have delivered fewer PCM frames than wall time.
+  // Comparing only against received PCM would then approve a shortened MP3.
+  const wall = Math.max(0, Number(expectedWallSeconds) || 0);
+  if (wall > 0) {
+    const tolerance = Math.max(2, Math.min(8, wall * 0.001));
+    if (duration + tolerance < wall) return false;
   }
 
   return true;
@@ -524,6 +532,11 @@ async function finalizeInner({
           actualFileBytes: replayBytes,
           pcmBytes: broadcast.serverRecording?.pcmBytes,
           probedDurationSeconds: streamDuration,
+          expectedWallSeconds: (() => {
+            const started = new Date(broadcast.serverRecording?.startedAt || broadcast.startedAt || 0).getTime();
+            const ended = new Date(broadcast.endedAt || broadcast.serverRecording?.endedAt || 0).getTime();
+            return started > 0 && ended > started ? (ended - started) / 1000 : 0;
+          })(),
         })
       ) {
         replaySource = 'stream';
