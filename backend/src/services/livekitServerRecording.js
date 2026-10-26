@@ -39,6 +39,7 @@ const MAX_PENDING_PCM_BYTES = 8 * 1024 * 1024;
 let websocketServer = null;
 let attachedHttpServer = null;
 let upgradeHandler = null;
+let recorderServerClosing = false;
 
 const enabled = (name) =>
   /^(1|true|yes)$/i.test(String(process.env[name] || '').trim());
@@ -220,6 +221,7 @@ const waitForTrackHandoff = async (session, trackSid) => {
 };
 
 const createSession = async (broadcastId) => {
+  if (recorderServerClosing) throw new Error('Recording service is shutting down.');
   const replay = getReplayOutputFile(broadcastId);
   if (!replay?.path) throw new Error('Could not resolve the server replay path.');
   await fs.mkdir(path.dirname(replay.path), { recursive: true });
@@ -283,6 +285,7 @@ const createSession = async (broadcastId) => {
     segmentRecorder: null,
   };
 
+  if (recorderServerClosing) throw new Error('Recording service is shutting down.');
   const child = spawn(
     ffmpegPath(),
     [
@@ -364,6 +367,7 @@ const createSession = async (broadcastId) => {
 // preparing the archive directory. Single-flight this entire asynchronous
 // stage or two simultaneous starts could launch two encoders with -y.
 const getOrCreateSession = async (broadcastId) => {
+  if (recorderServerClosing) throw new Error('Recording service is shutting down.');
   const existing = sessions.get(broadcastId);
   if (existing) return existing;
   const pending = sessionCreationPromises.get(broadcastId);
@@ -684,6 +688,7 @@ const acceptRecordingSocket = async (socket, request) => {
 
 export const attachLiveKitRecordingWebSocket = (server) => {
   if (websocketServer || !server) return websocketServer;
+  recorderServerClosing = false;
 
   // Echoo already has Socket.IO on this HTTP server. Use noServer mode and
   // claim only the dedicated recording path so this listener cannot reject or
@@ -720,18 +725,24 @@ export const attachLiveKitRecordingWebSocket = (server) => {
   return websocketServer;
 };
 
-export const closeLiveKitRecordingWebSocket = () => {
+export const closeLiveKitRecordingWebSocket = async () => {
+  recorderServerClosing = true;
   if (attachedHttpServer && upgradeHandler) {
     attachedHttpServer.off('upgrade', upgradeHandler);
   }
-  for (const session of sessions.values()) {
+  const closing = [];
+  for (const session of [...sessions.values()]) {
+    // A service restart DURING a broadcast is not End Broadcast. Mark the
+    // recorder interrupted, preserve its bytes and sealed parts, and force
+    // browser OPFS recovery instead of falsely publishing a short replay.
+    session.failed = true;
+    session.error ||= 'Server recorder interrupted by a backend restart.';
     session.stopping = true;
     for (const socket of session.sockets || []) {
       try { socket.close(1001, 'Echoo server shutting down'); } catch { /* closed */ }
     }
-    try { session.child?.stdin?.end?.(); } catch { /* closing */ }
+    closing.push(finishSession(session));
   }
-  sessions.clear();
   startPromises.clear();
   expectedTracks.clear();
   desiredTracks.clear();
@@ -740,6 +751,10 @@ export const closeLiveKitRecordingWebSocket = () => {
   websocketServer = null;
   attachedHttpServer = null;
   upgradeHandler = null;
+  // Run before app.js closes MongoDB; each finish must commit its metadata.
+  // The caller owns an upper shutdown deadline for a stuck encoder/NFS.
+  await Promise.allSettled(closing);
+  sessionCreationPromises.clear();
 };
 
 export const ensureLiveKitServerRecording = async ({

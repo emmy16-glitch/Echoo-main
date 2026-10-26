@@ -197,3 +197,14 @@ test('recording startup serializes concurrent encoder requests and requires Mong
   assert.match(source, /const checkpoint = await Broadcast\.updateOne/);
   assert.match(source, /if \(!checkpoint\.matchedCount\) throw/);
 });
+
+test('graceful API restart preserves partial recording and awaits durable cleanup', async () => {
+  const recorder = await fs.readFile(new URL('../src/services/livekitServerRecording.js', import.meta.url), 'utf8');
+  const app = await fs.readFile(new URL('../src/app.js', import.meta.url), 'utf8');
+  assert.match(recorder, /export const closeLiveKitRecordingWebSocket = async/);
+  assert.match(recorder, /session\.failed = true/);
+  assert.match(recorder, /closing\.push\(finishSession\(session\)\)/);
+  assert.match(recorder, /await Promise\.allSettled\(closing\)/);
+  assert.match(recorder, /recorderServerClosing/);
+  assert.match(app, /await closeLiveKitRecordingWebSocket\(\)/);
+});
