@@ -188,10 +188,14 @@ export default defineConfig({
       env: { ECHOO_E2E_API_PORT: String(e2eApiPort) },
     },
     {
-      command: 'npm run dev -- --host 127.0.0.1 --port 4173',
+      // The full multi-browser sweep repeatedly loads every Listener route.
+      // A Vite dev server serves hundreds of unbundled JS/CSS modules per
+      // navigation and exhausts Chromium network/renderer resources on CI.
+      // Use the production bundle to test actual shipped UI behavior instead.
+      command: 'npm run build && npm run preview -- --host 127.0.0.1 --port 4173 --strictPort',
       url: 'http://127.0.0.1:4173',
       reuseExistingServer: !process.env.CI,
-      timeout: 30_000,
+      timeout: 120_000,
       env: {
         VITE_API_URL: `${e2eApiUrl}/api`,
         VITE_PORT: '4173',
