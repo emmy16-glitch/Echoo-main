@@ -128,6 +128,10 @@ const batch3Service = {
       timeoutMs: 10_000,
       cache: 'no-store',
     }),
+  retryRecordingFinalization: async (broadcastId) =>
+    apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/recording-progress/retry`, {
+      method: 'POST', timeoutMs: 20_000, cache: 'no-store',
+    }),
   getRecordingRecoverySegments: async (broadcastId) =>
     apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/recording-segments`, {
       timeoutMs: 10_000,

@@ -668,8 +668,6 @@ const CreatorStudioBody = () => {
         const queryTab = new URLSearchParams(location.search).get('tab');
         const contentTab = detailType === 'collections' || queryTab === 'collections' ? 'collections' : 'recordings';
         node = (
-          <>
-          <ServerRecordingProgress hideSaved />
           <CreatorUnifiedContentWorkspace
             tab={contentTab}
             tracks={Array.isArray(content?.tracks) ? content.tracks : []}
@@ -684,7 +682,6 @@ const CreatorStudioBody = () => {
             onOpenCollection={(id) => routerNavigate(`/creator-studio/content/collections/${encodeURIComponent(id)}`)}
             onCloseCollection={() => routerNavigate('/creator-studio/content?tab=collections')}
           />
-          </>
         );
         break;
       }
@@ -788,6 +785,7 @@ const CreatorStudioBody = () => {
         {error && <div className="studio-alert error eb-shake" key={error}><FaExclamationCircle /><span>{error}</span><button type="button" onClick={() => setError('')}><FaTimes /></button></div>}
         {notice && <div className="studio-alert success eb-toast-in" key={notice}><FaCloudUploadAlt /><span>{notice}</span><button type="button" onClick={() => setNotice('')}><FaTimes /></button></div>}
 
+        <ServerRecordingProgress />
         {backgroundRecordingProgress && !['Broadcast', 'Recordings'].includes(activeNav) && (
           <div className={`studio-global-progress is-${backgroundRecordingProgress.stage}`} role="status" aria-live="polite">
             <div className="studio-global-progress__head">
