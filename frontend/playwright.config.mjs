@@ -203,5 +203,18 @@ export default defineConfig({
       stdout: 'pipe',
       stderr: 'pipe',
     },
+    {
+      // A small set of legacy browser contract tests directly imports Vite
+      // development source modules or intercepts a lazy module request.
+      // Run only those specs against this isolated dev server; the main
+      // multi-viewport suite continues exercising the production preview.
+      command: 'npm run dev -- --host 127.0.0.1 --port 5173 --strictPort',
+      url: 'http://127.0.0.1:5173',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+      env: { VITE_API_URL: `${e2eApiUrl}/api` },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
   ],
 });

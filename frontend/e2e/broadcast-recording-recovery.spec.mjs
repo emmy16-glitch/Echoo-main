@@ -1,5 +1,8 @@
 import { expect, test } from 'playwright/test';
 
+// Direct /src imports and lazy-chunk failure injection require Vite dev.
+test.use({ baseURL: 'http://127.0.0.1:5173' });
+
 test('checkpointed OPFS master survives a simulated page restart and remains disposable', async ({ page }) => {
   await page.goto('/login');
   const supported = await page.evaluate(() => typeof navigator.storage?.getDirectory === 'function');
