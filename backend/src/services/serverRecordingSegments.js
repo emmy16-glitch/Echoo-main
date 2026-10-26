@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 // a ten-minute segment muxer from identical compressed packets. The optional
 // segment sink uses its own FIFO; onfail=ignore leaves the primary MP3 alone.
 const SEGMENT_SECONDS = 600;
-const PART_RE = /^part-(\\d{6})\\.mp3$/;
+const PART_RE = /^part-(\d{6})\.mp3$/;
 const safeId = (value) => String(value || '').replace(/[^a-zA-Z0-9_-]/g, '');
 const baseDir = () => path.resolve(
   process.env.REPLAY_ARCHIVE_DIR || path.join(process.cwd(), 'uploads', 'replay'),
@@ -44,7 +44,7 @@ export const inspectServerRecordingSegments = async ({
   if (expected === 0) return { verified: true, completedSegments: 0, segmentBytes: 0 };
   const id = safeId(broadcastId);
   const attempt = String(attemptId || '');
-  if (!id || !/^\\d{13}-[a-f0-9]{8}$/.test(attempt)) {
+  if (!id || !/^\d{13}-[a-f0-9]{8}$/.test(attempt)) {
     return { verified: false, completedSegments: 0, segmentBytes: 0 };
   }
   const directory = path.join(baseDir(), id, attempt);
@@ -77,7 +77,9 @@ export async function prepareServerRecordingSegments({
   if (!Number.isInteger(seconds) || seconds < 1) throw new Error('Invalid recording segment duration.');
   // No arbitrary remote URLs or user-controlled paths in these tee sinks.
   const safePath = (value) => {
-    if (/[|[\\]\\r\\n]/.test(value)) throw new Error('Unsafe recording path for FFmpeg tee.');
+    if (['|', '[', ']', '\\n', '\\r'].some((character) => value.includes(character))) {
+      throw new Error('Unsafe recording path for FFmpeg tee.');
+    }
     return value;
   };
   const teeOutput =
