@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import './CreatorBroadcastApproved.css';
 import batch3Service from '../../services/batch3Service';
 import { retryAutosave } from '../../services/recordingAutosave';
 
@@ -43,6 +44,8 @@ export default function ServerRecordingProgress({ liveBroadcastId = '', hideSave
   const [recoveryError, setRecoveryError] = useState('');
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState('');
+  const latestBroadcastRef = useRef(broadcastId);
+  latestBroadcastRef.current = broadcastId;
 
   const switchBroadcast = useCallback((id) => {
     const next = String(id || '');
@@ -67,13 +70,14 @@ export default function ServerRecordingProgress({ liveBroadcastId = '', hideSave
     try {
       const response = await batch3Service.getServerRecordingProgress(broadcastId);
       const result = response?.data || null;
-      if (result?.broadcastId !== broadcastId) return;
+      if (latestBroadcastRef.current !== broadcastId || result?.broadcastId !== broadcastId) return;
       setProgress(result);
       setUnavailable(false);
       setConnected(true);
       setLastCheckedAt(Date.now());
       rememberSnapshot(broadcastId, result);
     } catch (error) {
+      if (latestBroadcastRef.current !== broadcastId) return;
       if ([401, 403, 404].includes(Number(error?.status))) {
         setUnavailable(true);
         return;
@@ -141,7 +145,24 @@ export default function ServerRecordingProgress({ liveBroadcastId = '', hideSave
     finally { setRecoveryBusy(-1); }
   };
 
-  if (!broadcastId || !progress || unavailable || (hideSaved && progress.fullReplaySaved === true)) return null;
+  if (!broadcastId || unavailable || (hideSaved && progress?.fullReplaySaved === true)) return null;
+  if (!progress) {
+    // The card remains mounted even while authentication/network and the
+    // authoritative first progress request are still resolving after refresh.
+    return (
+      <section className="ec2-operation-progress" role="status"
+        data-testid="server-recording-progress" aria-label="Restoring recording progress">
+        <div className="ec2-operation-progress__head">
+          <strong>Checking your recording save</strong>
+          <span>{connected ? 'Connecting' : 'Offline'}</span>
+        </div>
+        <div className="ec2-operation-progress__bar is-indeterminate" aria-label="Restoring progress">
+          <i />
+        </div>
+        <small>Restoring the last verified recording state from ECHOO. No audio is discarded when this page reloads.</small>
+      </section>
+    );
+  }
   const live = ['live', 'starting'].includes(progress.broadcastStatus);
   const done = progress.fullReplaySaved === true;
   const count = Math.max(0, Number(progress.completedSegments) || 0);
@@ -160,7 +181,9 @@ export default function ServerRecordingProgress({ liveBroadcastId = '', hideSave
     ['failed', 'incomplete'].includes(progress.reconstructionStatus) ||
     progress.replayFileUnavailable === true;
   const pending = !live && !done && !failed;
-  const savingPercent = done ? 100 : Math.min(99, Math.max(0, Number(finalization.percent) || 0));
+  const serverReportedPercent = Number(finalization.percent) || 0;
+  const finalizationKnown = done || serverReportedPercent > 0;
+  const savingPercent = done ? 100 : Math.min(99, Math.max(0, serverReportedPercent));
   const title = done ? 'Recording saved to ECHOO'
     : live ? 'Protecting your live recording'
     : failed ? 'Recording needs recovery'
@@ -183,12 +206,16 @@ export default function ServerRecordingProgress({ liveBroadcastId = '', hideSave
         : `Server backup coverage: ${coverage}% • ${Math.floor(protectedSeconds / 60)} minutes sealed • ${count} parts • ${(bytes / 1048576).toFixed(1)} MB. This is not the final replay save percentage.`}</small>
       {!live && !done && (
         <>
-          <div className="ec2-operation-progress__bar" role="progressbar" aria-label="Final recording save"
-            aria-valuemin={0} aria-valuemax={100} aria-valuenow={savingPercent}>
-            <i style={{ width: `${savingPercent}%` }} />
+          <div className={`ec2-operation-progress__bar ${!finalizationKnown && pending ? 'is-indeterminate' : ''}`}
+            role="progressbar" aria-label="Final recording save"
+            aria-valuemin={0} aria-valuemax={100}
+            aria-valuenow={finalizationKnown ? savingPercent : undefined}
+            aria-valuetext={!finalizationKnown ? 'Processing recording; final file not yet verified' : undefined}>
+            <i style={{ width: finalizationKnown ? `${savingPercent}%` : undefined }} />
           </div>
           <small>{failed ? 'Save failed or incomplete. Retry resumes existing verified files and missing recovery chunks.'
-            : `Final save: ${finalization.status || 'waiting'} • ${savingPercent}% reported by server. Verifying the finished audio.`}</small>
+            : finalizationKnown ? `Final save: ${finalization.status || 'waiting'} • ${savingPercent}% confirmed by server.`
+              : `Final save: ${finalization.status || 'waiting'} • processing. ECHOO will show 100% only after verifying the complete recording.`}</small>
         </>
       )}
       {!connected && <small role="status">Connection lost. Showing last verified progress{updated ? ` from ${updated}` : ''}. Reconnecting automatically; recordings on the server are not reset.</small>}

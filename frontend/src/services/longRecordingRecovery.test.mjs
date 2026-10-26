@@ -34,3 +34,20 @@ test('long browser recordings checkpoint independently of the live stream', asyn
   assert.match(source, /queueCompressedCheckpoint/);
   assert.match(source, /writeRecoveryManifest\(recording, 'pending_upload'\)/);
 });
+
+test('persistent recording progress survives navigation, refresh and network failure', async () => {
+  const fs = await import('node:fs/promises');
+  const source = await fs.readFile(new URL('../Components/CreatorStudio/ServerRecordingProgress.jsx', import.meta.url), 'utf8');
+  const studio = await fs.readFile(new URL('../Components/CreatorStudio/CreatorStudio.jsx', import.meta.url), 'utf8');
+  const broadcast = await fs.readFile(new URL('../Components/CreatorStudio/CreatorLiveConnectedWorkspace.jsx', import.meta.url), 'utf8');
+  assert.match(source, /echoo:server-recording-progress:v1/);
+  assert.match(source, /rememberSnapshot\(broadcastId, result\)/);
+  assert.match(source, /window.addEventListener\('online'/);
+  assert.match(source, /document.addEventListener\('visibilitychange'/);
+  assert.match(source, /role="progressbar"/);
+  assert.match(source, /retryAutosave\(broadcastId\)/);
+  assert.match(source, /retryRecordingFinalization\(broadcastId\)/);
+  assert.match(source, /Restoring the last verified recording state/);
+  assert.match(studio, /<ServerRecordingProgress \/>/);
+  assert.match(broadcast, /echoo:recording-track-broadcast/);
+});
