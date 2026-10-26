@@ -47,11 +47,10 @@ const durableSealedParts = async (dir, recordingActive, cache = new Map()) => {
     if (cache.has(name)) { parts.push({ name, bytes: cache.get(name) }); continue; }
     const info = await fs.stat(filename).catch(() => null);
     if (!info?.isFile() || info.size < 4096) continue;
-    if (recordingActive) {
-      // fsync the completed file before confirming it in MongoDB.
-      const fd = await fs.open(filename, 'r');
-      try { await fd.sync(); } finally { await fd.close(); }
-    }
+    // A sealed MP3 is only reported protected after its bytes are synced.
+    // This includes the final segment after a normal clean FFmpeg shutdown.
+    const fd = await fs.open(filename, 'r');
+    try { await fd.sync(); } finally { await fd.close(); }
     cache.set(name, info.size);
     parts.push({ name, bytes: info.size });
   }
@@ -119,7 +118,10 @@ export async function startServerRecordingSegments({
   child.stderr?.on('data', (data) => { errorText = String(data).slice(-500); });
 
   const refresh = async (final = false) => {
-    const parts = await durableSealedParts(dir, !(final || stopped), confirmed);
+    // After an unclean exit the newest part can be truncated. Do not report
+    // it as a fully protected segment, even if the file exists on disk.
+    const keepNewestOpen = failed || !(final || stopped);
+    const parts = await durableSealedParts(dir, keepNewestOpen, confirmed);
     const bytes = parts.reduce((sum, part) => sum + part.bytes, 0);
     if (parts.length !== lastCount || bytes !== lastBytes || final || failed) {
       lastCount = parts.length;
