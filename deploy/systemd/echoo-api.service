@@ -2,6 +2,7 @@
 Description=Echoo Node API
 After=network-online.target
 Wants=network-online.target
+RequiresMountsFor=/mnt/storage/media/echoo
 
 [Service]
 Type=simple
@@ -11,9 +12,9 @@ WorkingDirectory=/home/digihosting/Documents/Apzs/Echoo-main/backend
 EnvironmentFile=/home/digihosting/Documents/Apzs/Echoo-main/backend/.env
 Environment=NODE_ENV=production
 Environment=PORT=5064
-# The deploy script creates this symlink only after verifying that the storage
-# VM's Echoo directory is writable.
-ExecStartPre=/usr/bin/test -w /mnt/storage/media/echoo
+# Re-validate on EVERY service start (including crashes and host reboots):
+# an unmounted NFS volume can leave a writable but ephemeral root directory.
+ExecStartPre=/usr/bin/bash /home/digihosting/Documents/Apzs/Echoo-main/deploy/check-echoo-recording-storage.sh
 # The host's /usr/bin/node is v12 and cannot run this application. This is the
 # existing Node 20 runtime used by the colocated e-Metro service.
 ExecStart=/home/digihosting/Documents/Apzs/e-metro/.tools/node/bin/node src/app.js

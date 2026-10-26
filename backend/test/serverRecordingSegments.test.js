@@ -151,3 +151,14 @@ test('digi02 deployment checks the actual mounted filesystem, not just write per
   assert(script.includes('findmnt -n -T "$STORAGE_DIR" -o TARGET'));
   assert.match(script, /storage_mount.*== "\/"/);
 });
+
+test('systemd startup enforces persistent recording storage on every restart', async () => {
+  const unit = await fs.readFile(new URL('../../deploy/systemd/echoo-api.service', import.meta.url), 'utf8');
+  const gate = await fs.readFile(new URL('../../deploy/check-echoo-recording-storage.sh', import.meta.url), 'utf8');
+  assert(unit.includes('RequiresMountsFor=/mnt/storage/media/echoo'));
+  assert(unit.includes('ExecStartPre=/usr/bin/bash '));
+  assert(unit.includes('check-echoo-recording-storage.sh'));
+  assert(gate.includes('findmnt -n -T "$STORAGE_DIR" -o TARGET'));
+  assert(gate.includes('"$storage_mount" == "/"'));
+  assert(gate.includes('mktemp "$REPLAY_DIR/'));
+});

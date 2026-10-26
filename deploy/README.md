@@ -64,6 +64,9 @@ probe. The preflight cleans up the probe files.
 Before deploying, use `findmnt -T /mnt/storage/media/echoo` to confirm the
 storage resides on a mounted volume rather than the server root disk. The
 preflight rejects a missing mount even if its leftover directory is writable.
+The systemd service also checks the mounted and writable archive at every
+startup, including after a host reboot or automatic service restart. Restore
+the media mount before restarting ECHOO if this fail-closed check fails.
 
 **If the mount is still read-only**, correct NFS export/mount permissions first.
 Do not silently replace the archive with an ephemeral fallback. Confirm
