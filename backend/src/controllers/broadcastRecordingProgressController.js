@@ -27,6 +27,13 @@ export async function getBroadcastRecordingProgress(req, res, next) {
     // Show only parts still present on disk, and alert the creator otherwise.
     const completedSegments = checked.completedSegments;
     const storageMissing = expectedSegments > 0 && !checked.verified;
+    const started = new Date(broadcast.serverRecording?.startedAt || broadcast.startedAt || 0).getTime();
+    const ended = new Date(broadcast.endedAt || Date.now()).getTime();
+    // A short final segment is not a full ten minutes. Never claim more
+    // protected playback time than the elapsed duration of the broadcast.
+    const measuredMaximum = Number.isFinite(started) && started > 0 && Number.isFinite(ended)
+      ? Math.max(0, Math.ceil((ended - started) / 1000))
+      : Number.POSITIVE_INFINITY;
     return res.status(200).set('Cache-Control', 'no-store').json({
       data: {
         broadcastId: String(broadcast._id),
@@ -37,7 +44,7 @@ export async function getBroadcastRecordingProgress(req, res, next) {
         serverRecorderStatus: broadcast.serverRecording?.status || 'idle',
         segmentStatus: storageMissing ? 'degraded' : (segments.status || 'idle'),
         completedSegments,
-        protectedSeconds: completedSegments * segmentSeconds,
+        protectedSeconds: Math.min(completedSegments * segmentSeconds, measuredMaximum),
         segmentBytes: checked.segmentBytes,
         updatedAt: segments.updatedAt || null,
         error: storageMissing
