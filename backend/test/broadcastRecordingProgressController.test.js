@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import Broadcast from '../src/models/Broadcast.js';
 import { getBroadcastRecordingProgress } from '../src/controllers/broadcastRecordingProgressController.js';
 
@@ -14,6 +17,10 @@ const makeResponse = () => ({
 
 test('recording progress is owner-scoped and never exposes private archive paths', async () => {
   const original = Broadcast.findOne;
+  const originalReplayDir = process.env.REPLAY_ARCHIVE_DIR;
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'echoo-progress-'));
+  process.env.REPLAY_ARCHIVE_DIR = temp;
+  const attemptId = `${Date.now()}-abcdef12`;
   const recording = {
     _id: '507f1f77bcf86cd799439091',
     status: 'live',
@@ -24,7 +31,7 @@ test('recording progress is owner-scoped and never exposes private archive paths
       startedAt: new Date('2026-10-26T08:00:00Z'),
       segments: {
         status: 'recording', completedSegments: 3, segmentBytes: 30000000,
-        segmentSeconds: 600, updatedAt: new Date('2026-10-26T08:31:00Z'),
+        segmentSeconds: 600, attemptId, updatedAt: new Date('2026-10-26T08:31:00Z'),
         privatePath: '/secret/private/recorder-file.mp3',
       },
     },
@@ -35,6 +42,11 @@ test('recording progress is owner-scoped and never exposes private archive paths
     return { select: async () => recording };
   };
   try {
+    const storageDir = path.join(temp, 'segments', recording._id, attemptId);
+    await fs.mkdir(storageDir, { recursive: true });
+    for (let i = 0; i < 3; i += 1) {
+      await fs.writeFile(path.join(storageDir, `part-${String(i).padStart(6, '0')}.mp3`), Buffer.alloc(8192, 1));
+    }
     const response = makeResponse();
     await getBroadcastRecordingProgress({
       params: { broadcastId: String(recording._id) },
@@ -47,8 +59,21 @@ test('recording progress is owner-scoped and never exposes private archive paths
     assert.equal(response.body.data.protectedSeconds, 1800);
     assert.equal(response.body.data.fullReplaySaved, false);
     assert.doesNotMatch(JSON.stringify(response.body), /secret\/private|recorder-file/);
+    // Simulate an ephemeral disk losing one segment while MongoDB persists.
+    await fs.rm(path.join(storageDir, 'part-000002.mp3'));
+    const missing = makeResponse();
+    await getBroadcastRecordingProgress({
+      params: { broadcastId: String(recording._id) },
+      userId: '507f1f77bcf86cd799439011',
+    }, missing, (error) => { throw error; });
+    assert.equal(missing.body.data.segmentStatus, 'degraded');
+    assert.equal(missing.body.data.completedSegments, 2);
+    assert.match(missing.body.data.error, /missing from storage/);
   } finally {
     Broadcast.findOne = original;
+    if (originalReplayDir === undefined) delete process.env.REPLAY_ARCHIVE_DIR;
+    else process.env.REPLAY_ARCHIVE_DIR = originalReplayDir;
+    await fs.rm(temp, { recursive: true, force: true });
   }
 });
 
