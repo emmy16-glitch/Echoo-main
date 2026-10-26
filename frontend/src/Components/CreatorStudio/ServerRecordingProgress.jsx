@@ -12,11 +12,18 @@ export default function ServerRecordingProgress({ liveBroadcastId = '' }) {
   const [broadcastId, setBroadcastId] = useState(storedBroadcast);
   const [progress, setProgress] = useState(null);
   const [unavailable, setUnavailable] = useState(false);
+  const [recoveryParts, setRecoveryParts] = useState([]);
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [recoveryBusy, setRecoveryBusy] = useState(-1);
+  const [recoveryError, setRecoveryError] = useState('');
 
   useEffect(() => {
     if (!liveBroadcastId || broadcastId === liveBroadcastId) return;
     setBroadcastId(liveBroadcastId);
     setProgress(null);
+    setRecoveryParts([]);
+    setRecoveryOpen(false);
+    setRecoveryError('');
     try { localStorage.setItem(LAST_RECORDING_KEY, liveBroadcastId); } catch { /* no-op */ }
   }, [liveBroadcastId, broadcastId]);
 
@@ -45,6 +52,29 @@ export default function ServerRecordingProgress({ liveBroadcastId = '' }) {
     const timer = window.setInterval(() => { void refresh(); }, 12_000);
     return () => { active = false; window.clearInterval(timer); };
   }, [broadcastId]);
+
+  const loadRecoveryParts = async () => {
+    if (!broadcastId) return;
+    setRecoveryError('');
+    try {
+      const result = await batch3Service.getRecordingRecoverySegments(broadcastId);
+      setRecoveryParts(result?.data?.segments || []);
+      setRecoveryOpen(true);
+    } catch {
+      setRecoveryError('Could not retrieve the protected recording parts. Check your connection and try again.');
+    }
+  };
+  const downloadRecoveryPart = async (index) => {
+    setRecoveryBusy(index);
+    setRecoveryError('');
+    try {
+      await batch3Service.downloadRecordingRecoverySegment(broadcastId, index);
+    } catch (error) {
+      setRecoveryError(error?.message || 'This part could not be downloaded.');
+    } finally {
+      setRecoveryBusy(-1);
+    }
+  };
 
   if (!progress || unavailable) return null;
   const count = Math.max(0, Number(progress.completedSegments) || 0);
@@ -76,7 +106,8 @@ export default function ServerRecordingProgress({ liveBroadcastId = '' }) {
       ? 'Server segment backup needs attention'
       : count
         ? `${count} server recording ${count === 1 ? 'segment' : 'segments'} protected`
-        : segmentsActive ? 'Preparing the first server recording segment' : '';
+        : segmentsActive ? 'Preparing the first server recording segment'
+        : !live ? 'Checking recording recovery on the server' : '';
   if (!headline) return null;
   const reconstructionNote = progress.reconstructionStatus === 'recovering'
     ? 'Server segments are being verified and joined after the broadcast. Your existing files remain protected.'
@@ -110,6 +141,40 @@ export default function ServerRecordingProgress({ liveBroadcastId = '' }) {
               : progress.error || 'No server backup parts could be verified. Check browser recovery and server storage.'
             : `${bytes > 0 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB secured. ` : ''}Server backups are saved as the broadcast continues.${lastUpdate ? ` Last update ${lastUpdate}.` : ''} Refreshing this page will reload progress from the server.`}
       </small>
+      {!live && !fullReplaySaved && (
+        <div style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            onClick={loadRecoveryParts}
+            aria-expanded={recoveryOpen}
+            data-testid="load-server-recovery-parts"
+          >
+            {recoveryOpen ? 'Refresh recoverable audio parts' : 'Find saved server audio parts'}
+          </button>
+          {recoveryOpen && (
+            <div style={{ maxHeight: 220, overflowY: 'auto', marginTop: 8 }}>
+              <small>
+                {recoveryParts.length
+                  ? `${recoveryParts.length} safely closed MP3 parts available. Download each part to protect your audio while full reconstruction is pending.`
+                  : 'No safely closed server recording parts were found. Keep your browser recovery copy.'}
+              </small>
+              {recoveryParts.map((part) => (
+                <div key={part.index}>
+                  <button
+                    type="button"
+                    onClick={() => downloadRecoveryPart(part.index)}
+                    disabled={recoveryBusy >= 0}
+                  >
+                    {recoveryBusy === part.index ? 'Downloading…' : `Download MP3 part ${part.index + 1}`}
+                    {part.bytes ? ` (${(part.bytes / 1048576).toFixed(1)} MB)` : ''}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {recoveryError && <small role="alert">{recoveryError}</small>}
+        </div>
+      )}
     </section>
   );
 }

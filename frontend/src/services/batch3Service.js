@@ -1,4 +1,4 @@
-import { apiRequest } from './api.js';
+import { apiFetch, apiRequest } from './api.js';
 import batch2Service, {
   normalizeBroadcast,
   normalizeStation,
@@ -133,6 +133,34 @@ const batch3Service = {
       timeoutMs: 10_000,
       cache: 'no-store',
     }),
+  downloadRecordingRecoverySegment: async (broadcastId, index) => {
+    if (!Number.isInteger(index) || index < 0 || index > 2047) {
+      throw new Error('Invalid recovery segment.');
+    }
+    const response = await apiFetch(
+      `/broadcasts/${encodeURIComponent(broadcastId)}/recording-segments/${index}`,
+      { cache: 'no-store', timeoutMs: 90_000 }
+    );
+    if (!response.ok) {
+      throw new Error('This server recording segment is unavailable. Try refreshing the list.');
+    }
+    // Only a ten-minute compressed MP3 is held temporarily; never materialize
+    // the full seven-to-nine-hour show in the browser.
+    const blob = await response.blob();
+    if (!blob.size || blob.size > 80 * 1024 * 1024) {
+      throw new Error('Unexpected recovery segment size.');
+    }
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `echoo-${broadcastId}-part-${index + 1}.mp3`;
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 90_000);
+    return true;
+  },
 
   getStations: async () => {
     return batch2Service.listStations({ page: 1, limit: 100 });
