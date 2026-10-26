@@ -47,7 +47,7 @@ export function RecordingAutosaveMount() {
   // The app often mounts on Login before the creator's token exists. Re-scan
   // protected OPFS data when returning to Creator Studio after authentication.
   // Route changes inside the Studio do not restart a recording save.
-  useEffect(() => installRecordingAutosave(), [isCreatorWorkspace]);
+  useEffect(() => installRecordingAutosave({ recoverOnInstall: isCreatorWorkspace }), [isCreatorWorkspace]);
 
   useEffect(() => {
     let savingInBackground = false;
