@@ -4,7 +4,7 @@ Echoo's live audio transport and recording recovery are separate. Recording erro
 
 ## Safeguards
 
-- **Browser:** Echoo stores a creator-owned recovery master in origin-private file storage (OPFS) and checkpoints every 15 seconds where supported. The planning window is 12 hours, subject to actual disk quota and operating-system/browser conditions. An active creator gets a browser navigation warning before refresh; refresh nonetheless stops the browser's microphone/LiveKit publisher.
+- **Browser:** Echoo stores a creator-owned recovery master in origin-private file storage (OPFS) and checkpoints every 15 seconds where supported. The capacity-planning window is seven days (not a fixed capture limit), subject to actual disk quota and operating-system/browser conditions. An active creator gets a browser navigation warning before refresh; refresh nonetheless stops the browser's microphone/LiveKit publisher.
 - **Reload:** Returning to authenticated Creator Studio rechecks pending protected recordings. A recovery or failed upload is visible on Broadcast and Content; server retries never delete the OPFS recovery master before a confirmed saved replay.
 - **Backend:** The server continuously writes MP3 from LiveKit Track Egress. A failed/aborted encoder now moves a nontrivial MP3 fragment to a private, uniquely named `*.interrupted-*.mp3`, instead of deleting it. The Broadcast document records `serverRecording.partialAvailable` and `partialBytes`. **These fragments are not complete verified replays and must not be published automatically.** 
 - **Finalization:** The server allows up to 30s for the write backlog and 60s for FFmpeg closure. It does not pause or block listener streaming.
@@ -17,6 +17,10 @@ Echoo's live audio transport and recording recovery are separate. Recording erro
 4. Never clear browser site storage, log into a different creator account to attempt recovery, or reinstall the browser/app until the recovery master has been verified and saved.
 5. To investigate a failed encoder, locate the private `*.interrupted-*.mp3` file by broadcast ID, verify it with ffprobe/ffmpeg, copy it to safe storage and assess missing duration before any manual restoration. Do not replace the canonical replay file with an unverified fragment.
 6. Run a complete 10-hour rehearsal with network interruptions, app refresh/restart, backend restart, full disk, and post-live MP3 checks. Validate audio continuity and compare recorded duration to live duration before claiming long-session reliability.
+
+## Multi-day and multi-week recording requirements
+
+The browser safety recording now plans for a week of capacity and chooses a compressed backup if lossless storage is inadequate. This does **not** bypass LiveKit Cloud's **12-hour raw Track Egress limit**. True multi-day or multi-week reliability requires rotating Egress sessions before 12 hours without touching the creator's live publisher; completing and durably storing independently recoverable recording segments; and verifying gaps and durations when assembling the final recording. A week-long recording is **not yet end-to-end verified** by this safety patch. Server disk must have permanent storage, alerting and backups.
 
 ## Explicit limitations
 
