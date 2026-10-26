@@ -275,6 +275,7 @@ const createSession = async (broadcastId) => {
         'serverRecording.segments.completedSegments': progress.completedSegments,
         'serverRecording.segments.segmentBytes': progress.segmentBytes,
         'serverRecording.segments.segmentSeconds': progress.segmentSeconds,
+        'serverRecording.segments.attemptId': progress.attemptId,
         'serverRecording.segments.updatedAt': progress.updatedAt,
         'serverRecording.segments.error': progress.error,
       }),
