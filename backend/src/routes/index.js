@@ -34,6 +34,7 @@ import { uploadLimiter } from '../middleware/rateLimiter.js';
 import { getTranscriptionGatewayDiagnostics } from '../services/transcriptionGateway.js';
 import { checkFfmpegCapability } from '../services/audioTrimService.js';
 import { getLiveKitServerRecordingDiagnostics } from '../services/livekitServerRecording.js';
+import { checkServerRecordingStorageReadiness } from '../services/serverRecordingStorageHealth.js';
 
 const router = express.Router();
 
@@ -90,15 +91,20 @@ router.get('/health/recording', async (req, res) => {
   const livekitRecorder = getLiveKitServerRecordingDiagnostics();
   const serverRecordingRequired =
     /^(1|true|yes)$/i.test(String(process.env.LIVEKIT_SERVER_RECORDING_ENABLED || '').trim());
+  const backupRequired = serverRecordingRequired &&
+    /^(1|true|yes)$/i.test(String(process.env.SERVER_RECORDING_SEGMENTS_ENABLED || '').trim());
+  const storage = await checkServerRecordingStorageReadiness({ required: backupRequired });
   const ready =
-    capability.ok && (!serverRecordingRequired || livekitRecorder.available);
+    capability.ok && (!serverRecordingRequired || livekitRecorder.available) && storage.ready;
 
   return res.status(ready ? 200 : 503).json({
     status: ready ? 'ok' : 'error',
     service: 'recording-pipeline',
     ffmpeg: capability.ffmpeg ? 'available' : 'missing',
     ffprobe: capability.ffprobe ? 'available' : 'missing',
-    automaticServerMp3: capability.ok && livekitRecorder.available,
+    automaticServerMp3: capability.ok && livekitRecorder.available && storage.ready,
+    persistentBackupStorage: storage.status,
+    persistentBackupRequired: backupRequired,
     recoveryMp3Assembly: capability.ok,
     trimming: capability.ok,
     livekitServerRecording: livekitRecorder.available,
@@ -110,7 +116,7 @@ router.get('/health/recording', async (req, res) => {
       capability.message ||
       (serverRecordingRequired && !livekitRecorder.available
         ? 'LiveKit server recording is enabled but its public WebSocket ingest is not ready.'
-        : undefined),
+        : !storage.ready ? 'Persistent server recording backup storage is not ready.' : undefined),
     timestamp: new Date().toISOString(),
   });
 });

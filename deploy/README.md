@@ -90,3 +90,14 @@ For a mobile release, set:
 ```text
 EXPO_PUBLIC_API_URL=https://echoo.digi02.org/api
 ```
+
+## Runtime recording storage health
+
+When ten-minute server backups are required, `/api/health/recording`
+now checks the live volume rather than merely FFmpeg configuration. It
+checks the filesystem mount, free space and a synchronized test write,
+caching results for up to 30 seconds. The endpoint returns HTTP 503 and
+`persistentBackupStorage: unavailable` if protection is degraded; it does
+not reveal the private storage location. This probe does not touch the
+WebRTC/LiveKit listener path. The minimum headroom is 256 MiB; operators
+should monitor remaining capacity well above this safety threshold.
