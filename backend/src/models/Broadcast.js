@@ -222,6 +222,9 @@ const broadcastSchema = new mongoose.Schema(
       endedAt: { type: Date, default: null },
       pcmBytes: { type: Number, min: 0, default: 0 },
       fileBytes: { type: Number, min: 0, default: 0 },
+      // Failed server encodes are kept separately for operator recovery, never published as complete.
+      partialBytes: { type: Number, min: 0, default: 0 },
+      partialAvailable: { type: Boolean, default: false },
       error: { type: String, default: null, maxlength: 1000 },
     },
     mediaState: {
