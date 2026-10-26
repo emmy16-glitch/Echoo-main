@@ -43,6 +43,18 @@ const locks = new Map();
 
 const replayFileKey = (broadcastId) => `replay-${String(broadcastId)}`;
 
+// An Audio row and an idempotent replay key are not proof that a recording
+// survived disk loss. Never claim "ready" for a vanished physical MP3.
+// The browser OPFS and server segment backups remain available for repair.
+export const isStoredReplayAccessible = async (audio) => {
+  if (!audio || audio.isDeleted) return false;
+  if (audio.storage === 'cloud' && audio.cloudKey) return true;
+  const filename = String(audio.filename || '');
+  if (!/^[\w.-]{1,255}$/.test(filename) || filename === '.' || filename === '..') return false;
+  const stat = await fs.lstat(path.join(AUDIO_UPLOAD_DIR, filename)).catch(() => null);
+  return Boolean(stat?.isFile() && stat.size >= Math.max(4096, Number(audio.fileSize) || 0));
+};
+
 const safeTitle = (value, fallback = 'Live broadcast recording') => String(value || fallback)
   .trim()
   .replace(/[^a-z0-9]+/gi, '-')
@@ -386,8 +398,13 @@ export async function finalizeBroadcastReplay({ broadcastId, creatorId, expected
 
   if (locks.has(bid)) {
     await locks.get(bid);
-    const existing = await Audio.findOne({ fileKey: replayFileKey(bid) }).select('_id');
-    if (existing) return { status: 'ready', audioId: String(existing._id), duplicate: true };
+    const existing = await Audio.findOne({ fileKey: replayFileKey(bid) })
+      .select('_id filename fileSize storage cloudKey isDeleted');
+    if (existing) {
+      return (await isStoredReplayAccessible(existing))
+        ? { status: 'ready', audioId: String(existing._id), duplicate: true }
+        : { status: 'incomplete', audioId: null, reason: 'linked-replay-file-missing' };
+    }
   }
   let release = null;
   const gate = new Promise((resolve) => { release = resolve; });
@@ -417,8 +434,12 @@ async function finalizeInner({
 
   // Idempotency first: End Broadcast retries, double complete posts and page
   // refreshes all resolve to the single canonical replay.
-  const already = await Audio.findOne({ fileKey }).select('_id');
+  const already = await Audio.findOne({ fileKey })
+    .select('_id filename fileSize storage cloudKey isDeleted');
   if (already) {
+    if (!await isStoredReplayAccessible(already)) {
+      return { status: 'incomplete', audioId: null, reason: 'linked-replay-file-missing' };
+    }
     await linkCanonicalReplay(broadcastId, already._id);
     return { status: 'ready', audioId: String(already._id), duplicate: true };
   }
@@ -440,6 +461,10 @@ async function finalizeInner({
   }
   if (broadcast.replayAudio || broadcast.replayAudioId) {
     const audioId = broadcast.replayAudio || broadcast.replayAudioId;
+    const stored = await Audio.findById(audioId).select('_id filename fileSize storage cloudKey isDeleted');
+    if (!await isStoredReplayAccessible(stored)) {
+      return { status: 'incomplete', audioId: null, reason: 'linked-replay-file-missing' };
+    }
     await linkCanonicalReplay(broadcastId, audioId);
     return { status: 'ready', audioId: String(audioId), duplicate: true };
   }
@@ -731,14 +756,25 @@ async function finalizeInner({
     });
   } catch (error) {
     if (error?.code === 11000) {
-      const winner = await Audio.findOne({ fileKey }).select('_id');
+      const winner = await Audio.findOne({ fileKey })
+        .select('_id filename fileSize storage cloudKey isDeleted');
       if (winner) {
+        if (!await isStoredReplayAccessible(winner)) {
+          // Do not delete this newly encoded copy when the unique database
+          // row points at an absent file. Preserve for administrator repair.
+          throw Object.assign(new Error('Existing replay record points to missing media; new output retained for recovery.'), {
+            code: 'STALE_REPLAY_RECORD',
+            preserveNewReplayOutput: true,
+          });
+        }
         await fs.rm(finalPath, { force: true }).catch(() => null);
         await linkCanonicalReplay(broadcastId, winner._id);
         return { status: 'ready', audioId: String(winner._id), duplicate: true };
       }
     }
-    await fs.rm(finalPath, { force: true }).catch(() => null);
+    if (!error?.preserveNewReplayOutput) {
+      await fs.rm(finalPath, { force: true }).catch(() => null);
+    }
     throw error;
   }
 
