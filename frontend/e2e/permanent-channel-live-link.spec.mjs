@@ -76,7 +76,7 @@ test('guests share the Channel URL rather than the broadcast ID', async ({ page 
   await page.locator('.listener-room-actions summary').click();
   await page.getByRole('menuitem', { name: 'Copy link' }).click();
   await expect.poll(() => page.evaluate(() => window.__sharedLink)).toBe(
-    `${new URL(page.url()).origin}${PERMANENT_PATH}`
+    `https://echoo.digi02.org${PERMANENT_PATH}`
   );
 });
 

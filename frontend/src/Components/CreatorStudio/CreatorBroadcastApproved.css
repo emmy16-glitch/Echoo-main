@@ -1397,3 +1397,88 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
     justify-content: center;
   }
 }
+
+/* Recording persistence uses the existing Creator Studio treatment.
+   Keep action controls within the viewport; animate unknown-length finalization
+   instead of fabricating a percentage. Reduced-motion users get a static bar. */
+.ec2-operation-progress__actions {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ec2-operation-progress__actions > button,
+.ec2-operation-progress button[data-testid="load-server-recovery-parts"] {
+  min-height: 36px;
+  max-width: 100%;
+  border: 1px solid #b8cce8;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  background: #fff;
+  color: #183b6b;
+  cursor: pointer;
+}
+.ec2-operation-progress button:disabled { cursor: not-allowed; opacity: .6; }
+.ec2-operation-progress__bar.is-indeterminate > i {
+  width: 30%;
+  animation: echoo-replay-pending 1.7s ease-in-out infinite alternate;
+}
+@keyframes echoo-replay-pending {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(330%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ec2-operation-progress__bar.is-indeterminate > i { animation: none; transform: translateX(0); }
+}
+
+/* Persistent broadcast recording status: overlay without reflowing any
+   End Broadcast, monitor or live mixer control. It remains mounted in
+   Creator Studio while route content changes. */
+.studio-persistent-recording.is-live-workspace {
+  position: fixed;
+  top: 84px;
+  right: 18px;
+  width: min(340px, calc(100vw - 32px));
+  max-height: calc(100dvh - 106px);
+  overflow-y: auto;
+  z-index: 34;
+  pointer-events: none;
+}
+.studio-persistent-recording.is-live-workspace > * { pointer-events: none; }
+.studio-persistent-recording.is-live-workspace button { pointer-events: auto; }
+.studio-persistent-recording.is-live-workspace .ec2-operation-progress {
+  box-shadow: 0 8px 22px rgba(11, 36, 68, .13);
+  margin: 0;
+}
+.ec2-operation-progress--floating-compact {
+  padding: 10px 12px;
+  gap: 6px;
+}
+.ec2-operation-progress__compact-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.ec2-operation-progress__compact-footer small { font-size: 11px; color: #506381; }
+.ec2-operation-progress__compact-footer button,
+.ec2-operation-progress__collapse {
+  background: none;
+  border: 0;
+  color: #205dc4;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+@media (max-width: 640px) {
+  .studio-persistent-recording.is-live-workspace {
+    top: auto;
+    bottom: max(12px, env(safe-area-inset-bottom, 0px));
+    right: 10px;
+    width: min(290px, calc(100vw - 20px));
+    max-height: 55dvh;
+  }
+}

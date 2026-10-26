@@ -892,17 +892,19 @@ export const uploadRecoveredTake = async ({ recording, broadcast } = {}) => {
   // Keep the recovered card/master until server reconciliation has actually
   // succeeded. A failed recovery must remain locally saveable.
   await batch3Service.recoverBroadcast(broadcastId);
-  forgetLocalMaster('recovered');
-
-  return startAutosave({
+  const saved = await startAutosave({
     recording: { ...recording, broadcastId },
     broadcast,
     skipDeviceSave: true,
   });
+  // Clear the recovered card only after Echoo has confirmed a durable replay.
+  // A failed retry or reload must retain the creator's only protected copy.
+  if (saved?.audioId) forgetLocalMaster('recovered');
+  return saved;
 };
 
 // Headless mount: listens for finished broadcasts + offers boot recovery.
-export const installRecordingAutosave = () => {
+export const installRecordingAutosave = ({ recoverOnInstall = true } = {}) => {
   let disposed = false;
   let onlineRecoveryHandler = null;
 
@@ -915,9 +917,16 @@ export const installRecordingAutosave = () => {
   window.addEventListener(BROADCAST_RECORDING_READY_EVENT, onReady);
 
   // Offer any orphaned take from a closed/crashed tab.
-  recoverOrphanedLosslessRecording()
+  (recoverOnInstall ? recoverOrphanedLosslessRecording() : Promise.resolve(null))
     .then(async (recovered) => {
       if (!recovered?.recording?.blob?.size) return;
+      if (disposed) {
+        // Authentication/navigation may have changed while OPFS was opening.
+        // Release only the in-memory handle; never dispose the persistent file.
+        // The newly mounted creator recovery scanner can safely reopen it.
+        releaseRecoveredBroadcastRecording(recovered.recording.broadcastId);
+        return;
+      }
 
       rememberLocalMaster('recovered', {
         blob: recovered.recording.blob,

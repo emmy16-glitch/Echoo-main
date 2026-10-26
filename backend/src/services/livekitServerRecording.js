@@ -7,17 +7,23 @@ import Broadcast from '../models/Broadcast.js';
 import LiveKitProvider from '../providers/livekit.js';
 import { assertFfmpegAvailable } from './audioTrimService.js';
 import { getReplayOutputFile } from './broadcastOutputService.js';
+import {
+  preserveInterruptedRecording,
+  preservePriorRecordingOutput,
+} from './serverRecordingPreservation.js';
+import { prepareServerRecordingSegments, watchServerRecordingSegments } from './serverRecordingSegments.js';
 
 const SAMPLE_RATE = 48_000;
 const CHANNELS = 2;
 const PCM_FORMAT = 's16le';
 const RECORDING_PATH = '/api/internal/livekit-recording';
 const SIGNATURE_TTL_MS = 5 * 60 * 1000;
-const STOP_TIMEOUT_MS = 8_000;
+const STOP_TIMEOUT_MS = 60_000;
 const PROVIDER_CONTROL_TIMEOUT_MS = 5_000;
 const PROVIDER_START_TIMEOUT_MS = 15_000;
-const WRITE_CHAIN_DRAIN_TIMEOUT_MS = 3_000;
+const WRITE_CHAIN_DRAIN_TIMEOUT_MS = 30_000;
 const sessions = new Map();
+const sessionCreationPromises = new Map();
 const startPromises = new Map();
 const expectedTracks = new Map();
 const desiredTracks = new Map();
@@ -33,6 +39,7 @@ const MAX_PENDING_PCM_BYTES = 8 * 1024 * 1024;
 let websocketServer = null;
 let attachedHttpServer = null;
 let upgradeHandler = null;
+let recorderServerClosing = false;
 
 const enabled = (name) =>
   /^(1|true|yes)$/i.test(String(process.env[name] || '').trim());
@@ -214,9 +221,43 @@ const waitForTrackHandoff = async (session, trackSid) => {
 };
 
 const createSession = async (broadcastId) => {
+  if (recorderServerClosing) throw new Error('Recording service is shutting down.');
   const replay = getReplayOutputFile(broadcastId);
   if (!replay?.path) throw new Error('Could not resolve the server replay path.');
   await fs.mkdir(path.dirname(replay.path), { recursive: true });
+  // Never let FFmpeg -y overwrite the output of a previous interrupted
+  // session, even when a stale provider callback arrives unexpectedly.
+  await preservePriorRecordingOutput(replay.path);
+  // Prepare both sinks BEFORE starting the ONE encoder. If the optional
+  // segment directory fails, the canonical MP3 still records normally.
+  let segmentPlan = null;
+  try {
+    segmentPlan = await prepareServerRecordingSegments({
+      broadcastId, primaryOutputPath: replay.path,
+    });
+  } catch (error) {
+    console.warn('[Echoo Recording] segment output unavailable; primary replay continues:', error?.message || error);
+  }
+
+  // Persist the attempt before receiving any PCM so a process crash cannot
+  // lose the only pointer to sealed backup files.
+  if (segmentPlan) {
+    // Unlike telemetry, the attempt pointer is safety-critical. A failed
+    // MongoDB write must reject the recorder start rather than lose its only
+    // durable reference to segments after a process crash.
+    const checkpoint = await Broadcast.updateOne({ _id: broadcastId }, { $set: {
+      'serverRecording.segments.status': 'recording',
+      'serverRecording.segments.attemptId': segmentPlan.attemptId,
+      'serverRecording.segments.completedSegments': 0,
+      'serverRecording.segments.segmentBytes': 0,
+      'serverRecording.segments.segmentSeconds': segmentPlan.segmentSeconds,
+      'serverRecording.segments.updatedAt': new Date(),
+      'serverRecording.segments.error': null,
+      'serverRecording.segments.recoveryStatus': 'idle',
+      'serverRecording.segments.recoveryError': null,
+    } });
+    if (!checkpoint.matchedCount) throw new Error('Cannot persist server recording attempt: broadcast not found.');
+  }
 
   let resolveClosed;
   const closed = new Promise((resolve) => { resolveClosed = resolve; });
@@ -241,8 +282,10 @@ const createSession = async (broadcastId) => {
     closed,
     resolveClosed,
     outputPath: replay.path,
+    segmentRecorder: null,
   };
 
+  if (recorderServerClosing) throw new Error('Recording service is shutting down.');
   const child = spawn(
     ffmpegPath(),
     [
@@ -251,11 +294,12 @@ const createSession = async (broadcastId) => {
       '-ar', String(SAMPLE_RATE),
       '-ac', String(CHANNELS),
       '-i', 'pipe:0',
-      '-vn',
+      '-map', '0:a:0', '-vn',
       '-c:a', 'libmp3lame',
+      '-threads', '1',
       '-b:a', bitrate(),
-      '-f', 'mp3',
-      replay.path,
+      '-f', segmentPlan ? 'tee' : 'mp3',
+      segmentPlan ? segmentPlan.teeOutput : replay.path,
     ],
     { stdio: ['pipe', 'ignore', 'pipe'], windowsHide: true }
   );
@@ -297,12 +341,47 @@ const createSession = async (broadcastId) => {
     if (session.failed) void finishSession(session);
   });
 
+  // No second process exists. A lightweight watcher only reads closed
+  // segments from the same FFmpeg tee muxer and commits their progress.
+  if (segmentPlan) {
+    session.segmentRecorder = watchServerRecordingSegments(segmentPlan, {
+      closed: session.closed,
+      isRecorderFailed: () => session.failed,
+      onProgress: (progress) => persist(broadcastId, {
+        'serverRecording.segments.status': progress.status,
+        'serverRecording.segments.completedSegments': progress.completedSegments,
+        'serverRecording.segments.segmentBytes': progress.segmentBytes,
+        'serverRecording.segments.segmentSeconds': progress.segmentSeconds,
+        'serverRecording.segments.attemptId': progress.attemptId,
+        'serverRecording.segments.updatedAt': progress.updatedAt,
+        'serverRecording.segments.error': progress.error,
+      }),
+    });
+  }
+
   sessions.set(broadcastId, session);
   return session;
 };
 
-const getOrCreateSession = async (broadcastId) =>
-  sessions.get(broadcastId) || createSession(broadcastId);
+// A LiveKit Egress may retry its WebSocket while an initial connection is
+// preparing the archive directory. Single-flight this entire asynchronous
+// stage or two simultaneous starts could launch two encoders with -y.
+const getOrCreateSession = async (broadcastId) => {
+  if (recorderServerClosing) throw new Error('Recording service is shutting down.');
+  const existing = sessions.get(broadcastId);
+  if (existing) return existing;
+  const pending = sessionCreationPromises.get(broadcastId);
+  if (pending) return pending;
+  const creation = createSession(broadcastId);
+  sessionCreationPromises.set(broadcastId, creation);
+  try {
+    return await creation;
+  } finally {
+    if (sessionCreationPromises.get(broadcastId) === creation) {
+      sessionCreationPromises.delete(broadcastId);
+    }
+  }
+};
 
 const finishSession = (session) => {
   if (!session) return null;
@@ -310,6 +389,10 @@ const finishSession = (session) => {
 
   session.finishPromise = (async () => {
     session.stopping = true;
+    // Segment watcher finishes after the SAME FFmpeg child closes.
+    const segmentFinish = session.segmentRecorder?.finish().catch((error) => {
+      console.warn('[Echoo Recording] backup segment finalization warning:', error?.message || error);
+    });
     expectedTracks.delete(session.broadcastId);
     if (session.handoffTimer) clearTimeout(session.handoffTimer);
     session.handoffTimer = null;
@@ -369,21 +452,31 @@ const finishSession = (session) => {
     }
 
     const completed = !session.failed && fileBytes > 0;
-    if (!completed && session.outputPath) {
-      await fs.rm(session.outputPath, { force: true }).catch(() => null);
-      fileBytes = 0;
-    }
+    const partial = completed
+      ? { partialBytes: 0, partialAvailable: false }
+      : await preserveInterruptedRecording(session.outputPath);
+    if (!completed) fileBytes = 0;
     await persist(session.broadcastId, {
       'serverRecording.status': completed ? 'completed' : 'failed',
       'serverRecording.endedAt': new Date(),
       'serverRecording.egressId': null,
       'serverRecording.pcmBytes': session.pcmBytes,
       'serverRecording.fileBytes': fileBytes,
+      'serverRecording.partialBytes': partial.partialBytes,
+      'serverRecording.partialAvailable': partial.partialAvailable,
       'serverRecording.error': completed
         ? null
         : String(session.error || 'Server recording produced no MP3 data.').slice(0, 1000),
     });
 
+    // The encoder has already stopped. Wait briefly for the sealed-file
+    // checkpoint, without holding the live WebRTC path or End Broadcast.
+    if (segmentFinish) {
+      await Promise.race([
+        segmentFinish,
+        new Promise((resolve) => setTimeout(resolve, 2_000)),
+      ]);
+    }
     sessions.delete(session.broadcastId);
     ownedEgressIds.delete(session.broadcastId);
     return {
@@ -516,6 +609,8 @@ const acceptRecordingSocket = async (socket, request) => {
 
     session.pcmBytes += buffer.length;
     session.lastPcmAt = Date.now();
+    // Enqueue only: segment disk/FFmpeg backpressure must never block PCM
+    // delivery, the canonical recorder, or LiveKit listener audio.
     session.writeChain = session.writeChain
       .then(async () => {
         try {
@@ -593,6 +688,7 @@ const acceptRecordingSocket = async (socket, request) => {
 
 export const attachLiveKitRecordingWebSocket = (server) => {
   if (websocketServer || !server) return websocketServer;
+  recorderServerClosing = false;
 
   // Echoo already has Socket.IO on this HTTP server. Use noServer mode and
   // claim only the dedicated recording path so this listener cannot reject or
@@ -629,18 +725,24 @@ export const attachLiveKitRecordingWebSocket = (server) => {
   return websocketServer;
 };
 
-export const closeLiveKitRecordingWebSocket = () => {
+export const closeLiveKitRecordingWebSocket = async () => {
+  recorderServerClosing = true;
   if (attachedHttpServer && upgradeHandler) {
     attachedHttpServer.off('upgrade', upgradeHandler);
   }
-  for (const session of sessions.values()) {
+  const closing = [];
+  for (const session of [...sessions.values()]) {
+    // A service restart DURING a broadcast is not End Broadcast. Mark the
+    // recorder interrupted, preserve its bytes and sealed parts, and force
+    // browser OPFS recovery instead of falsely publishing a short replay.
+    session.failed = true;
+    session.error ||= 'Server recorder interrupted by a backend restart.';
     session.stopping = true;
     for (const socket of session.sockets || []) {
       try { socket.close(1001, 'Echoo server shutting down'); } catch { /* closed */ }
     }
-    try { session.child?.stdin?.end?.(); } catch { /* closing */ }
+    closing.push(finishSession(session));
   }
-  sessions.clear();
   startPromises.clear();
   expectedTracks.clear();
   desiredTracks.clear();
@@ -649,6 +751,10 @@ export const closeLiveKitRecordingWebSocket = () => {
   websocketServer = null;
   attachedHttpServer = null;
   upgradeHandler = null;
+  // Run before app.js closes MongoDB; each finish must commit its metadata.
+  // The caller owns an upper shutdown deadline for a stuck encoder/NFS.
+  await Promise.allSettled(closing);
+  sessionCreationPromises.clear();
 };
 
 export const ensureLiveKitServerRecording = async ({
@@ -962,10 +1068,10 @@ export const stopLiveKitServerRecording = async (broadcastId) => {
 
   const alreadyCompleted =
     broadcast?.serverRecording?.status === 'completed' && fileBytes > 0;
-  if (!alreadyCompleted && replay?.path) {
-    await fs.rm(replay.path, { force: true }).catch(() => null);
-    fileBytes = 0;
-  }
+  const partial = alreadyCompleted
+    ? { partialBytes: 0, partialAvailable: false }
+    : await preserveInterruptedRecording(replay?.path);
+  if (!alreadyCompleted) fileBytes = 0;
 
   ownedEgressIds.delete(id);
   await persist(id, {
@@ -973,6 +1079,8 @@ export const stopLiveKitServerRecording = async (broadcastId) => {
     'serverRecording.endedAt': new Date(),
     'serverRecording.egressId': null,
     'serverRecording.fileBytes': fileBytes,
+    'serverRecording.partialBytes': partial.partialBytes,
+    'serverRecording.partialAvailable': partial.partialAvailable,
     'serverRecording.error': alreadyCompleted
       ? null
       : 'The server recorder was interrupted before a complete MP3 was confirmed. Browser recovery is required.',

@@ -1,4 +1,8 @@
 import Broadcast from '../models/Broadcast.js';
+import Audio from '../models/Audio.js';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { reconstructServerRecordingFromSegments } from './serverRecordingReconstruction.js';
 import BroadcastProcessingJob from '../models/BroadcastProcessingJob.js';
 import BroadcastAudioChunk from '../models/BroadcastAudioChunk.js';
 import Notification from '../models/Notification.js';
@@ -70,8 +74,55 @@ export async function enqueueBroadcastProcessing(broadcastId, { transcriptionEna
   await emitProcessing(broadcastId);
 }
 
+// Recover an already-linked private replay whose physical MP3 vanished after
+// a storage event. An existing Audio row is not proof that playable bytes
+// survived; this repair runs only in the post-broadcast processing worker.
+export async function restoreLinkedRecordingIfMissing(broadcast) {
+  const id = broadcast.replayAudioId || broadcast.replayAudio;
+  if (!id) return false;
+  const audio = await Audio.findById(id);
+  if (!audio || audio.isDeleted) throw waiting('Waiting for missing audio record recovery');
+  if (audio.storage === 'cloud' && audio.cloudKey) return true;
+  const name = path.basename(String(audio.filename || ''));
+  if (!name || !/^replay-[a-f0-9]{24}(?:-[a-f0-9-]+)?\.mp3$/i.test(name)) {
+    throw waiting('Replay storage needs recovery; cannot safely restore an unexpected filename');
+  }
+  const destination = path.join(process.cwd(), 'uploads', 'audio', name);
+  const stat = await fs.stat(destination).catch(() => null);
+  if (stat?.isFile() && stat.size >= Math.max(4096, Number(audio.fileSize) || 0)) return true;
+  const state = broadcast.serverRecording?.segments;
+  if (!state?.attemptId || !['completed', 'failed'].includes(broadcast.status)) {
+    throw waiting('Saved MP3 unavailable; server backup is required for recovery');
+  }
+  const start = new Date(broadcast.serverRecording?.startedAt || broadcast.startedAt || 0).getTime();
+  const ended = new Date(broadcast.endedAt || broadcast.serverRecording?.endedAt || 0).getTime();
+  const expectedDurationSeconds = start > 0 && ended > start ? (ended - start) / 1000 : 0;
+  const rebuilt = await reconstructServerRecordingFromSegments({
+    broadcastId: String(broadcast._id), attemptId: state.attemptId,
+    segmentStatus: state.status, completedSegments: state.completedSegments,
+    segmentSeconds: state.segmentSeconds || 600,
+    expectedDurationSeconds, outputPath: destination,
+  });
+  if (rebuilt.status !== 'ready') {
+    throw waiting('Saved replay missing; backup reconstruction requires more audio: ' +
+      String(rebuilt.reason || 'incomplete'));
+  }
+  const restored = await fs.stat(destination);
+  audio.fileSize = restored.size;
+  audio.duration = rebuilt.duration;
+  await audio.save();
+  await Broadcast.updateOne({ _id: broadcast._id }, {
+    $set: { replayStatus: 'ready',
+      'serverRecording.segments.recoveryStatus': 'ready',
+      'serverRecording.segments.recoveryError': null },
+  });
+  return true;
+}
+
 const completeAudio = async (broadcast) => {
-  if (!broadcast.replayAudio && !broadcast.replayAudioId) {
+  if (broadcast.replayAudio || broadcast.replayAudioId) {
+    await restoreLinkedRecordingIfMissing(broadcast);
+  } else {
     const replay = await finalizeBroadcastReplay({
       broadcastId: String(broadcast._id),
       creatorId: String(broadcast.creator || ''),
@@ -376,6 +427,108 @@ async function processNextJob() {
   }
 }
 
+// A server crash can occur after End Broadcast commits status=completed but
+// before it inserts the audio_finalization job. Recover those lost enqueue
+// operations from durable recording metadata on service restart.
+const REPLAY_REPAIR_BATCH = 200;
+const REPLAY_REPAIR_INTERVAL_MS = 60_000;
+const REPLAY_FAILED_RETRY_MS = 30 * 60_000;
+let replayRepairCursor = null;
+let replayRepairTimer = null;
+let replayRepairRunning = false;
+
+export const eligibleFailedReplayJob = (job, nowMs = Date.now()) => {
+  if (!job || job.status !== 'failed') return false;
+  const attempts = Number(job.attempts || 0);
+  const limit = Math.max(1, Number(job.maxAttempts) || 60);
+  if (attempts >= limit) return false;
+  const when = new Date(job.completedAt || job.updatedAt || 0).getTime();
+  return Number.isFinite(when) && when > 0 &&
+    nowMs - when >= REPLAY_FAILED_RETRY_MS;
+};
+
+// Scan the unfinished archive in bounded pages, continuing where the prior
+// sweep stopped. Neither a 200-row cap nor a crash after a lost enqueue may
+// permanently strand another creator's already-recorded audio.
+export async function requeueMissingRecordingFinalizations() {
+  if (replayRepairRunning) return 0;
+  replayRepairRunning = true;
+  let requeued = 0;
+  try {
+    const query = {
+      status: { $in: ['completed', 'failed'] },
+      isDeleted: false,
+      replayAudio: null,
+      replayAudioId: null,
+      'serverRecording.segments.attemptId': { $exists: true, $ne: null },
+      ...(replayRepairCursor ? { _id: { $gt: replayRepairCursor } } : {}),
+    };
+    const candidates = await Broadcast.find(query)
+      .select('_id').sort({ _id: 1 }).limit(REPLAY_REPAIR_BATCH);
+    for (const broadcast of candidates) {
+      const job = await BroadcastProcessingJob.findOne({
+        broadcastId: broadcast._id, jobType: 'audio_finalization',
+      }).select('_id status attempts maxAttempts completedAt updatedAt');
+      if (!job) {
+        await enqueueBroadcastProcessing(broadcast._id, { transcriptionEnabled: false });
+        requeued += 1;
+      } else if (eligibleFailedReplayJob(job)) {
+        // Compare-and-set prevents repeated sweeps from resetting an already
+        // active finalization. Bounded retries preserve incomplete recovery
+        // evidence rather than publishing damaged or shortened recordings.
+        const update = await BroadcastProcessingJob.updateOne(
+          { _id: job._id, status: 'failed' },
+          { $set: { status: 'queued', availableAt: new Date(), completedAt: null,
+            error: 'Retrying sealed recording reconstruction after backoff' } },
+        );
+        if (update.modifiedCount) {
+          await Broadcast.updateOne({ _id: broadcast._id }, {
+            $set: { 'assetStatus.audio': 'processing', processingCompletedAt: null },
+          });
+          requeued += 1;
+        }
+      }
+    }
+    replayRepairCursor = candidates.length === REPLAY_REPAIR_BATCH
+      ? candidates[candidates.length - 1]._id : null;
+    return requeued;
+  } finally {
+    replayRepairRunning = false;
+  }
+}
+
+
+// Manual recovery never restarts live audio. It only resumes an existing,
+// idempotent post-broadcast finalization job using durable server files and
+// already-accepted recovery chunks. Compare-and-set leaves active jobs alone.
+export async function retryRecordingFinalization(broadcastId, { repairMissing = false } = {}) {
+  const existing = await BroadcastProcessingJob.findOne({
+    broadcastId, jobType: 'audio_finalization',
+  }).select('_id status attempts maxAttempts');
+  if (!existing) {
+    await enqueueBroadcastProcessing(broadcastId, { transcriptionEnabled: false });
+    return { status: 'queued' };
+  }
+  if (existing.status === 'completed' && !repairMissing) return { status: 'completed' };
+  if (existing.status === 'queued' || existing.status === 'processing') {
+    return { status: existing.status };
+  }
+  const updated = await BroadcastProcessingJob.updateOne(
+    { _id: existing._id, status: repairMissing ? { $in: ['failed', 'completed'] } : 'failed' },
+    { $set: {
+      status: 'queued', availableAt: new Date(), completedAt: null,
+      startedAt: null, error: null, attempts: 0,
+    } }
+  );
+  if (updated.modifiedCount) {
+    await Broadcast.updateOne({ _id: broadcastId }, {
+      $set: { 'assetStatus.audio': 'processing', processingCompletedAt: null },
+    });
+    void processNextJob();
+  }
+  return { status: 'queued' };
+}
+
 export function startBroadcastProcessingWorker(io) {
   socketServer = io;
   if (workerTimer) return;
@@ -396,6 +549,12 @@ export function startBroadcastProcessingWorker(io) {
   ).catch(() => null);
   BroadcastProcessingJob.syncIndexes().catch(() => null);
   BroadcastAudioChunk.syncIndexes().catch(() => null);
+  const recover = () => void requeueMissingRecordingFinalizations().catch(error => {
+    console.warn('[Echoo Replay] finalization recovery scan warning:', error?.message || error);
+  });
+  recover();
+  replayRepairTimer = setInterval(recover, REPLAY_REPAIR_INTERVAL_MS);
+  replayRepairTimer.unref?.();
   workerTimer = setInterval(() => void processNextJob(), POLL_MS);
   workerTimer.unref?.();
   void processNextJob();
@@ -403,7 +562,9 @@ export function startBroadcastProcessingWorker(io) {
 
 export function stopBroadcastProcessingWorker() {
   if (workerTimer) clearInterval(workerTimer);
+  if (replayRepairTimer) clearInterval(replayRepairTimer);
   workerTimer = null;
+  replayRepairTimer = null;
   socketServer = null;
 }
 

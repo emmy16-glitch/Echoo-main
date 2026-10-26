@@ -18,6 +18,10 @@ import {
   uploadRecoveredTake,
 } from '../services/recordingAutosave.js';
 import {
+  getBroadcastRecordingState,
+  flushRecordingForPageHide,
+} from '../services/broadcastRecordingService.js';
+import {
   openDesktopRecording,
   openDesktopRecordingsFolder,
   showDesktopRecording,
@@ -38,7 +42,12 @@ const normalizedFormats = (formats = []) =>
     .filter((format) => ['mp3', 'wav', 'opus'].includes(format));
 
 export function RecordingAutosaveMount() {
-  useEffect(() => installRecordingAutosave(), []);
+  const location = useLocation();
+  const isCreatorWorkspace = String(location.pathname || '').startsWith('/creator-studio');
+  // The app often mounts on Login before the creator's token exists. Re-scan
+  // protected OPFS data when returning to Creator Studio after authentication.
+  // Route changes inside the Studio do not restart a recording save.
+  useEffect(() => installRecordingAutosave({ recoverOnInstall: isCreatorWorkspace }), [isCreatorWorkspace]);
 
   useEffect(() => {
     let savingInBackground = false;
@@ -52,15 +61,24 @@ export function RecordingAutosaveMount() {
       }
     };
     const protect = (event) => {
-      if (!savingInBackground) return;
+      // A browser refresh terminates a WebRTC publisher and its in-memory
+      // recorder. Warn while the creator is still live, not only after End.
+      if (!savingInBackground && !getBroadcastRecordingState().recording) return;
       event.preventDefault();
       event.returnValue = '';
     };
+    const checkpointOnHide = () => {
+      // The periodic OPFS checkpoint is authoritative; this is best-effort
+      // insurance for navigation/reload. It never waits on or blocks LiveKit.
+      void flushRecordingForPageHide().catch(() => {});
+    };
     window.addEventListener(RECORDING_UPLOAD_EVENT, onUpload);
     window.addEventListener('beforeunload', protect);
+    window.addEventListener('pagehide', checkpointOnHide);
     return () => {
       window.removeEventListener(RECORDING_UPLOAD_EVENT, onUpload);
       window.removeEventListener('beforeunload', protect);
+      window.removeEventListener('pagehide', checkpointOnHide);
     };
   }, []);
 
@@ -258,18 +276,14 @@ const RecordingSaveBanner = () => {
     return null;
   }
 
-  // Boot recovery is important, but it must not take over unrelated Creator
-  // pages. Keep it available and show the recovery actions when the creator
-  // actually opens Recordings.
+  // Recovery actions must remain visible on Broadcast as well as Content.
+  // Previously a refresh silently hid the rescued recording until creators
+  // navigated to Content, making hours of audio appear to have disappeared.
+  const inCreatorWorkspace = String(location.pathname || '').startsWith('/creator-studio');
   if (
-    (
-      state.kind === 'recovered' ||
-      (state.kind === 'error' && !state.serverReady)
-    ) &&
-    !String(location.pathname || '').startsWith('/creator-studio/content')
-  ) {
-    return null;
-  }
+    (state.kind === 'recovered' || (state.kind === 'error' && !state.serverReady)) &&
+    !inCreatorWorkspace
+  ) return null;
 
   const openRecording = () => {
     if (!state.audioId) {
@@ -400,11 +414,19 @@ const RecordingSaveBanner = () => {
       broadcastId: master.broadcast?.id || '',
       startedAt: new Date().toISOString(),
     };
-    hide();
-    await uploadRecoveredTake({
-      recording,
-      broadcast: master.broadcast || { title: master.title },
-    }).catch(() => {});
+    try {
+      await uploadRecoveredTake({
+        recording,
+        broadcast: master.broadcast || { title: master.title },
+      });
+      hide();
+    } catch (error) {
+      // Never remove the recovery controls when backend reconciliation fails.
+      setState((current) => current ? {
+        ...current,
+        recoveryError: error?.message || 'Could not resume saving yet. The protected copy is still available.',
+      } : current);
+    }
   };
 
   const discardRecovered = async () => {

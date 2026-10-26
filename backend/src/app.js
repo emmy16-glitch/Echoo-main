@@ -602,8 +602,17 @@ async function startServer() {
   }
 }
 
+let shuttingDown = false;
 const shutdown = async (signal) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log('Received', signal, '. Shutting down...');
+  // Arm the deadline BEFORE awaiting recorder finalization. An NFS stall
+  // must not prevent systemd from restarting a failed API indefinitely.
+  setTimeout(() => {
+    console.error('Force exit after shutdown timeout');
+    process.exit(1);
+  }, 20000).unref?.();
 
   for (const timer of presenceEventTimers.values()) clearTimeout(timer);
   presenceEventTimers.clear();
@@ -612,18 +621,15 @@ const shutdown = async (signal) => {
   clearLiveKitWebhookTimers();
   stopOrphanSweep();
   stopBroadcastProcessingWorker();
-  closeLiveKitRecordingWebSocket();
+  await closeLiveKitRecordingWebSocket().catch(error => {
+    console.error('[Echoo Recording] interrupted recorder shutdown:', error?.message || error);
+  });
 
   server.close(async () => {
     await disconnectDatabase();
     console.log('Server closed');
     process.exit(0);
   });
-
-  setTimeout(() => {
-    console.error('Force exit after timeout');
-    process.exit(1);
-  }, 10000).unref?.();
 };
 
 const currentFile = fileURLToPath(import.meta.url);

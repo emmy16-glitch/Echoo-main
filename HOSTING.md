@@ -134,6 +134,21 @@ Default canonical live replay quality:
 AUDIO_REPLAY_MP3_BITRATE=320k
 ```
 
+On the dedicated digi02 production server, also set the following **in the
+actual backend/.env**, not only in a Git template. The archive must be on the
+writable persistent media mount, verified by `deploy/deploy-echoo.sh` before
+restarting ECHOO. Temporary Render staging is intentionally different:
+
+```env
+SERVER_RECORDING_SEGMENTS_ENABLED=true
+REPLAY_ARCHIVE_DIR=/mnt/storage/media/echoo/replay
+```
+
+The recording encoder writes one canonical MP3 and ten-minute server backup
+segments using FFmpeg tee with an isolated FIFO sink. The backup must not
+control WebRTC listeners. The segment files are recoverable after refresh,
+but automatic stitching is not yet production verified.
+
 At 320 kbps, approximate MP3 sizes are about 24 MB / 10 min, 72 MB / 30 min,
 and 144 MB / hour.
 

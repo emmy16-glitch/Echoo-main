@@ -244,3 +244,77 @@ test('empty sessions create nothing', async () => {
   assert.equal(result.audioId, null);
   assert.equal(await Audio.countDocuments({ fileKey: `replay-${bid}` }), 0);
 });
+
+test('normal-looking MP3 is rejected when network outage left an audio coverage gap', () => {
+  const base = {
+    status: 'completed',
+    persistedFileBytes: 10000,
+    actualFileBytes: 10000,
+    pcmBytes: 48000 * 2 * 2 * 570,
+    probedDurationSeconds: 570,
+    expectedWallSeconds: 600,
+  };
+  assert.equal(isTrustedCompletedServerReplay(base), false);
+  assert.equal(isTrustedCompletedServerReplay({
+    ...base,
+    pcmBytes: 48000 * 2 * 2 * 599,
+    probedDurationSeconds: 599,
+  }), true);
+});
+
+
+test('replay source survives a database-link failure, and a retry relinks the saved audio', async () => {
+  const { broadcast, creatorId } = await makeBroadcast();
+  const bid = String(broadcast._id);
+  await storeChunks(bid, creatorId, 2);
+  const originalUpdate = Broadcast.updateOne;
+  let blocked = false;
+  try {
+    Broadcast.updateOne = function (filter, update, options) {
+      if (String(filter?._id) === bid && update?.$set?.replayStatus === 'ready' && !blocked) {
+        blocked = true;
+        return Promise.reject(new Error('simulated MongoDB outage when linking replay'));
+      }
+      return originalUpdate.call(this, filter, update, options);
+    };
+    await assert.rejects(
+      finalizeBroadcastReplay({ broadcastId: bid, creatorId: String(creatorId), expectedChunkCount: 2 }),
+      /simulated MongoDB outage/,
+    );
+  } finally {
+    Broadcast.updateOne = originalUpdate;
+  }
+  assert.equal(blocked, true);
+  const orphan = await Audio.findOne({ fileKey: 'replay-' + bid });
+  assert(orphan, 'already saved audio should remain in the creator library');
+  assert((await fs.stat(path.join(process.cwd(), 'uploads', 'audio', orphan.filename))).size > 1000);
+  const chunks = await BroadcastAudioChunk.countDocuments({ broadcastId: bid });
+  assert.equal(chunks, 2, 'never delete source chunks before linking the replay');
+
+  const recovered = await finalizeBroadcastReplay({
+    broadcastId: bid, creatorId: String(creatorId), expectedChunkCount: 2,
+  });
+  assert.equal(recovered.status, 'ready');
+  assert.equal(recovered.duplicate, true);
+  const linked = await Broadcast.findById(bid);
+  assert.equal(String(linked.replayAudioId), String(orphan._id));
+  assert.equal(linked.replayStatus, 'ready');
+  await fs.rm(path.join(process.cwd(), 'uploads', 'audio', orphan.filename), { force: true });
+  await fs.rm(path.join(process.cwd(), 'uploads', 'transcript-chunks', bid), { force: true, recursive: true });
+  await BroadcastAudioChunk.deleteMany({ broadcastId: bid });
+});
+
+test('nine-hour recording duration is not considered complete when the last hour is absent', () => {
+  const nineHours = 9 * 3600;
+  const eightHours = 8 * 3600;
+  const pcmBytes = 48000 * 2 * 2 * eightHours;
+  assert.equal(isTrustedCompletedServerReplay({
+    status: 'completed', persistedFileBytes: 2048, actualFileBytes: 2048,
+    pcmBytes, probedDurationSeconds: eightHours, expectedWallSeconds: nineHours,
+  }), false);
+  assert.equal(isTrustedCompletedServerReplay({
+    status: 'completed', persistedFileBytes: 2048, actualFileBytes: 2048,
+    pcmBytes: 48000 * 2 * 2 * nineHours,
+    probedDurationSeconds: nineHours, expectedWallSeconds: nineHours,
+  }), true);
+});

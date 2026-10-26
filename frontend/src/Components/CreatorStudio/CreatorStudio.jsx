@@ -31,6 +31,7 @@ import ListenerLiveConnected from '../ListenerLive/ListenerLiveConnected';
 import { CreatorStudioStateProvider } from './CreatorStudioState';
 import AudioUploadQueueDialog from './AudioUploadQueueDialog.jsx';
 import CreatorUnifiedContentWorkspace from './CreatorUnifiedContentWorkspace.jsx';
+import ServerRecordingProgress from './ServerRecordingProgress.jsx';
 import { isNavigationDataFresh, readNavigationData, writeNavigationData } from '../../services/navigationDataCache';
 // Lazy workspaces keep the first Creator render small.  Cache the import
 // promise as well so an idle prefetch and a quick click share one request.
@@ -784,6 +785,9 @@ const CreatorStudioBody = () => {
         {error && <div className="studio-alert error eb-shake" key={error}><FaExclamationCircle /><span>{error}</span><button type="button" onClick={() => setError('')}><FaTimes /></button></div>}
         {notice && <div className="studio-alert success eb-toast-in" key={notice}><FaCloudUploadAlt /><span>{notice}</span><button type="button" onClick={() => setNotice('')}><FaTimes /></button></div>}
 
+        <div className={activeNav === 'Broadcast' ? 'studio-persistent-recording is-live-workspace' : 'studio-persistent-recording'}>
+          <ServerRecordingProgress compact={activeNav === 'Broadcast'} />
+        </div>
         {backgroundRecordingProgress && !['Broadcast', 'Recordings'].includes(activeNav) && (
           <div className={`studio-global-progress is-${backgroundRecordingProgress.stage}`} role="status" aria-live="polite">
             <div className="studio-global-progress__head">

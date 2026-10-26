@@ -19,6 +19,7 @@ import LiveKitProvider from '../providers/livekit.js';
 import { clearBroadcastPresenceCache } from '../controllers/broadcastPresenceController.js';
 import { releaseCreatorBroadcastLease } from './creatorBroadcastLease.js';
 import { flushBroadcastTranscription } from './transcriptionGateway.js';
+import { enqueueBroadcastProcessing } from './broadcastProcessingService.js';
 import {
   ensureLiveKitServerRecording,
   isLiveKitServerRecordingEnabled,
@@ -227,6 +228,14 @@ async function resolveStuckBroadcast(doc) {
   }
   if (doc.creator) {
     await releaseCreatorBroadcastLease(doc.creator, doc._id).catch(() => null);
+  }
+  // End could have committed before the API crashed, but before enqueueing
+  // a replay. Never leave sealed backups stranded indefinitely in this path.
+  if (doc.status === 'completed' && doc.startedAt &&
+      (doc.serverRecording?.segments?.attemptId || doc.serverRecording?.pcmBytes)) {
+    await enqueueBroadcastProcessing(doc._id, { transcriptionEnabled: false }).catch(error => {
+      console.warn('[orphan-sweep] replay enqueue warning:', error?.message || error);
+    });
   }
   return doc;
 }

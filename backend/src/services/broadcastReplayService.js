@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import Audio from '../models/Audio.js';
 import Broadcast from '../models/Broadcast.js';
@@ -18,6 +19,7 @@ import {
 } from './audioArchiveService.js';
 import { isTranscriptionConfigured } from './transcriptionGateway.js';
 import { checkFfmpegCapability } from './audioTrimService.js';
+import { reconstructServerRecordingFromSegments } from './serverRecordingReconstruction.js';
 
 // ---------------------------------------------------------------------------
 // Canonical server replay finalization.
@@ -146,6 +148,23 @@ const applyEchooMp3Metadata = async ({ filePath, title, artist, startedAt } = {}
     await fs.rm(taggedPath, { force: true }).catch(() => null);
     return false;
   }
+};
+
+// Commit the link before deleting source chunks or server recovery files.
+// A transient MongoDB failure must never turn a verified multi-hour MP3 into
+// a successful-but-unfindable recording.
+const linkCanonicalReplay = async (broadcastId, audioId, replaySource = '') => {
+  const result = await Broadcast.updateOne(
+    { _id: broadcastId, isDeleted: false },
+    { $set: {
+      replayAudio: audioId, replayAudioId: audioId, replayStatus: 'ready',
+      ...(replaySource === 'server-segments' ? {
+        'serverRecording.segments.recoveryStatus': 'ready',
+        'serverRecording.segments.recoveryError': null,
+      } : {}),
+    } }
+  );
+  if (!result.matchedCount) throw new Error('Replay could not be durably linked to its broadcast. Recovery files retained.');
 };
 
 const fileExists = async (filePath) => {
@@ -330,6 +349,7 @@ export const isTrustedCompletedServerReplay = ({
   actualFileBytes = 0,
   pcmBytes = 0,
   probedDurationSeconds = 0,
+  expectedWallSeconds = 0,
 } = {}) => {
   const actual = Math.max(0, Number(actualFileBytes) || 0);
   const persisted = Math.max(0, Number(persistedFileBytes) || 0);
@@ -347,6 +367,13 @@ export const isTrustedCompletedServerReplay = ({
     const expectedDuration = pcm / (48000 * 2 * 2);
     const tolerance = Math.max(3, expectedDuration * 0.02);
     if (duration + tolerance < expectedDuration) return false;
+  }
+  // A connection gap may have delivered fewer PCM frames than wall time.
+  // Comparing only against received PCM would then approve a shortened MP3.
+  const wall = Math.max(0, Number(expectedWallSeconds) || 0);
+  if (wall > 0) {
+    const tolerance = Math.max(2, Math.min(8, wall * 0.001));
+    if (duration + tolerance < wall) return false;
   }
 
   return true;
@@ -392,15 +419,12 @@ async function finalizeInner({
   // refreshes all resolve to the single canonical replay.
   const already = await Audio.findOne({ fileKey }).select('_id');
   if (already) {
-    await Broadcast.updateOne(
-      { _id: broadcastId, replayAudioId: null },
-      { $set: { replayAudio: already._id, replayAudioId: already._id, replayStatus: 'ready' } }
-    ).catch(() => null);
+    await linkCanonicalReplay(broadcastId, already._id);
     return { status: 'ready', audioId: String(already._id), duplicate: true };
   }
 
   const broadcast = await Broadcast.findOne({ _id: broadcastId, isDeleted: false })
-    .select('_id creator station title description status replayAudio replayAudioId replayStatus startedAt startTime endedAt serverRecording.status serverRecording.pcmBytes serverRecording.fileBytes');
+    .select('_id creator station title description status replayAudio replayAudioId replayStatus startedAt startTime endedAt serverRecording.status serverRecording.startedAt serverRecording.endedAt serverRecording.pcmBytes serverRecording.fileBytes serverRecording.segments');
   if (!broadcast) {
     const error = new Error('Broadcast not found.');
     error.status = 404;
@@ -416,10 +440,7 @@ async function finalizeInner({
   }
   if (broadcast.replayAudio || broadcast.replayAudioId) {
     const audioId = broadcast.replayAudio || broadcast.replayAudioId;
-    await Broadcast.updateOne(
-      { _id: broadcastId },
-      { $set: { replayAudio: audioId, replayAudioId: audioId, replayStatus: 'ready' } }
-    ).catch(() => null);
+    await linkCanonicalReplay(broadcastId, audioId);
     return { status: 'ready', audioId: String(audioId), duplicate: true };
   }
 
@@ -446,8 +467,15 @@ async function finalizeInner({
     serverRecordingStatus === 'completed' &&
     replayBytes > 0 &&
     (!persistedReplayBytes || replayBytes === persistedReplayBytes);
+  const segmentState = broadcast.serverRecording?.segments;
+  // Never read an active FFmpeg output; retry in the background if shutdown
+  // has not completed. The original files remain untouched on every failure.
+  const canReconstructSegments = toolingAvailable &&
+    Boolean(segmentState?.attemptId) &&
+    !['starting', 'active', 'recovering'].includes(serverRecordingStatus) &&
+    !['live', 'starting', 'ending'].includes(String(broadcast.status || ''));
 
-  if (!chunks.length && !streamFileLooksOwned) {
+  if (!chunks.length && !streamFileLooksOwned && !canReconstructSegments) {
     const interruptedServerFile = replayBytes > 0;
     await Broadcast.updateOne(
       { _id: broadcastId },
@@ -477,7 +505,7 @@ async function finalizeInner({
       if (!seen.has(index)) missing.push(index);
     }
   }
-  if (!accounted && !streamFileLooksOwned) {
+  if (!accounted && !streamFileLooksOwned && !canReconstructSegments) {
     await Broadcast.updateOne({ _id: broadcastId }, { $set: { replayStatus: 'incomplete' } }).catch(() => null);
     return {
       status: 'incomplete',
@@ -493,7 +521,9 @@ async function finalizeInner({
   const fallbackToWav = !toolingAvailable;
   const extension = fallbackToWav ? 'wav' : 'mp3';
   const mimeType = fallbackToWav ? 'audio/wav' : 'audio/mpeg';
-  const filename = `replay-${broadcastId}.${extension}`;
+  // Unique immutable file per attempt: two backend workers must never write
+  // into, or delete, the same canonical replay when racing across processes.
+  const filename = `replay-${broadcastId}-${randomUUID()}.${extension}`;
   await fs.mkdir(AUDIO_UPLOAD_DIR, { recursive: true });
   const finalPath = path.join(AUDIO_UPLOAD_DIR, filename);
 
@@ -516,12 +546,58 @@ async function finalizeInner({
           actualFileBytes: replayBytes,
           pcmBytes: broadcast.serverRecording?.pcmBytes,
           probedDurationSeconds: streamDuration,
+          expectedWallSeconds: (() => {
+            const started = new Date(broadcast.serverRecording?.startedAt || broadcast.startedAt || 0).getTime();
+            const ended = new Date(broadcast.endedAt || broadcast.serverRecording?.endedAt || 0).getTime();
+            return started > 0 && ended > started ? (ended - started) / 1000 : 0;
+          })(),
         })
       ) {
         replaySource = 'stream';
       }
     } catch {
       replaySource = null;
+    }
+  }
+  if (!replaySource && canReconstructSegments) {
+    const pcmDuration = Math.max(0, Number(broadcast.serverRecording?.pcmBytes) || 0) /
+      (48000 * 2 * 2);
+    const started = new Date(broadcast.serverRecording?.startedAt || broadcast.startedAt || 0).getTime();
+    const ended = new Date(broadcast.endedAt || broadcast.serverRecording?.endedAt || 0).getTime();
+    const wallDuration = Number.isFinite(started) && started > 0 && ended > started
+      ? (ended - started) / 1000 : 0;
+    const expectedDuration = Math.max(pcmDuration, wallDuration);
+    try {
+      await Broadcast.updateOne({ _id: broadcastId }, {
+        $set: { 'serverRecording.segments.recoveryStatus': 'recovering' },
+      }).catch(() => null);
+      const rebuilt = await reconstructServerRecordingFromSegments({
+        broadcastId,
+        attemptId: segmentState.attemptId,
+        segmentStatus: segmentState.status,
+        completedSegments: segmentState.completedSegments,
+        segmentSeconds: segmentState.segmentSeconds || 600,
+        expectedDurationSeconds: expectedDuration,
+        outputPath: finalPath,
+      });
+      if (rebuilt.status === 'ready') {
+        replaySource = 'server-segments';
+      } else {
+        await Broadcast.updateOne({ _id: broadcastId }, {
+          $set: {
+            'serverRecording.segments.recoveryStatus': 'incomplete',
+            'serverRecording.segments.recoveryError': String(rebuilt.reason || 'recovery-incomplete').slice(0, 300),
+          },
+        }).catch(() => null);
+      }
+    } catch (error) {
+      console.warn('[Echoo Replay] segment reconstruction deferred:', error?.message || error);
+      await Broadcast.updateOne({ _id: broadcastId }, {
+        $set: {
+          'serverRecording.segments.recoveryStatus': 'failed',
+          'serverRecording.segments.recoveryError': 'Segment reconstruction failed; original recordings preserved for retry.',
+        },
+      }).catch(() => null);
     }
   }
   if (!replaySource) {
@@ -563,7 +639,7 @@ async function finalizeInner({
       await assembleChunksToMp3({ chunks, outputPath: finalPath, bitrate });
       replaySource = 'assembled';
     }
-  } else {
+  } else if (replaySource === 'stream') {
     await fs.copyFile(replayFile.path, finalPath);
   }
 
@@ -606,6 +682,10 @@ async function finalizeInner({
     }).catch(() => false);
   }
 
+  // Durability barrier before publishing Audio in MongoDB. Flush actual audio
+  // bytes rather than trusting an FFmpeg close or a copied file header.
+  const finalHandle = await fs.open(finalPath, 'r');
+  try { await finalHandle.sync(); } finally { await finalHandle.close(); }
   const stat = await fs.stat(finalPath);
   const probedDuration = fallbackToWav ? 0 : await probeMp3DurationSeconds(finalPath);
   const duration = probedDuration || estimateReplayDurationSeconds({
@@ -639,7 +719,11 @@ async function finalizeInner({
       mimeType,
       duration,
       genre: 'Other',
-      tags: ['live-recording', 'broadcast', fallbackToWav ? 'server-wav-fallback' : 'server-mp3'],
+      tags: [
+        'live-recording', 'broadcast',
+        fallbackToWav ? 'server-wav-fallback' : 'server-mp3',
+        ...(replaySource === 'server-segments' ? ['reconstructed-server-segments'] : []),
+      ],
       isPublic: false,
       visibility: 'private',
       publicationStatus: 'draft',
@@ -649,13 +733,19 @@ async function finalizeInner({
     if (error?.code === 11000) {
       const winner = await Audio.findOne({ fileKey }).select('_id');
       if (winner) {
-        await Broadcast.updateOne({ _id: broadcastId }, { $set: { replayAudio: winner._id, replayAudioId: winner._id, replayStatus: 'ready' } }).catch(() => null);
+        await fs.rm(finalPath, { force: true }).catch(() => null);
+        await linkCanonicalReplay(broadcastId, winner._id);
         return { status: 'ready', audioId: String(winner._id), duplicate: true };
       }
     }
     await fs.rm(finalPath, { force: true }).catch(() => null);
     throw error;
   }
+
+  // MongoDB must confirm the durable replay association before any cleanup.
+  // If the database is down, the immutable MP3 and source segments remain;
+  // the existing Audio document is reconciled on the next job attempt.
+  await linkCanonicalReplay(broadcastId, audio._id, replaySource);
 
   // Optional cloud archive reuses the standard pipeline (private buckets via
   // signed URLs, no public base required). Failures keep the local MP3.
@@ -668,8 +758,9 @@ async function finalizeInner({
       audio.cloudKey = objectKey;
       if (!isCloudBucketPublic()) audio.cloudUrl = null;
       await audio.save();
-      const keepLocal = String(process.env.AUDIO_KEEP_LOCAL_AFTER_ARCHIVE || '').toLowerCase() === 'true';
-      if (!keepLocal) await fs.rm(finalPath, { force: true }).catch(() => null);
+      // Live broadcasts always retain a server-side replay when cloud upload
+      // succeeds. Do not let remote archive availability become a single
+      // dependency for recovering the creator's recorded programme.
     } catch (error) {
       console.warn('[Echoo Replay] cloud archive failed; local replay kept:', error?.message || error);
     }
@@ -688,10 +779,6 @@ async function finalizeInner({
   }
   if (replayFile) await fs.rm(replayFile.path, { force: true }).catch(() => null);
 
-  await Broadcast.updateOne(
-    { _id: broadcastId },
-    { $set: { replayAudio: audio._id, replayAudioId: audio._id, replayStatus: 'ready' } }
-  ).catch(() => null);
   return {
     status: 'ready',
     audioId: String(audio._id),

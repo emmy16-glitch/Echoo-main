@@ -222,6 +222,24 @@ const broadcastSchema = new mongoose.Schema(
       endedAt: { type: Date, default: null },
       pcmBytes: { type: Number, min: 0, default: 0 },
       fileBytes: { type: Number, min: 0, default: 0 },
+      // Failed server encodes are kept separately for operator recovery, never published as complete.
+      partialBytes: { type: Number, min: 0, default: 0 },
+      partialAvailable: { type: Boolean, default: false },
+      segments: {
+        status: { type: String, enum: ['idle', 'recording', 'degraded', 'completed'], default: 'idle' },
+        completedSegments: { type: Number, default: 0, min: 0 },
+        segmentBytes: { type: Number, default: 0, min: 0 },
+        segmentSeconds: { type: Number, default: 600, min: 1 },
+        attemptId: { type: String, default: null, maxlength: 32 },
+        updatedAt: { type: Date, default: null },
+        error: { type: String, default: null, maxlength: 500 },
+        recoveryStatus: {
+          type: String,
+          enum: ['idle', 'recovering', 'incomplete', 'failed', 'ready'],
+          default: 'idle',
+        },
+        recoveryError: { type: String, default: null, maxlength: 300 },
+      },
       error: { type: String, default: null, maxlength: 1000 },
     },
     mediaState: {

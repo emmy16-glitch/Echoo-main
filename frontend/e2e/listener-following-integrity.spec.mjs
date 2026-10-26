@@ -1,5 +1,8 @@
 import { test, expect } from 'playwright/test';
 
+// Direct /src imports and lazy-chunk failure injection require Vite dev.
+test.use({ baseURL: 'http://127.0.0.1:5173' });
+
 const listener = {
   id: '507f1f77bcf86cd799439012',
   username: 'listener',

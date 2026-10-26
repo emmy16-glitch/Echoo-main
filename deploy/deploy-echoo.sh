@@ -47,7 +47,7 @@ if [[ ! -f "$APP_DIR/backend/.env" ]]; then
   exit 1
 fi
 
-required_vars=(MONGODB_URI JWT_SECRET JWT_REFRESH_SECRET CLIENT_ORIGINS LIVEKIT_URL LIVEKIT_PUBLIC_URL LIVEKIT_API_KEY LIVEKIT_API_SECRET LIVEKIT_SERVER_RECORDING_ENABLED LIVEKIT_RECORDING_WS_URL FFMPEG_PATH FFPROBE_PATH AUDIO_REPLAY_MP3_BITRATE)
+required_vars=(MONGODB_URI JWT_SECRET JWT_REFRESH_SECRET CLIENT_ORIGINS LIVEKIT_URL LIVEKIT_PUBLIC_URL LIVEKIT_API_KEY LIVEKIT_API_SECRET LIVEKIT_SERVER_RECORDING_ENABLED LIVEKIT_RECORDING_WS_URL FFMPEG_PATH FFPROBE_PATH AUDIO_REPLAY_MP3_BITRATE SERVER_RECORDING_SEGMENTS_ENABLED REPLAY_ARCHIVE_DIR)
 for name in "${required_vars[@]}"; do
   if ! grep -qE "^${name}=.+" "$APP_DIR/backend/.env"; then
     echo "Missing required value: $name" >&2
@@ -57,6 +57,8 @@ done
 
 for expected in \
   'LIVEKIT_SERVER_RECORDING_ENABLED=true' \
+  'SERVER_RECORDING_SEGMENTS_ENABLED=true' \
+  'REPLAY_ARCHIVE_DIR=/mnt/storage/media/echoo/replay' \
   'AUDIO_REPLAY_MP3_BITRATE=320k'; do
   if ! grep -qxF "$expected" "$APP_DIR/backend/.env"; then
     echo "Required production setting is missing or incorrect: $expected" >&2
@@ -81,6 +83,51 @@ if [[ ! -d "$STORAGE_DIR" || ! -w "$STORAGE_DIR" ]]; then
   echo "Storage directory must exist and be writable: $STORAGE_DIR" >&2
   exit 1
 fi
+
+# An unmounted NFS volume may leave an ordinary writable directory behind.
+# Reject the root filesystem before touching production or starting a recorder.
+storage_mount=$(findmnt -n -T "$STORAGE_DIR" -o TARGET 2>/dev/null || true)
+if [[ -z "$storage_mount" || "$storage_mount" == "/" ]]; then
+  echo "Persistent media mount is missing; refusing root-disk fallback at $STORAGE_DIR" >&2
+  exit 1
+fi
+
+# Prove that the configured digi02 recording archive is genuinely writable.
+# An NFS mount may exist while being read-only. No production restart occurs
+# if this preflight fails. Render staging never uses this deploy script.
+REPLAY_DIR="$STORAGE_DIR/replay"
+SEGMENT_DIR="$REPLAY_DIR/segments"
+if ! mkdir -p "$SEGMENT_DIR" || [[ ! -w "$SEGMENT_DIR" ]]; then
+  echo "Cannot create/writably access recording segment directory: $SEGMENT_DIR" >&2
+  exit 1
+fi
+probe_dir=$(mktemp -d "$REPLAY_DIR/.echoo-tee-test.XXXXXXXX") || {
+  echo "Cannot write to persistent replay archive: $REPLAY_DIR" >&2
+  exit 1
+}
+# The same FFmpeg tee muxer is used in live broadcasts. A successful primary
+# MP3 alone is insufficient; prove two distinct finalized segments are saved.
+if ! "$ffmpeg_bin" -nostdin -hide_banner -loglevel error \
+  -f lavfi -i anullsrc=r=48000:cl=stereo -t 3 \
+  -map 0:a:0 -c:a libmp3lame -threads 1 -b:a 320k \
+  -f tee "[f=mp3:onfail=abort]$probe_dir/primary.mp3|[f=segment:onfail=ignore:use_fifo=1:segment_time=1:segment_format=mp3:reset_timestamps=1]$probe_dir/part-%06d.mp3"; then
+  rm -rf "$probe_dir"
+  echo "FFmpeg recording segment preflight failed. Production not restarted." >&2
+  exit 1
+fi
+segment_count=0
+for part in "$probe_dir"/part-*.mp3; do
+  if [[ -f "$part" && $(stat -c %s "$part") -gt 4096 ]]; then
+    segment_count=$((segment_count + 1))
+  fi
+done
+if [[ ! -s "$probe_dir/primary.mp3" || $segment_count -lt 2 ]]; then
+  rm -rf "$probe_dir"
+  echo "FFmpeg tee did not produce the primary recording and two durable segments." >&2
+  exit 1
+fi
+rm -rf "$probe_dir"
+echo "Digi02 persistent recording storage and ten-minute segment muxer preflight passed."
 
 if [[ -e "$UPLOAD_LINK" && ! -L "$UPLOAD_LINK" ]]; then
   echo "$UPLOAD_LINK already exists and is not a symlink; move existing uploads deliberately before deployment." >&2

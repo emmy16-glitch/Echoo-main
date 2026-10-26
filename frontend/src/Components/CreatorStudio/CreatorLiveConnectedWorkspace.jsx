@@ -126,6 +126,7 @@ const getValidAudioSourceIds = (state) => ['host', 'channel2', 'guest', 'media',
   (channelId) => state?.channels?.[channelId]?.connected && Boolean(getMixerChannelTrack(channelId))
 );
 
+
 const CreatorLiveConnectedWorkspace = ({
   initialBroadcastId = '',
   onNavigate,
@@ -147,6 +148,12 @@ const CreatorLiveConnectedWorkspace = ({
   const [realtimeQualityProfile, setRealtimeQualityProfile] = useState(getSavedRealtimeAudioProfile);
   const [savedBroadcast, setSavedBroadcast] = useState(null);
   const [currentLiveBroadcast, setCurrentLiveBroadcast] = useState(null);
+  useEffect(() => {
+    const id = currentLiveBroadcast?.id || savedBroadcast?.id || '';
+    if (id) window.dispatchEvent(new CustomEvent('echoo:recording-track-broadcast', {
+      detail: { broadcastId: String(id) },
+    }));
+  }, [currentLiveBroadcast?.id, savedBroadcast?.id]);
   const [presence, setPresence] = useState({
     listenerCount: 0,
     peakListeners: 0,
@@ -1424,6 +1431,7 @@ const CreatorLiveConnectedWorkspace = ({
       {message && message !== 'You are live.' && (
         <div className="ec2-notice ec2-notice--info" role="status">{message}</div>
       )}
+
 
       {sessionOperation && (
         <div className="ec2-operation-progress" role="status" aria-live="polite">

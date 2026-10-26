@@ -14,6 +14,7 @@ import {
   isTranscriptionConfigured,
 } from '../services/transcriptionGateway.js';
 import { enqueueBroadcastProcessing } from '../services/broadcastProcessingService.js';
+import { checkServerRecordingStorageReadiness } from '../services/serverRecordingStorageHealth.js';
 import {
   acquireCreatorBroadcastLease,
   refreshCreatorBroadcastLease,
@@ -261,6 +262,29 @@ export async function startBroadcast(req, res, next) {
           message: `Cannot start a broadcast with status ${broadcast.status}`,
         },
       });
+    }
+
+    // Fail before acquiring the live lease if this deployment advertises
+    // mandatory server recording but cannot actually write its backup.
+    // Never run this preflight against an existing/live broadcast.
+    const serverRecordingRequired =
+      /^(1|true|yes)$/i.test(String(process.env.LIVEKIT_SERVER_RECORDING_ENABLED || '').trim());
+    const segmentsRequired =
+      /^(1|true|yes)$/i.test(String(process.env.SERVER_RECORDING_SEGMENTS_ENABLED || '').trim());
+    if (serverRecordingRequired || segmentsRequired) {
+      const ready = serverRecordingRequired && segmentsRequired &&
+        isLiveKitServerRecordingEnabled();
+      const storage = ready
+        ? await checkServerRecordingStorageReadiness({ required: true })
+        : { ready: false };
+      if (!ready || !storage.ready) {
+        return res.status(503).json({
+          error: {
+            code: 'RECORDING_PROTECTION_UNAVAILABLE',
+            message: 'Recording protection is not ready. Your broadcast has not started. Check the recording service and persistent storage before going live.',
+          },
+        });
+      }
     }
 
     try {
