@@ -148,3 +148,14 @@ test('recovery reconciliation pages through all rows and stops its own timer', a
   assert.match(processing, /setInterval\(recover, REPLAY_REPAIR_INTERVAL_MS\)/);
   assert.match(processing, /clearInterval\(replayRepairTimer\)/);
 });
+
+test('missing linked replay is reconstructed only after the broadcast ended', async () => {
+  const worker = await fs.readFile(new URL('../src/services/broadcastProcessingService.js', import.meta.url), 'utf8');
+  const handler = await fs.readFile(new URL('../src/controllers/broadcastRecordingProgressController.js', import.meta.url), 'utf8');
+  assert.match(worker, /restoreLinkedRecordingIfMissing\(broadcast\)/);
+  assert.match(worker, /reconstructServerRecordingFromSegments\(\{/);
+  assert.match(worker, /audio\.fileSize = restored\.size/);
+  assert.match(worker, /await audio\.save\(\)/);
+  assert.match(handler, /REPLAY_REQUIRES_RECOVERY/);
+  assert.match(handler, /retryRecordingFinalization\(broadcast\._id, \{ repairMissing \}\)/);
+});

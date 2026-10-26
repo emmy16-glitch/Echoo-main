@@ -103,14 +103,32 @@ export async function retryBroadcastRecordingFinalization(req, res, next) {
     }
     const broadcast = await Broadcast.findOne({
       _id: id, creator: req.userId, isDeleted: false,
-    }).select('_id status replayAudio replayAudioId');
+    }).select('_id status replayAudio replayAudioId serverRecording.segments');
     if (!broadcast) {
       return res.status(404).json({ error: { code: 'BROADCAST_NOT_FOUND', message: 'Broadcast not found.' } });
     }
+    let repairMissing = false;
     if (broadcast.replayAudio || broadcast.replayAudioId) {
-      return res.status(200).set('Cache-Control', 'no-store').json({
-        data: { status: 'completed', broadcastId: id },
-      });
+      const audio = await Audio.findById(broadcast.replayAudioId || broadcast.replayAudio)
+        .select('filename fileSize storage cloudKey isDeleted');
+      const filename = path.basename(String(audio?.filename || ''));
+      const stat = filename ? await fs.stat(path.join(process.cwd(), 'uploads', 'audio', filename)).catch(() => null) : null;
+      const valid = Boolean(audio && !audio.isDeleted && (
+        (audio.storage === 'cloud' && audio.cloudKey) ||
+        (stat?.isFile() && stat.size >= Math.max(4096, Number(audio.fileSize) || 0))
+      ));
+      if (valid) {
+        return res.status(200).set('Cache-Control', 'no-store').json({
+          data: { status: 'completed', broadcastId: id },
+        });
+      }
+      if (!broadcast.serverRecording?.segments?.attemptId) {
+        return res.status(409).json({ error: {
+          code: 'REPLAY_REQUIRES_RECOVERY',
+          message: 'Saved audio is missing and no server segment archive is registered. Preserve your browser recovery copy.',
+        } });
+      }
+      repairMissing = true;
     }
     if (!['completed', 'failed'].includes(broadcast.status)) {
       return res.status(409).json({ error: {
@@ -118,7 +136,7 @@ export async function retryBroadcastRecordingFinalization(req, res, next) {
         message: 'Finish the broadcast before retrying recording finalization.',
       } });
     }
-    const result = await retryRecordingFinalization(broadcast._id);
+    const result = await retryRecordingFinalization(broadcast._id, { repairMissing });
     return res.status(202).set('Cache-Control', 'no-store').json({
       data: { ...result, broadcastId: id, preservedExistingAudio: true },
     });
