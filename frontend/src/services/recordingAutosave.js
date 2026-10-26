@@ -920,6 +920,13 @@ export const installRecordingAutosave = () => {
   recoverOrphanedLosslessRecording()
     .then(async (recovered) => {
       if (!recovered?.recording?.blob?.size) return;
+      if (disposed) {
+        // Authentication/navigation may have changed while OPFS was opening.
+        // Release only the in-memory handle; never dispose the persistent file.
+        // The newly mounted creator recovery scanner can safely reopen it.
+        releaseRecoveredBroadcastRecording(recovered.recording.broadcastId);
+        return;
+      }
 
       rememberLocalMaster('recovered', {
         blob: recovered.recording.blob,
