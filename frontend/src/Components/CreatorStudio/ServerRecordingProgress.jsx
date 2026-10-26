@@ -93,7 +93,9 @@ export default function ServerRecordingProgress({ liveBroadcastId = '' }) {
         {fullReplaySaved
           ? 'The complete recording is verified and available in ECHOO.'
           : progress.segmentStatus === 'degraded'
-            ? 'Earlier protected segments remain on the server. ECHOO is keeping recovery available.'
+            ? count > 0
+              ? `${count} earlier parts are still present. ${progress.error || 'The server recording backup needs attention.'}`
+              : progress.error || 'No server backup parts could be verified. Check browser recovery and server storage.'
             : `${bytes > 0 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB secured. ` : ''}Server backups are saved as the broadcast continues.${lastUpdate ? ` Last update ${lastUpdate}.` : ''} Refreshing this page will reload progress from the server.`}
       </small>
     </section>
