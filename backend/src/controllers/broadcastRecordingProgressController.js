@@ -8,7 +8,7 @@ export async function getBroadcastRecordingProgress(req, res, next) {
       _id: req.params.broadcastId,
       creator: req.userId,
       isDeleted: false,
-    }).select('status replayStatus endedAt serverRecording.status serverRecording.segments');
+    }).select('status replayStatus endedAt startedAt serverRecording.startedAt serverRecording.status serverRecording.segments');
     if (!broadcast) {
       return res.status(404).json({
         error: { code: 'BROADCAST_NOT_FOUND', message: 'Broadcast not found.' },
@@ -21,6 +21,8 @@ export async function getBroadcastRecordingProgress(req, res, next) {
       data: {
         broadcastId: String(broadcast._id),
         broadcastStatus: broadcast.status,
+        startedAt: broadcast.serverRecording?.startedAt || broadcast.startedAt || null,
+        endedAt: broadcast.endedAt || null,
         replayStatus: broadcast.replayStatus,
         serverRecorderStatus: broadcast.serverRecording?.status || 'idle',
         segmentStatus: segments.status || 'idle',
