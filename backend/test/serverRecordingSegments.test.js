@@ -91,3 +91,37 @@ test('LiveKit stream uses only one FFmpeg encoder, with tee output and listener-
   assert.doesNotMatch(source, /segmentRecorder\?\.enqueue\(/);
   assert.match(create, /child\.once\('error'/);
 });
+
+
+test('backup segment disk failure does not kill continuous MP3 recording', { skip: !available }, async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'echoo-segment-failure-'));
+  const previous = process.env.SERVER_RECORDING_SEGMENTS_ENABLED;
+  const previousReplay = process.env.REPLAY_ARCHIVE_DIR;
+  process.env.SERVER_RECORDING_SEGMENTS_ENABLED = 'true';
+  process.env.REPLAY_ARCHIVE_DIR = tmp;
+  try {
+    const primary = path.join(tmp, 'continuous.mp3');
+    const plan = await prepareServerRecordingSegments({
+      broadcastId: '507f1f77bcf86cd799439013',
+      primaryOutputPath: primary, segmentSeconds: 1,
+    });
+    // Simulate a failed segment destination before the same FFmpeg starts.
+    await fs.rm(plan.dir, { recursive: true, force: true });
+    const result = spawnSync(ffmpeg, [
+      '-hide_banner', '-loglevel', 'error',
+      '-f', 'lavfi', '-i', 'sine=frequency=550:sample_rate=48000',
+      '-t', '1.4', '-map', '0:a:0', '-c:a', 'libmp3lame',
+      '-b:a', '128k', '-f', 'tee', plan.teeOutput,
+    ], { encoding: 'utf8', timeout: 20_000 });
+    assert.equal(result.status, 0, result.stderr);
+    assert((await fs.stat(primary)).size > 8192,
+      'canonical recording must survive missing backup destination');
+    assert.match(result.stderr, /Slave muxer|Failed to open segment/);
+  } finally {
+    if (previous === undefined) delete process.env.SERVER_RECORDING_SEGMENTS_ENABLED;
+    else process.env.SERVER_RECORDING_SEGMENTS_ENABLED = previous;
+    if (previousReplay === undefined) delete process.env.REPLAY_ARCHIVE_DIR;
+    else process.env.REPLAY_ARCHIVE_DIR = previousReplay;
+    await fs.rm(tmp, { recursive: true, force: true });
+  }
+});
