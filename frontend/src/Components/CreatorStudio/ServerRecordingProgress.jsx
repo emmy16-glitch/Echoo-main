@@ -44,8 +44,11 @@ export default function ServerRecordingProgress({ liveBroadcastId = '', hideSave
   const [recoveryError, setRecoveryError] = useState('');
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState('');
+  const [clockNow, setClockNow] = useState(() => Date.now());
   const latestBroadcastRef = useRef(broadcastId);
-  latestBroadcastRef.current = broadcastId;
+  useEffect(() => {
+    latestBroadcastRef.current = broadcastId;
+  }, [broadcastId]);
 
   const switchBroadcast = useCallback((id) => {
     const next = String(id || '');
@@ -75,6 +78,7 @@ export default function ServerRecordingProgress({ liveBroadcastId = '', hideSave
       setUnavailable(false);
       setConnected(true);
       setLastCheckedAt(Date.now());
+      setClockNow(Date.now());
       rememberSnapshot(broadcastId, result);
     } catch (error) {
       if (latestBroadcastRef.current !== broadcastId) return;
@@ -169,7 +173,7 @@ export default function ServerRecordingProgress({ liveBroadcastId = '', hideSave
   const protectedSeconds = Math.max(0, Number(progress.protectedSeconds) || 0);
   const bytes = Math.max(0, Number(progress.segmentBytes) || 0);
   const start = Date.parse(progress.startedAt || '');
-  const end = live ? Date.now() : Date.parse(progress.endedAt || '');
+  const end = live ? clockNow : Date.parse(progress.endedAt || '');
   const elapsedSeconds = Number.isFinite(start) && Number.isFinite(end) && end > start
     ? (end - start) / 1000 : 0;
   // Distinguish DURABLE BACKUP COVERAGE from FINAL REPLAY SAVE COMPLETION.
