@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import Audio from '../models/Audio.js';
 import Broadcast from '../models/Broadcast.js';
@@ -147,6 +148,23 @@ const applyEchooMp3Metadata = async ({ filePath, title, artist, startedAt } = {}
     await fs.rm(taggedPath, { force: true }).catch(() => null);
     return false;
   }
+};
+
+// Commit the link before deleting source chunks or server recovery files.
+// A transient MongoDB failure must never turn a verified multi-hour MP3 into
+// a successful-but-unfindable recording.
+const linkCanonicalReplay = async (broadcastId, audioId, replaySource = '') => {
+  const result = await Broadcast.updateOne(
+    { _id: broadcastId, isDeleted: false },
+    { $set: {
+      replayAudio: audioId, replayAudioId: audioId, replayStatus: 'ready',
+      ...(replaySource === 'server-segments' ? {
+        'serverRecording.segments.recoveryStatus': 'ready',
+        'serverRecording.segments.recoveryError': null,
+      } : {}),
+    } }
+  );
+  if (!result.matchedCount) throw new Error('Replay could not be durably linked to its broadcast. Recovery files retained.');
 };
 
 const fileExists = async (filePath) => {
@@ -401,10 +419,7 @@ async function finalizeInner({
   // refreshes all resolve to the single canonical replay.
   const already = await Audio.findOne({ fileKey }).select('_id');
   if (already) {
-    await Broadcast.updateOne(
-      { _id: broadcastId, replayAudioId: null },
-      { $set: { replayAudio: already._id, replayAudioId: already._id, replayStatus: 'ready' } }
-    ).catch(() => null);
+    await linkCanonicalReplay(broadcastId, already._id);
     return { status: 'ready', audioId: String(already._id), duplicate: true };
   }
 
@@ -425,10 +440,7 @@ async function finalizeInner({
   }
   if (broadcast.replayAudio || broadcast.replayAudioId) {
     const audioId = broadcast.replayAudio || broadcast.replayAudioId;
-    await Broadcast.updateOne(
-      { _id: broadcastId },
-      { $set: { replayAudio: audioId, replayAudioId: audioId, replayStatus: 'ready' } }
-    ).catch(() => null);
+    await linkCanonicalReplay(broadcastId, audioId);
     return { status: 'ready', audioId: String(audioId), duplicate: true };
   }
 
@@ -509,7 +521,9 @@ async function finalizeInner({
   const fallbackToWav = !toolingAvailable;
   const extension = fallbackToWav ? 'wav' : 'mp3';
   const mimeType = fallbackToWav ? 'audio/wav' : 'audio/mpeg';
-  const filename = `replay-${broadcastId}.${extension}`;
+  // Unique immutable file per attempt: two backend workers must never write
+  // into, or delete, the same canonical replay when racing across processes.
+  const filename = `replay-${broadcastId}-${randomUUID()}.${extension}`;
   await fs.mkdir(AUDIO_UPLOAD_DIR, { recursive: true });
   const finalPath = path.join(AUDIO_UPLOAD_DIR, filename);
 
@@ -668,6 +682,10 @@ async function finalizeInner({
     }).catch(() => false);
   }
 
+  // Durability barrier before publishing Audio in MongoDB. Flush actual audio
+  // bytes rather than trusting an FFmpeg close or a copied file header.
+  const finalHandle = await fs.open(finalPath, 'r');
+  try { await finalHandle.sync(); } finally { await finalHandle.close(); }
   const stat = await fs.stat(finalPath);
   const probedDuration = fallbackToWav ? 0 : await probeMp3DurationSeconds(finalPath);
   const duration = probedDuration || estimateReplayDurationSeconds({
@@ -715,13 +733,19 @@ async function finalizeInner({
     if (error?.code === 11000) {
       const winner = await Audio.findOne({ fileKey }).select('_id');
       if (winner) {
-        await Broadcast.updateOne({ _id: broadcastId }, { $set: { replayAudio: winner._id, replayAudioId: winner._id, replayStatus: 'ready' } }).catch(() => null);
+        await fs.rm(finalPath, { force: true }).catch(() => null);
+        await linkCanonicalReplay(broadcastId, winner._id);
         return { status: 'ready', audioId: String(winner._id), duplicate: true };
       }
     }
     await fs.rm(finalPath, { force: true }).catch(() => null);
     throw error;
   }
+
+  // MongoDB must confirm the durable replay association before any cleanup.
+  // If the database is down, the immutable MP3 and source segments remain;
+  // the existing Audio document is reconciled on the next job attempt.
+  await linkCanonicalReplay(broadcastId, audio._id, replaySource);
 
   // Optional cloud archive reuses the standard pipeline (private buckets via
   // signed URLs, no public base required). Failures keep the local MP3.
@@ -734,8 +758,9 @@ async function finalizeInner({
       audio.cloudKey = objectKey;
       if (!isCloudBucketPublic()) audio.cloudUrl = null;
       await audio.save();
-      const keepLocal = String(process.env.AUDIO_KEEP_LOCAL_AFTER_ARCHIVE || '').toLowerCase() === 'true';
-      if (!keepLocal) await fs.rm(finalPath, { force: true }).catch(() => null);
+      // Live broadcasts always retain a server-side replay when cloud upload
+      // succeeds. Do not let remote archive availability become a single
+      // dependency for recovering the creator's recorded programme.
     } catch (error) {
       console.warn('[Echoo Replay] cloud archive failed; local replay kept:', error?.message || error);
     }
@@ -754,16 +779,6 @@ async function finalizeInner({
   }
   if (replayFile) await fs.rm(replayFile.path, { force: true }).catch(() => null);
 
-  await Broadcast.updateOne(
-    { _id: broadcastId },
-    { $set: {
-      replayAudio: audio._id, replayAudioId: audio._id, replayStatus: 'ready',
-      ...(replaySource === 'server-segments' ? {
-        'serverRecording.segments.recoveryStatus': 'ready',
-        'serverRecording.segments.recoveryError': null,
-      } : {}),
-    } }
-  ).catch(() => null);
   return {
     status: 'ready',
     audioId: String(audio._id),
