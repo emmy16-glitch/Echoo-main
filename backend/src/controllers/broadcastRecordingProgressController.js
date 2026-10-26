@@ -1,4 +1,5 @@
 import Broadcast from '../models/Broadcast.js';
+import { inspectServerRecordingSegments } from '../services/serverRecordingSegments.js';
 
 // Server-authoritative progress survives browser reloads. Only the creator can
 // inspect segment bookkeeping. Never return private paths or raw audio data.
@@ -15,8 +16,17 @@ export async function getBroadcastRecordingProgress(req, res, next) {
       });
     }
     const segments = broadcast.serverRecording?.segments || {};
-    const completedSegments = Math.max(0, Number(segments.completedSegments) || 0);
+    const expectedSegments = Math.max(0, Number(segments.completedSegments) || 0);
     const segmentSeconds = Math.max(1, Number(segments.segmentSeconds) || 600);
+    const checked = await inspectServerRecordingSegments({
+      broadcastId: String(broadcast._id),
+      attemptId: segments.attemptId,
+      completedSegments: expectedSegments,
+    });
+    // An ephemeral disk can disappear during deploys while MongoDB survives.
+    // Show only parts still present on disk, and alert the creator otherwise.
+    const completedSegments = checked.completedSegments;
+    const storageMissing = expectedSegments > 0 && !checked.verified;
     return res.status(200).set('Cache-Control', 'no-store').json({
       data: {
         broadcastId: String(broadcast._id),
@@ -25,12 +35,14 @@ export async function getBroadcastRecordingProgress(req, res, next) {
         endedAt: broadcast.endedAt || null,
         replayStatus: broadcast.replayStatus,
         serverRecorderStatus: broadcast.serverRecording?.status || 'idle',
-        segmentStatus: segments.status || 'idle',
+        segmentStatus: storageMissing ? 'degraded' : (segments.status || 'idle'),
         completedSegments,
         protectedSeconds: completedSegments * segmentSeconds,
-        segmentBytes: Math.max(0, Number(segments.segmentBytes) || 0),
+        segmentBytes: checked.segmentBytes,
         updatedAt: segments.updatedAt || null,
-        error: segments.status === 'degraded' ? segments.error : null,
+        error: storageMissing
+          ? 'Previously recorded server segments are missing from storage. Check persistent disk and backups.'
+          : segments.status === 'degraded' ? segments.error : null,
         // A sealed backup segment is NOT an independently verified full replay.
         fullReplaySaved: broadcast.replayStatus === 'ready',
       },
