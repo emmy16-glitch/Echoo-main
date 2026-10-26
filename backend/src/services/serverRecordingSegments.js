@@ -34,7 +34,7 @@ const writeBuffer = (stream, buffer) => new Promise((resolve, reject) => {
   stream.write(buffer, (error) => finish(error));
 });
 
-const durableSealedParts = async (dir, recordingActive) => {
+const durableSealedParts = async (dir, recordingActive, cache = new Map()) => {
   const names = (await fs.readdir(dir).catch(() => []))
     .filter((name) => SEGMENT_RE.test(name))
     .sort();
@@ -44,6 +44,7 @@ const durableSealedParts = async (dir, recordingActive) => {
   const parts = [];
   for (const name of closedNames) {
     const filename = path.join(dir, name);
+    if (cache.has(name)) { parts.push({ name, bytes: cache.get(name) }); continue; }
     const info = await fs.stat(filename).catch(() => null);
     if (!info?.isFile() || info.size < 4096) continue;
     if (recordingActive) {
@@ -51,6 +52,7 @@ const durableSealedParts = async (dir, recordingActive) => {
       const fd = await fs.open(filename, 'r');
       try { await fd.sync(); } finally { await fd.close(); }
     }
+    cache.set(name, info.size);
     parts.push({ name, bytes: info.size });
   }
   return parts;
@@ -62,6 +64,7 @@ export async function startServerRecordingSegments({
   broadcastId,
   bitrate = '192k',
   onProgress = async () => {},
+  segmentSeconds = SEGMENT_SECONDS,
 } = {}) {
   if (!enabled()) return null;
   const id = safeId(broadcastId);
@@ -77,7 +80,7 @@ export async function startServerRecordingSegments({
     '-f', 's16le', '-ar', '48000', '-ac', '2',
     '-i', 'pipe:0', '-vn', '-c:a', 'libmp3lame',
     '-threads', '1', '-b:a', bitrate,
-    '-f', 'segment', '-segment_time', String(SEGMENT_SECONDS),
+    '-f', 'segment', '-segment_time', String(segmentSeconds),
     '-segment_format', 'mp3', '-reset_timestamps', '1',
     path.join(dir, 'part-%06d.mp3'),
   ];
@@ -93,6 +96,7 @@ export async function startServerRecordingSegments({
   let errorText = '';
   let lastCount = -1;
   let lastBytes = -1;
+  const confirmed = new Map();
   let resolveClosed;
   const closed = new Promise((resolve) => { resolveClosed = resolve; });
   const state = () => ({ stopped, failed, error: errorText });
@@ -113,7 +117,7 @@ export async function startServerRecordingSegments({
   child.stderr?.on('data', (data) => { errorText = String(data).slice(-500); });
 
   const refresh = async (final = false) => {
-    const parts = await durableSealedParts(dir, !(final || stopped));
+    const parts = await durableSealedParts(dir, !(final || stopped), confirmed);
     const bytes = parts.reduce((sum, part) => sum + part.bytes, 0);
     if (parts.length !== lastCount || bytes !== lastBytes || final || failed) {
       lastCount = parts.length;
@@ -122,7 +126,7 @@ export async function startServerRecordingSegments({
         status: failed ? 'degraded' : final ? 'completed' : 'recording',
         completedSegments: parts.length,
         segmentBytes: bytes,
-        segmentSeconds: SEGMENT_SECONDS,
+        segmentSeconds,
         updatedAt: new Date(),
         error: failed ? errorText : null,
       });
@@ -166,7 +170,7 @@ export async function startServerRecordingSegments({
     }
     return refresh(true);
   };
-  return { enqueue, refresh, finish, state, dir, segmentSeconds: SEGMENT_SECONDS };
+  return { enqueue, refresh, finish, state, dir, segmentSeconds };
 }
 
 export default { serverRecordingSegmentsEnabled, startServerRecordingSegments };
