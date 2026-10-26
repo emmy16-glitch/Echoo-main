@@ -158,5 +158,5 @@ test('creator retry is authenticated and limited to completed broadcasts', async
   const source=await fs.readFile(new URL('../src/controllers/broadcastRecordingProgressController.js',import.meta.url),'utf8');
   assert.match(routes,/recording-progress\/retry', authenticate, requireCreator, retryBroadcastRecordingFinalization/);
   assert.match(source,/BROADCAST_STILL_ACTIVE/);
-  assert.match(source,/retryRecordingFinalization\(broadcast\._id\)/);
+  assert.match(source,/retryRecordingFinalization\(broadcast\._id, \{ repairMissing \}\)/);
 });
