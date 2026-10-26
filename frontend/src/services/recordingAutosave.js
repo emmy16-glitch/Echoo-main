@@ -892,13 +892,15 @@ export const uploadRecoveredTake = async ({ recording, broadcast } = {}) => {
   // Keep the recovered card/master until server reconciliation has actually
   // succeeded. A failed recovery must remain locally saveable.
   await batch3Service.recoverBroadcast(broadcastId);
-  forgetLocalMaster('recovered');
-
-  return startAutosave({
+  const saved = await startAutosave({
     recording: { ...recording, broadcastId },
     broadcast,
     skipDeviceSave: true,
   });
+  // Clear the recovered card only after Echoo has confirmed a durable replay.
+  // A failed retry or reload must retain the creator's only protected copy.
+  if (saved?.audioId) forgetLocalMaster('recovered');
+  return saved;
 };
 
 // Headless mount: listens for finished broadcasts + offers boot recovery.
