@@ -12,6 +12,7 @@ test('a creator sees recording recovery on Broadcast after refresh', async () =>
   assert.match(banner, /getBroadcastRecordingState\(\)\.recording/);
   assert.match(banner, /flushRecordingForPageHide\(\)/);
   assert.match(banner, /await uploadRecoveredTake\(/);
+  assert.match(banner, /useEffect\(\(\) => installRecordingAutosave\(\), \[isCreatorWorkspace\]\)/);
 });
 
 test('recovered master is not forgotten before server acknowledgement', async () => {
