@@ -58,3 +58,18 @@ test('independently finalized server MP3 parts survive after recording stops', {
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+
+test('primary FFmpeg handlers are installed before optional segment initialization', async () => {
+  const main = await fs.readFile(new URL('../src/services/livekitServerRecording.js', import.meta.url), 'utf8');
+  const start = main.indexOf('const createSession = async (broadcastId) => {');
+  const end = main.indexOf('const getOrCreateSession', start);
+  assert(start >= 0 && end > start);
+  const body = main.slice(start, end);
+  const ffmpegErrorHook = body.indexOf("child.once('error'");
+  const segmentStart = body.indexOf('void startServerRecordingSegments({');
+  assert(ffmpegErrorHook > 0 && segmentStart > ffmpegErrorHook,
+    'FFmpeg failure handlers must be attached before optional segment startup');
+  assert.doesNotMatch(body, /await startServerRecordingSegments\(/);
+  assert.match(body, /if \(session\.stopping \|\| session\.failed\)/);
+});
