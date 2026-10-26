@@ -128,6 +128,11 @@ const batch3Service = {
       timeoutMs: 10_000,
       cache: 'no-store',
     }),
+  getRecordingRecoverySegments: async (broadcastId) =>
+    apiRequest(`/broadcasts/${encodeURIComponent(broadcastId)}/recording-segments`, {
+      timeoutMs: 10_000,
+      cache: 'no-store',
+    }),
 
   getStations: async () => {
     return batch2Service.listStations({ page: 1, limit: 100 });

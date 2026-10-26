@@ -166,3 +166,40 @@ export default {
   watchServerRecordingSegments,
   inspectServerRecordingSegments,
 };
+
+
+// Never expose an in-progress final part. A newer part's existence proves
+// the earlier part was closed, even if the backend crashed before updating
+// MongoDB's last checkpoint. This lets creators retrieve hours of sealed audio.
+export const listSealedServerRecordingSegments = async ({
+  broadcastId, attemptId, segmentStatus,
+} = {}) => {
+  const id = String(broadcastId || '');
+  const attempt = String(attemptId || '');
+  if (!/^[a-f0-9]{24}$/i.test(id) || !/^\d{13}-[a-f0-9]{8}$/.test(attempt)) return [];
+  const dir = path.join(baseDir(), id, attempt);
+  const dirStat = await fs.lstat(dir).catch(() => null);
+  if (!dirStat?.isDirectory()) return [];
+  const names = (await fs.readdir(dir)).filter(name => PART_RE.test(name)).sort();
+  const available = segmentStatus === 'completed' ? names.length : Math.max(0, names.length - 1);
+  const parts = [];
+  for (let index = 0; index < available && index < 2048; index += 1) {
+    const name = 'part-' + String(index).padStart(6, '0') + '.mp3';
+    if (names[index] !== name) break;
+    const filePath = path.join(dir, name);
+    const stat = await fs.lstat(filePath).catch(() => null);
+    if (!stat?.isFile() || stat.size < 4096) break;
+    let file;
+    try {
+      file = await fs.open(filePath, 'r');
+      const header = Buffer.alloc(4);
+      await file.read(header, 0, 4, 0);
+      const valid = header.toString('ascii', 0, 3) === 'ID3' ||
+        (header[0] === 0xff && (header[1] & 0xe0) === 0xe0);
+      if (!valid) break;
+    } catch { break; }
+    finally { await file?.close().catch(() => null); }
+    parts.push({ index, bytes: stat.size });
+  }
+  return parts;
+};
