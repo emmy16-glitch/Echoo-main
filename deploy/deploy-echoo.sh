@@ -84,6 +84,14 @@ if [[ ! -d "$STORAGE_DIR" || ! -w "$STORAGE_DIR" ]]; then
   exit 1
 fi
 
+# An unmounted NFS volume may leave an ordinary writable directory behind.
+# Reject the root filesystem before touching production or starting a recorder.
+storage_mount=$(findmnt -n -T "$STORAGE_DIR" -o TARGET 2>/dev/null || true)
+if [[ -z "$storage_mount" || "$storage_mount" == "/" ]]; then
+  echo "Persistent media mount is missing; refusing root-disk fallback at $STORAGE_DIR" >&2
+  exit 1
+fi
+
 # Prove that the configured digi02 recording archive is genuinely writable.
 # An NFS mount may exist while being read-only. No production restart occurs
 # if this preflight fails. Render staging never uses this deploy script.

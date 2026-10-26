@@ -125,3 +125,29 @@ test('backup segment disk failure does not kill continuous MP3 recording', { ski
     await fs.rm(tmp, { recursive: true, force: true });
   }
 });
+
+test('segment monitor flags missing backup files even when primary FFmpeg did not fail', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'echoo-missing-backup-'));
+  try {
+    const statuses = [];
+    const watcher = watchServerRecordingSegments({
+      dir: tmp, segmentSeconds: 600, attemptId: 'test-attempt',
+    }, {
+      isRecorderFailed: () => false,
+      closed: Promise.resolve(),
+      onProgress: async progress => statuses.push(progress),
+    });
+    const result = await watcher.finish();
+    assert.equal(result.count, 0);
+    assert.equal(statuses.at(-1).status, 'degraded');
+    assert.match(statuses.at(-1).error, /backup sink did not produce/);
+  } finally {
+    await fs.rm(tmp, { recursive: true, force: true });
+  }
+});
+
+test('digi02 deployment checks the actual mounted filesystem, not just write permission', async () => {
+  const script = await fs.readFile(new URL('../../deploy/deploy-echoo.sh', import.meta.url), 'utf8');
+  assert.match(script, /findmnt -n -T "\\$STORAGE_DIR" -o TARGET/);
+  assert.match(script, /storage_mount.*== "\/"/);
+});

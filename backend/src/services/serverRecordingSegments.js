@@ -97,22 +97,36 @@ export function watchServerRecordingSegments(config, {
   if (!config) return null;
   const cache = new Map();
   let count = -1, bytes = -1, ending = false;
+  const recordingStartedAt = Date.now();
   let chain = Promise.resolve(), terminal = null;
   const refresh = async ({ final = false } = {}) => {
     // If FFmpeg exited with an error, its last file can be truncated.
     const failed = Boolean(isRecorderFailed());
     const files = await sealedParts(config.dir, !final || failed, cache);
+    // The optional tee sink uses onfail=ignore. It can fail while the main
+    // encoder succeeds, so never report a healthy backup merely because
+    // FFmpeg exited cleanly. Allow one short grace window for segment closure.
+    const elapsedSeconds = Math.max(0, (Date.now() - recordingStartedAt) / 1000);
+    const expectedMinimum = Math.max(0, Math.floor(
+      (elapsedSeconds - Math.max(30, config.segmentSeconds * 0.05)) / config.segmentSeconds
+    ));
+    const backupMissing = files.length < expectedMinimum || (final && files.length === 0);
+    const degraded = failed || backupMissing;
     const nextBytes = files.reduce((a, f) => a + f.bytes, 0);
     if (count !== files.length || bytes !== nextBytes || final) {
       count = files.length; bytes = nextBytes;
       const update = {
-        status: failed ? 'degraded' : final ? 'completed' : 'recording',
+        status: degraded ? 'degraded' : final ? 'completed' : 'recording',
         completedSegments: count,
         segmentBytes: bytes,
         segmentSeconds: config.segmentSeconds,
         attemptId: config.attemptId,
         updatedAt: new Date(),
-        error: failed ? 'Segment recording was interrupted; only sealed parts are recoverable.' : null,
+        error: failed
+          ? 'Segment recording was interrupted; only sealed parts are recoverable.'
+          : backupMissing
+            ? 'The backup sink did not produce the expected sealed segments; check FFmpeg and persistent storage.'
+            : null,
       };
       chain = chain.catch(() => null).then(() => onProgress(update));
       await chain;

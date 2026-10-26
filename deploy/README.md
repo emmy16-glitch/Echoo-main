@@ -61,6 +61,10 @@ restart production unless that mount is writable and the actual FFmpeg tee
 muxer produces a primary MP3 and independently closed segments in a temporary
 probe. The preflight cleans up the probe files.
 
+Before deploying, use `findmnt -T /mnt/storage/media/echoo` to confirm the
+storage resides on a mounted volume rather than the server root disk. The
+preflight rejects a missing mount even if its leftover directory is writable.
+
 **If the mount is still read-only**, correct NFS export/mount permissions first.
 Do not silently replace the archive with an ephemeral fallback. Confirm
 `/api/health/recording` after deployment, then run a short real broadcast and
