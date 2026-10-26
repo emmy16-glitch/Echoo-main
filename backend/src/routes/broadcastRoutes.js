@@ -42,6 +42,7 @@ import {
   startBroadcastAudioChunks,
   uploadBroadcastAudioChunk,
 } from '../controllers/broadcastChunkController.js';
+import { getBroadcastRecordingProgress } from '../controllers/broadcastRecordingProgressController.js';
 import { recoverBroadcast } from '../controllers/broadcastRecoveryController.js';
 import { uploadBroadcastCover } from '../controllers/broadcastCoverController.js';
 import {
@@ -140,6 +141,7 @@ router.post('/covers', authenticate, requireCreator, broadcastCoverUploadFile, u
 router.get('/:broadcastId/like', authenticate, broadcastLike);
 router.put('/:broadcastId/like', authenticate, broadcastLike);
 router.delete('/:broadcastId/like', authenticate, broadcastLike);
+router.get('/:broadcastId/recording-progress', authenticate, requireCreator, getBroadcastRecordingProgress);
 router.get('/:broadcastId', authenticate, getBroadcastById);
 router.post('/', authenticate, requireCreator, createBroadcast);
 router.post('/:broadcastId/recording-chunks/start', authenticate, requireCreator, startBroadcastAudioChunks);
