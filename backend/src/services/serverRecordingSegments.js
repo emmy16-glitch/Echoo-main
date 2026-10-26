@@ -57,6 +57,32 @@ const durableSealedParts = async (dir, recordingActive, cache = new Map()) => {
   return parts;
 };
 
+// Reconcile MongoDB progress against the actual private files. This is
+// critical after ephemeral container restarts: old database counts alone
+// are never proof that the MP3 parts still exist.
+export const inspectServerRecordingSegments = async ({
+  broadcastId, attemptId, completedSegments = 0,
+} = {}) => {
+  const expected = Math.max(0, Math.floor(Number(completedSegments) || 0));
+  if (expected === 0) return { verified: true, completedSegments: 0, segmentBytes: 0 };
+  const id = safeId(broadcastId);
+  const attempt = String(attemptId || '');
+  if (!id || !/^\\d{13}-[a-f0-9]{8}$/.test(attempt)) {
+    return { verified: false, completedSegments: 0, segmentBytes: 0 };
+  }
+  const directory = path.join(baseDir(), id, attempt);
+  let checked = 0;
+  let bytes = 0;
+  for (let index = 0; index < expected; index += 1) {
+    const filename = path.join(directory, `part-${String(index).padStart(6, '0')}.mp3`);
+    const stat = await fs.stat(filename).catch(() => null);
+    if (!stat?.isFile() || stat.size < 4096) break;
+    bytes += stat.size;
+    checked += 1;
+  }
+  return { verified: checked === expected, completedSegments: checked, segmentBytes: bytes };
+};
+
 export const serverRecordingSegmentsEnabled = enabled;
 
 export async function startServerRecordingSegments({
@@ -140,6 +166,7 @@ export async function startServerRecordingSegments({
         completedSegments: parts.length,
         segmentBytes: bytes,
         segmentSeconds,
+        attemptId: sessionId,
         updatedAt: new Date(),
         error: failed ? errorText : null,
       };
