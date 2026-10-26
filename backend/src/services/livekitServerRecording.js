@@ -8,6 +8,7 @@ import LiveKitProvider from '../providers/livekit.js';
 import { assertFfmpegAvailable } from './audioTrimService.js';
 import { getReplayOutputFile } from './broadcastOutputService.js';
 import { preserveInterruptedRecording } from './serverRecordingPreservation.js';
+import { startServerRecordingSegments } from './serverRecordingSegments.js';
 
 const SAMPLE_RATE = 48_000;
 const CHANNELS = 2;
@@ -242,6 +243,7 @@ const createSession = async (broadcastId) => {
     closed,
     resolveClosed,
     outputPath: replay.path,
+    segmentRecorder: null,
   };
 
   const child = spawn(
@@ -261,6 +263,25 @@ const createSession = async (broadcastId) => {
     { stdio: ['pipe', 'ignore', 'pipe'], windowsHide: true }
   );
   session.child = child;
+
+  // The rolling recorder is an independently bounded backup. Failures do not
+  // propagate to the primary MP3 encoder or the LiveKit publishing connection.
+  try {
+    session.segmentRecorder = await startServerRecordingSegments({
+      broadcastId,
+      bitrate: bitrate(),
+      onProgress: (progress) => persist(broadcastId, {
+        'serverRecording.segments.status': progress.status,
+        'serverRecording.segments.completedSegments': progress.completedSegments,
+        'serverRecording.segments.segmentBytes': progress.segmentBytes,
+        'serverRecording.segments.segmentSeconds': progress.segmentSeconds,
+        'serverRecording.segments.updatedAt': progress.updatedAt,
+        'serverRecording.segments.error': progress.error,
+      }),
+    });
+  } catch (error) {
+    console.warn('[Echoo Recording] optional server segments unavailable:', error?.message || error);
+  }
 
   let stderr = '';
   child.stderr?.on('data', (data) => {
@@ -311,6 +332,11 @@ const finishSession = (session) => {
 
   session.finishPromise = (async () => {
     session.stopping = true;
+    // Start closing the backup concurrently, rather than adding its duration
+    // to the primary recording shutdown/verification critical path.
+    const segmentFinish = session.segmentRecorder?.finish().catch((error) => {
+      console.warn('[Echoo Recording] backup segment finalization warning:', error?.message || error);
+    });
     expectedTracks.delete(session.broadcastId);
     if (session.handoffTimer) clearTimeout(session.handoffTimer);
     session.handoffTimer = null;
@@ -387,6 +413,11 @@ const finishSession = (session) => {
         : String(session.error || 'Server recording produced no MP3 data.').slice(0, 1000),
     });
 
+    // A backup that needs longer processing must not delay finalizing the
+    // primary replay. Closed segments already on persistent disk remain safe.
+    if (segmentFinish) {
+      void segmentFinish.catch(() => undefined);
+    }
     sessions.delete(session.broadcastId);
     ownedEgressIds.delete(session.broadcastId);
     return {
@@ -519,6 +550,9 @@ const acceptRecordingSocket = async (socket, request) => {
 
     session.pcmBytes += buffer.length;
     session.lastPcmAt = Date.now();
+    // Enqueue only: segment disk/FFmpeg backpressure must never block PCM
+    // delivery, the canonical recorder, or LiveKit listener audio.
+    session.segmentRecorder?.enqueue(buffer);
     session.writeChain = session.writeChain
       .then(async () => {
         try {
