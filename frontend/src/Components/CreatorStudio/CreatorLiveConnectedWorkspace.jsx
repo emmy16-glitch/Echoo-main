@@ -126,6 +126,8 @@ const getValidAudioSourceIds = (state) => ['host', 'channel2', 'guest', 'media',
   (channelId) => state?.channels?.[channelId]?.connected && Boolean(getMixerChannelTrack(channelId))
 );
 
+import ServerRecordingProgress from './ServerRecordingProgress';
+
 const CreatorLiveConnectedWorkspace = ({
   initialBroadcastId = '',
   onNavigate,
@@ -1424,6 +1426,8 @@ const CreatorLiveConnectedWorkspace = ({
       {message && message !== 'You are live.' && (
         <div className="ec2-notice ec2-notice--info" role="status">{message}</div>
       )}
+
+      <ServerRecordingProgress liveBroadcastId={currentLiveBroadcast?.id || savedBroadcast?.id || ''} />
 
       {sessionOperation && (
         <div className="ec2-operation-progress" role="status" aria-live="polite">
