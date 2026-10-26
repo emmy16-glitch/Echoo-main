@@ -32,14 +32,11 @@ export default function ServerRecordingProgress({ liveBroadcastId = '' }) {
       } catch (error) {
         if (!active) return;
         if ([401, 403, 404].includes(Number(error?.status))) {
-          // A different user cannot view an earlier creator's private status.
+          // Hide private progress when access is denied. Do NOT delete the
+          // broadcast ID: an expired token/sign-out followed by re-login must
+          // restore its server-verified checkpoints instead of losing the card.
           setProgress(null);
           setUnavailable(true);
-          try {
-            if (localStorage.getItem(LAST_RECORDING_KEY) === broadcastId) {
-              localStorage.removeItem(LAST_RECORDING_KEY);
-            }
-          } catch { /* no-op */ }
         }
         // Network failure must not erase the last confirmed progress.
       }
