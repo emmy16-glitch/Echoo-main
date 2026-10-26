@@ -71,3 +71,23 @@ test('recording progress never intercepts the live Reconnect audio button', asyn
   assert.match(css, /studio-persistent-recording\.is-live-workspace > \* \{ pointer-events: none;/);
   assert.match(css, /studio-persistent-recording\.is-live-workspace button \{ pointer-events: auto;/);
 });
+
+test('browser OPFS master is retained until actual server replay availability is verified', async () => {
+  const autosave = await read('./recordingAutosave.js');
+  assert.match(autosave, /verifiedReplay = verified\?\.data\?\.fullReplaySaved === true/);
+  assert.match(autosave, /if \(!verifiedReplay\) \{/);
+  assert.match(autosave, /const verified = replayIndexed\s*\? await batch3Service\.getServerRecordingProgress\(broadcastId\)/);
+  assert.match(autosave, /if \(replayIndexed && verified\?\.data\?\.fullReplaySaved === true\)/);
+  assert.doesNotMatch(autosave, /if \(replayReady\) \{\s*try \{ await recovered\.recording\.dispose/);
+});
+
+test('progress retry reuses a refreshed OPFS recovery master only for the matching broadcast', async () => {
+  const autosave = await read('./recordingAutosave.js');
+  const from = autosave.indexOf('export const retryAutosave =');
+  const to = autosave.indexOf('export const uploadRecoveredTake =', from);
+  assert(from >= 0 && to > from);
+  const retry = autosave.slice(from, to);
+  assert.match(retry, /peekLocalMaster\('recovered'\)/);
+  assert.match(retry, /String\(recovered\?\.recording\?\.broadcastId \|\| ''\) !== String\(key\)/);
+  assert.match(retry, /return uploadRecoveredTake\(recovered\)/);
+});

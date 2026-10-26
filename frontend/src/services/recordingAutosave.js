@@ -428,6 +428,22 @@ const startAutosaveLive = async ({
       }
 
       if (replay.status === 'ready' && replay.audioId) {
+        // Never delete the only browser/OPFS master based on an optimistic
+        // Audio row or an idempotent "already saved" API response. The progress
+        // endpoint confirms the actual replay bytes (or an archived object).
+        // If the check is unavailable, preserve the master and allow retry.
+        let verifiedReplay = false;
+        try {
+          const verified = await batch3Service.getServerRecordingProgress(recording.broadcastId);
+          verifiedReplay = verified?.data?.fullReplaySaved === true;
+        } catch {
+          verifiedReplay = false;
+        }
+        if (!verifiedReplay) {
+          const error = new Error('Echoo has not confirmed a readable final recording. Your browser recovery recording was retained.');
+          error.code = 'REPLAY_FINALIZE_RETRY';
+          throw error;
+        }
         const audioId = String(replay.audioId);
 
         // If the creator already saved a device copy while the server was
@@ -869,7 +885,15 @@ export const saveRecoveryCopy = async (key, requestedFormat = '') => {
 
 export const retryAutosave = async (key) => {
   const pending = peekLocalMaster(`pending:${key}`);
-  if (!pending?.recording?.blob?.size) return null;
+  if (!pending?.recording?.blob?.size) {
+    // On refresh, the OPFS scanner restores the take under "recovered".
+    // The persistent progress bar retries by broadcast ID. Match that ID
+    // exactly so a different creator's or broadcast's master is never sent.
+    const recovered = peekLocalMaster('recovered');
+    if (String(recovered?.recording?.broadcastId || '') !== String(key) ||
+        !recovered?.recording?.blob?.size) return null;
+    return uploadRecoveredTake(recovered);
+  }
 
   // A failed/lost End Broadcast response can leave the backend lifecycle in
   // starting/live/ending. Reconcile that state before asking replay
@@ -946,12 +970,18 @@ export const installRecordingAutosave = ({ recoverOnInstall = true } = {}) => {
         try {
           const processing = await batch3Service.getProcessing(broadcastId);
           const serverBroadcast = processing?.data?.broadcast || null;
-          const replayReady = Boolean(
+          const replayIndexed = Boolean(
             serverBroadcast?.replayAudio ||
             serverBroadcast?.replayAudioId ||
             serverBroadcast?.assetStatus?.audio === 'ready'
           );
-          if (replayReady) {
+          // Database metadata is NOT proof the replay survived a missing
+          // disk, interrupted migration, or cloud archive failure. Verify it
+          // before allowing OPFS disposal after refresh.
+          const verified = replayIndexed
+            ? await batch3Service.getServerRecordingProgress(broadcastId)
+            : null;
+          if (replayIndexed && verified?.data?.fullReplaySaved === true) {
             try { await recovered.recording.dispose?.(); } catch { /* best effort */ }
             clearPendingBroadcastRecording(broadcastId);
             forgetLocalMaster('recovered');
