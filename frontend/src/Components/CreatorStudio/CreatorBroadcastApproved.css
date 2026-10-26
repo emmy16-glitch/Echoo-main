@@ -1445,7 +1445,8 @@ html body #root .studio-page.studio-final-shell.studio-v2-shell .ec2-workstation
   z-index: 34;
   pointer-events: none;
 }
-.studio-persistent-recording.is-live-workspace > * { pointer-events: auto; }
+.studio-persistent-recording.is-live-workspace > * { pointer-events: none; }
+.studio-persistent-recording.is-live-workspace button { pointer-events: auto; }
 .studio-persistent-recording.is-live-workspace .ec2-operation-progress {
   box-shadow: 0 8px 22px rgba(11, 36, 68, .13);
   margin: 0;

@@ -63,3 +63,11 @@ test('live recording progress does not push End Broadcast below the viewport', a
   assert.match(panel, /compact && live && !expanded/);
   assert.match(panel, /setExpanded\(true\)/);
 });
+
+test('recording progress never intercepts the live Reconnect audio button', async () => {
+  const panel = await read('../Components/CreatorStudio/ServerRecordingProgress.jsx');
+  const css = await read('../Components/CreatorStudio/CreatorBroadcastApproved.css');
+  assert.match(panel, /if \(compact\) return null;/);
+  assert.match(css, /studio-persistent-recording\.is-live-workspace > \* \{ pointer-events: none;/);
+  assert.match(css, /studio-persistent-recording\.is-live-workspace button \{ pointer-events: auto;/);
+});

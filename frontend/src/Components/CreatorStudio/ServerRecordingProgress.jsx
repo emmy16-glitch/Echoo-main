@@ -152,6 +152,10 @@ export default function ServerRecordingProgress({ liveBroadcastId = '', hideSave
 
   if (!broadcastId || unavailable || (hideSaved && progress?.fullReplaySaved === true)) return null;
   if (!progress) {
+    // A new or mock LIVE broadcast may not have an authenticated checkpoint
+    // yet. No placeholder may cover Go Live, Reconnect or End controls.
+    // When a previous verified snapshot exists it remains visible on reload.
+    if (compact) return null;
     // The card remains mounted even while authentication/network and the
     // authoritative first progress request are still resolving after refresh.
     return (
