@@ -57,6 +57,16 @@ export default function ServerRecordingProgress({ liveBroadcastId = '' }) {
   const live = ['live', 'starting'].includes(progress.broadcastStatus);
   const segmentsActive = progress.segmentStatus === 'recording';
   const lastUpdate = progress.updatedAt ? new Date(progress.updatedAt).toLocaleTimeString() : '';
+  const startTime = Date.parse(progress.startedAt || '');
+  const endTime = live ? Date.now() : Date.parse(progress.endedAt || '');
+  const elapsedSeconds = Number.isFinite(startTime) && Number.isFinite(endTime)
+    ? Math.max(1, (endTime - startTime) / 1000)
+    : 0;
+  const coverage = fullReplaySaved
+    ? 100
+    : elapsedSeconds > 0 ? Math.max(0, Math.min(99, Math.round(
+        (Number(progress.protectedSeconds) || 0) * 100 / elapsedSeconds
+      ))) : 0;
   const headline = fullReplaySaved
     ? 'Recording saved to ECHOO'
     : progress.segmentStatus === 'degraded'
@@ -72,6 +82,16 @@ export default function ServerRecordingProgress({ liveBroadcastId = '' }) {
         <strong>{headline}</strong>
         <span>{duration > 0 ? `${duration} min` : live ? 'Live' : 'Off air'}</span>
       </div>
+      {count > 0 && (
+        <>
+          <div className="ec2-operation-progress__bar" aria-hidden="true">
+            <i style={{ width: `${coverage}%` }} />
+          </div>
+          <small>{fullReplaySaved
+            ? '100% verified and saved'
+            : `Approximately ${coverage}% of elapsed audio is in completed server parts; this is not the final replay verification.`}</small>
+        </>
+      )}
       <small>
         {fullReplaySaved
           ? 'The complete recording is verified and available in ECHOO.'
