@@ -17,8 +17,8 @@ const MASTER_HEADER_BYTES = RF64_HEADER_BYTES;
 const OPFS_DIRECTORY = 'echoo-live-recordings';
 const OPFS_MANIFEST_KEY = 'echoo:recoverable-broadcast-recording:v1';
 const OPFS_MANIFESTS_KEY = 'echoo:recoverable-broadcast-recordings:v2';
-const OPFS_CHECKPOINT_MS = 15_000;
-const LONG_SESSION_TARGET_SECONDS = 8 * 60 * 60;
+const OPFS_CHECKPOINT_MS = 10_000;
+const LONG_SESSION_TARGET_SECONDS = 12 * 60 * 60;
 const LOSSLESS_STORAGE_RESERVE_BYTES = 512 * 1024 * 1024;
 const LOSSLESS_LONG_SESSION_TARGET_BYTES =
   WAV_TARGET_SAMPLE_RATE *
@@ -1127,7 +1127,7 @@ const startLosslessRecording = async ({ broadcastId, title }) => {
 
   if (!(await hasLongSessionLosslessHeadroom())) {
     const error = new Error(
-      'Local storage headroom is too small for an eight-hour lossless safety master; using disk-backed Opus recovery instead.'
+      'Local storage headroom is too small for an twelve-hour lossless safety master; using disk-backed Opus recovery instead.'
     );
     error.code = 'LOSSLESS_STORAGE_HEADROOM_LOW';
     throw error;
