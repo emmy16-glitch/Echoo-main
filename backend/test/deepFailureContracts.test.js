@@ -191,14 +191,14 @@ test('server replay finalization stays non-blocking and cloud archive streams lo
   assert.doesNotMatch(archive, /readFile\(localPath\)/);
 });
 
-test('recording recovery stays safe without cluttering unrelated Studio pages', async () => {
+test('recording recovery is visible across Creator Studio without cluttering listener pages', async () => {
   const banner = await frontendSource('src/Components/RecordingSaveBanner.jsx');
   const autosave = await frontendSource('src/services/recordingAutosave.js');
   const css = await frontendSource('src/Components/RecordingSaveBanner.css');
 
   assert.match(banner, /is-safe-recovery/);
   assert.match(banner, /Recovered recording is safe/);
-  assert.match(banner, /startsWith\('\/creator-studio\/content'\)/);
+  assert.match(banner, /startsWith\('\/creator-studio'\)/);
   assert.match(autosave, /batch3Service\.getProcessing\(broadcastId\)/);
   assert.match(autosave, /serverBroadcast\?\.replayAudio/);
   assert.match(banner, /Retrying Echoo save · \$\{elapsed\}s/);
@@ -467,7 +467,7 @@ test('long broadcast recording uses RF64 and never materializes multi-GB desktop
   // A 7-8 hour PCM RF64 master is many gigabytes. Long sessions must inspect
   // browser quota and fall back to disk-backed Opus, never an unbounded RAM
   // buffer, while preserving the same crash-recovery registry.
-  assert.match(recording, /LONG_SESSION_TARGET_SECONDS = 8 \* 60 \* 60/);
+  assert.match(recording, /LONG_SESSION_TARGET_SECONDS = 12 \* 60 \* 60/);
   assert.match(recording, /navigator\.storage\?\.estimate/);
   assert.match(recording, /LOSSLESS_LONG_SESSION_TARGET_BYTES/);
   assert.match(recording, /LOSSLESS_STORAGE_HEADROOM_LOW/);
@@ -477,7 +477,7 @@ test('long broadcast recording uses RF64 and never materializes multi-GB desktop
   assert.match(recording, /maxSustainableBitrate/);
   assert.match(recording, /fullTargetExpected/);
   assert.match(recording, /audioBitsPerSecond: storagePolicy\.bitrate/);
-  assert.match(recording, /Local storage is very low for an 8-hour recovery recording/);
+  assert.match(recording, /Local storage is low for a 12-hour recovery recording/);
   assert.match(recording, /openCompressedRecordingFile/);
   assert.match(recording, /mode: storage \? 'compressed-opfs' : 'compressed-fallback'/);
   assert.match(recording, /await recording\.writable\.write\(event\.data\)/);
@@ -534,7 +534,7 @@ test('server recording and end-broadcast cleanup reject stale or unbounded provi
   const lifecycle = await source('src/controllers/broadcastLifecycleController.js');
 
   assert.match(recording, /PROVIDER_CONTROL_TIMEOUT_MS = 5_000/);
-  assert.match(recording, /WRITE_CHAIN_DRAIN_TIMEOUT_MS = 3_000/);
+  assert.match(recording, /WRITE_CHAIN_DRAIN_TIMEOUT_MS = 30_000/);
   assert.match(recording, /stopEgressBounded/);
   assert.match(recording, /desiredTracks\.get\(id\) !== track[\s\S]{0,500}stale recorder start/);
   assert.match(recording, /reason: !lifecycleStillLive[\s\S]{0,100}'broadcast-ended'/);
