@@ -233,6 +233,12 @@ const broadcastSchema = new mongoose.Schema(
         attemptId: { type: String, default: null, maxlength: 32 },
         updatedAt: { type: Date, default: null },
         error: { type: String, default: null, maxlength: 500 },
+        recoveryStatus: {
+          type: String,
+          enum: ['idle', 'recovering', 'incomplete', 'failed', 'ready'],
+          default: 'idle',
+        },
+        recoveryError: { type: String, default: null, maxlength: 300 },
       },
       error: { type: String, default: null, maxlength: 1000 },
     },

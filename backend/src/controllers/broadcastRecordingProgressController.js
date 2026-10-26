@@ -43,6 +43,8 @@ export async function getBroadcastRecordingProgress(req, res, next) {
         replayStatus: broadcast.replayStatus,
         serverRecorderStatus: broadcast.serverRecording?.status || 'idle',
         segmentStatus: storageMissing ? 'degraded' : (segments.status || 'idle'),
+        reconstructionStatus: segments.recoveryStatus || 'idle',
+        reconstructionError: segments.recoveryError || null,
         completedSegments,
         protectedSeconds: Math.min(completedSegments * segmentSeconds, measuredMaximum),
         segmentBytes: checked.segmentBytes,

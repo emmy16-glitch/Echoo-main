@@ -18,6 +18,7 @@ import {
 } from './audioArchiveService.js';
 import { isTranscriptionConfigured } from './transcriptionGateway.js';
 import { checkFfmpegCapability } from './audioTrimService.js';
+import { reconstructServerRecordingFromSegments } from './serverRecordingReconstruction.js';
 
 // ---------------------------------------------------------------------------
 // Canonical server replay finalization.
@@ -400,7 +401,7 @@ async function finalizeInner({
   }
 
   const broadcast = await Broadcast.findOne({ _id: broadcastId, isDeleted: false })
-    .select('_id creator station title description status replayAudio replayAudioId replayStatus startedAt startTime endedAt serverRecording.status serverRecording.pcmBytes serverRecording.fileBytes');
+    .select('_id creator station title description status replayAudio replayAudioId replayStatus startedAt startTime endedAt serverRecording.status serverRecording.startedAt serverRecording.endedAt serverRecording.pcmBytes serverRecording.fileBytes serverRecording.segments');
   if (!broadcast) {
     const error = new Error('Broadcast not found.');
     error.status = 404;
@@ -446,8 +447,15 @@ async function finalizeInner({
     serverRecordingStatus === 'completed' &&
     replayBytes > 0 &&
     (!persistedReplayBytes || replayBytes === persistedReplayBytes);
+  const segmentState = broadcast.serverRecording?.segments;
+  // Never read an active FFmpeg output; retry in the background if shutdown
+  // has not completed. The original files remain untouched on every failure.
+  const canReconstructSegments = toolingAvailable &&
+    Boolean(segmentState?.attemptId) &&
+    !['starting', 'active', 'recovering'].includes(serverRecordingStatus) &&
+    !['live', 'starting', 'ending'].includes(String(broadcast.status || ''));
 
-  if (!chunks.length && !streamFileLooksOwned) {
+  if (!chunks.length && !streamFileLooksOwned && !canReconstructSegments) {
     const interruptedServerFile = replayBytes > 0;
     await Broadcast.updateOne(
       { _id: broadcastId },
@@ -477,7 +485,7 @@ async function finalizeInner({
       if (!seen.has(index)) missing.push(index);
     }
   }
-  if (!accounted && !streamFileLooksOwned) {
+  if (!accounted && !streamFileLooksOwned && !canReconstructSegments) {
     await Broadcast.updateOne({ _id: broadcastId }, { $set: { replayStatus: 'incomplete' } }).catch(() => null);
     return {
       status: 'incomplete',
@@ -524,6 +532,47 @@ async function finalizeInner({
       replaySource = null;
     }
   }
+  if (!replaySource && canReconstructSegments) {
+    const pcmDuration = Math.max(0, Number(broadcast.serverRecording?.pcmBytes) || 0) /
+      (48000 * 2 * 2);
+    const started = new Date(broadcast.serverRecording?.startedAt || broadcast.startedAt || 0).getTime();
+    const ended = new Date(broadcast.endedAt || broadcast.serverRecording?.endedAt || 0).getTime();
+    const wallDuration = Number.isFinite(started) && started > 0 && ended > started
+      ? (ended - started) / 1000 : 0;
+    const expectedDuration = Math.max(pcmDuration, wallDuration);
+    try {
+      await Broadcast.updateOne({ _id: broadcastId }, {
+        $set: { 'serverRecording.segments.recoveryStatus': 'recovering' },
+      }).catch(() => null);
+      const rebuilt = await reconstructServerRecordingFromSegments({
+        broadcastId,
+        attemptId: segmentState.attemptId,
+        segmentStatus: segmentState.status,
+        completedSegments: segmentState.completedSegments,
+        segmentSeconds: segmentState.segmentSeconds || 600,
+        expectedDurationSeconds: expectedDuration,
+        outputPath: finalPath,
+      });
+      if (rebuilt.status === 'ready') {
+        replaySource = 'server-segments';
+      } else {
+        await Broadcast.updateOne({ _id: broadcastId }, {
+          $set: {
+            'serverRecording.segments.recoveryStatus': 'incomplete',
+            'serverRecording.segments.recoveryError': String(rebuilt.reason || 'recovery-incomplete').slice(0, 300),
+          },
+        }).catch(() => null);
+      }
+    } catch (error) {
+      console.warn('[Echoo Replay] segment reconstruction deferred:', error?.message || error);
+      await Broadcast.updateOne({ _id: broadcastId }, {
+        $set: {
+          'serverRecording.segments.recoveryStatus': 'failed',
+          'serverRecording.segments.recoveryError': 'Segment reconstruction failed; original recordings preserved for retry.',
+        },
+      }).catch(() => null);
+    }
+  }
   if (!replaySource) {
     if (!accounted) {
       await Broadcast.updateOne({ _id: broadcastId }, { $set: { replayStatus: 'incomplete' } }).catch(() => null);
@@ -563,7 +612,7 @@ async function finalizeInner({
       await assembleChunksToMp3({ chunks, outputPath: finalPath, bitrate });
       replaySource = 'assembled';
     }
-  } else {
+  } else if (replaySource === 'stream') {
     await fs.copyFile(replayFile.path, finalPath);
   }
 
@@ -639,7 +688,11 @@ async function finalizeInner({
       mimeType,
       duration,
       genre: 'Other',
-      tags: ['live-recording', 'broadcast', fallbackToWav ? 'server-wav-fallback' : 'server-mp3'],
+      tags: [
+        'live-recording', 'broadcast',
+        fallbackToWav ? 'server-wav-fallback' : 'server-mp3',
+        ...(replaySource === 'server-segments' ? ['reconstructed-server-segments'] : []),
+      ],
       isPublic: false,
       visibility: 'private',
       publicationStatus: 'draft',
@@ -690,7 +743,13 @@ async function finalizeInner({
 
   await Broadcast.updateOne(
     { _id: broadcastId },
-    { $set: { replayAudio: audio._id, replayAudioId: audio._id, replayStatus: 'ready' } }
+    { $set: {
+      replayAudio: audio._id, replayAudioId: audio._id, replayStatus: 'ready',
+      ...(replaySource === 'server-segments' ? {
+        'serverRecording.segments.recoveryStatus': 'ready',
+        'serverRecording.segments.recoveryError': null,
+      } : {}),
+    } }
   ).catch(() => null);
   return {
     status: 'ready',

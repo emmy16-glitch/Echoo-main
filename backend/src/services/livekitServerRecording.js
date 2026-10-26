@@ -230,6 +230,22 @@ const createSession = async (broadcastId) => {
     console.warn('[Echoo Recording] segment output unavailable; primary replay continues:', error?.message || error);
   }
 
+  // Persist the attempt before receiving any PCM so a process crash cannot
+  // lose the only pointer to sealed backup files.
+  if (segmentPlan) {
+    await persist(broadcastId, {
+      'serverRecording.segments.status': 'recording',
+      'serverRecording.segments.attemptId': segmentPlan.attemptId,
+      'serverRecording.segments.completedSegments': 0,
+      'serverRecording.segments.segmentBytes': 0,
+      'serverRecording.segments.segmentSeconds': segmentPlan.segmentSeconds,
+      'serverRecording.segments.updatedAt': new Date(),
+      'serverRecording.segments.error': null,
+      'serverRecording.segments.recoveryStatus': 'idle',
+      'serverRecording.segments.recoveryError': null,
+    });
+  }
+
   let resolveClosed;
   const closed = new Promise((resolve) => { resolveClosed = resolve; });
   const session = {
@@ -422,9 +438,13 @@ const finishSession = (session) => {
         : String(session.error || 'Server recording produced no MP3 data.').slice(0, 1000),
     });
 
-    // Monitoring completion never controls the primary LiveKit audio path.
+    // The encoder has already stopped. Wait briefly for the sealed-file
+    // checkpoint, without holding the live WebRTC path or End Broadcast.
     if (segmentFinish) {
-      void segmentFinish.catch(() => undefined);
+      await Promise.race([
+        segmentFinish,
+        new Promise((resolve) => setTimeout(resolve, 2_000)),
+      ]);
     }
     sessions.delete(session.broadcastId);
     ownedEgressIds.delete(session.broadcastId);
