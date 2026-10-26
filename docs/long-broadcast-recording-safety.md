@@ -4,7 +4,7 @@ Echoo's live audio transport and recording recovery are separate. Recording erro
 
 ## Safeguards
 
-- **Browser:** Echoo stores a creator-owned recovery master in origin-private file storage (OPFS) and checkpoints every 10 seconds where supported. The planning window is 12 hours, subject to actual disk quota and operating-system/browser conditions. An active creator gets a browser navigation warning before refresh; refresh nonetheless stops the browser's microphone/LiveKit publisher.
+- **Browser:** Echoo stores a creator-owned recovery master in origin-private file storage (OPFS) and checkpoints every 15 seconds where supported. The planning window is 12 hours, subject to actual disk quota and operating-system/browser conditions. An active creator gets a browser navigation warning before refresh; refresh nonetheless stops the browser's microphone/LiveKit publisher.
 - **Reload:** Returning to authenticated Creator Studio rechecks pending protected recordings. A recovery or failed upload is visible on Broadcast and Content; server retries never delete the OPFS recovery master before a confirmed saved replay.
 - **Backend:** The server continuously writes MP3 from LiveKit Track Egress. A failed/aborted encoder now moves a nontrivial MP3 fragment to a private, uniquely named `*.interrupted-*.mp3`, instead of deleting it. The Broadcast document records `serverRecording.partialAvailable` and `partialBytes`. **These fragments are not complete verified replays and must not be published automatically.** 
 - **Finalization:** The server allows up to 30s for the write backlog and 60s for FFmpeg closure. It does not pause or block listener streaming.
