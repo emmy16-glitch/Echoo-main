@@ -434,6 +434,12 @@ const startAutosaveLive = async ({
         const verifiedProgress = await batch3Service.getServerRecordingProgress(recording.broadcastId);
         if (verifiedProgress?.data?.fullReplaySaved !== true ||
             verifiedProgress?.data?.replayFileUnavailable === true) {
+          // A linked replay can disappear after a disk failure. Ask the
+          // durable worker to reconstruct it from sealed backup segments,
+          // but never clear the local master while the repair is pending.
+          if (verifiedProgress?.data?.replayFileUnavailable === true) {
+            await batch3Service.retryRecordingFinalization(recording.broadcastId).catch(() => null);
+          }
           const error = new Error('The server has not verified the saved replay file. Your recovery copy is still protected.');
           error.code = 'REPLAY_FINALIZE_RETRY';
           throw error;
