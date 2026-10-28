@@ -5,6 +5,7 @@ import Audio from '../models/Audio.js';
 import UploadSession from '../models/UploadSession.js';
 import User from '../models/User.js';
 import { matchesUploadedFileSignature } from '../services/uploadMediaSignature.js';
+import { writeUploadChunkFully } from '../services/resumableUploadWrite.js';
 import { createGeneratedAudioCover } from '../utils/audioCover.js';
 import { notifyFollowersOfRelease } from './audioController.js';
 
@@ -107,7 +108,7 @@ export async function uploadChunk(req, res, next) {
     try {
       // Discard unconfirmed bytes left by interrupted requests.
       await handle.truncate(session.offset);
-      await handle.write(data, 0, data.length, offset);
+      await writeUploadChunkFully(handle, data, offset);
     } finally { await handle.close(); }
     session.offset += data.length;
     session.expiresAt = new Date(Date.now() + SESSION_TTL_MS);
