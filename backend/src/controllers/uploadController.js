@@ -5,6 +5,7 @@ import Audio from '../models/Audio.js';
 import UploadSession from '../models/UploadSession.js';
 import User from '../models/User.js';
 import { matchesUploadedFileSignature } from '../services/uploadMediaSignature.js';
+import { hasConfirmedUploadPrefix } from '../services/resumableUploadPrefixSafety.js';
 import { createGeneratedAudioCover } from '../utils/audioCover.js';
 import { notifyFollowersOfRelease } from './audioController.js';
 
@@ -74,9 +75,12 @@ export async function initiateUpload(req, res, next) {
     }
     if (fileSize > MAX_UPLOAD_SIZE) return fail(res, 413, 'FILE_TOO_LARGE', `File exceeds the configured ${MAX_UPLOAD_SIZE} byte limit`);
     const resume = await UploadSession.findOne({ owner: req.userId, filename, fileSize, mimeType, fingerprint: fingerprint || null, status: 'uploading', expiresAt: { $gt: new Date() } }).sort({ updatedAt: -1 });
-    if (resume && await fs.promises.stat(uploadPath(resume.uploadId)).catch(() => null)) {
+    const resumeStat = resume ? await fs.promises.stat(uploadPath(resume.uploadId)).catch(() => null) : null;
+    if (resume && hasConfirmedUploadPrefix(resumeStat, resume.offset)) {
       return res.status(200).json({ data: { ...resume.toObject(), resumed: true } });
     }
+    // A truncated prior upload must not be resumed from a larger DB offset.
+    // Leave its on-disk bytes intact and start a fresh session instead.
     const uploadId = randomUUID();
     await fs.promises.writeFile(uploadPath(uploadId), Buffer.alloc(0), { flag: 'wx' });
     const session = await UploadSession.create({ uploadId, owner: req.userId, filename, fileSize, mimeType, fingerprint: fingerprint || null, chunkSize: MAX_CHUNK_SIZE, expiresAt: new Date(Date.now() + SESSION_TTL_MS) });
@@ -105,7 +109,13 @@ export async function uploadChunk(req, res, next) {
     if (createHash('sha256').update(data).digest('hex') !== checksum.slice(7).toLowerCase()) return fail(res, 422, 'CHECKSUM_MISMATCH', 'Chunk integrity check failed');
     const handle = await fs.promises.open(uploadPath(session.uploadId), 'r+');
     try {
-      // Discard unconfirmed bytes left by interrupted requests.
+      // Do not allow truncate() to extend a missing confirmed prefix with
+      // zero bytes: that would make a corrupt recording appear complete.
+      if (!hasConfirmedUploadPrefix(await handle.stat(), session.offset)) {
+        return fail(res, 409, 'UPLOAD_STORAGE_TRUNCATED',
+          'Confirmed upload bytes are missing on the server. Restart this upload from your local file.');
+      }
+      // Discard only bytes beyond the confirmed prefix from interrupted writes.
       await handle.truncate(session.offset);
       await handle.write(data, 0, data.length, offset);
     } finally { await handle.close(); }
@@ -214,6 +224,13 @@ export async function getUploadStatus(req, res, next) {
   try {
     const session = await ownedSession(req.params.uploadId, req.userId);
     if (!session) return fail(res, 404, 'UPLOAD_NOT_FOUND', 'Upload session not found');
+    if (session.status === 'uploading') {
+      const stat = await fs.promises.stat(uploadPath(session.uploadId)).catch(() => null);
+      if (!hasConfirmedUploadPrefix(stat, session.offset)) {
+        return fail(res, 409, 'UPLOAD_STORAGE_TRUNCATED',
+          'Confirmed upload bytes are missing on the server. Restart this upload from your local file.');
+      }
+    }
     res.setHeader('Upload-Offset', String(session.offset));
     return res.status(200).json({ data: session.toObject() });
   } catch (error) { return next(error); }
