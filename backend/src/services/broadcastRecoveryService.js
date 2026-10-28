@@ -6,6 +6,7 @@ import { stopBroadcastOutputs } from './broadcastOutputService.js';
 import { enqueueBroadcastProcessing } from './broadcastProcessingService.js';
 import { releaseCreatorBroadcastLease } from './creatorBroadcastLease.js';
 import { stopLiveKitServerRecording } from './livekitServerRecording.js';
+import { canFinalizeOrphanedLiveBroadcast } from './broadcastRecoveryRoomSafety.js';
 
 // ---------------------------------------------------------------------------
 // Recording-recovery reconciliation.
@@ -17,9 +18,6 @@ import { stopLiveKitServerRecording } from './livekitServerRecording.js';
 // one replay can be linked. It never creates broadcasts, never duplicates
 // replays, and never touches transcription (paused product-wide).
 // ---------------------------------------------------------------------------
-
-const STALE_ORPHAN_MS = 30 * 60 * 1000;
-const RECENT_ACTIVITY_MS = 5 * 60 * 1000;
 
 const recoveryError = (status, code, message) => {
   const error = new Error(message);
@@ -160,32 +158,20 @@ export async function recoverBroadcastForReplay({ broadcastId, userId }) {
 
   if (broadcast.status === 'live' || broadcast.status === 'starting') {
     const room = await liveRoomHasPublisher(broadcast._id);
-    if (room.active) {
+    // An old updatedAt is not evidence of silence: MongoDB may be untouched
+    // for hours while LiveKit keeps publishing. During a provider outage,
+    // never stop Egress, terminate the room or mark the show completed.
+    if (!canFinalizeOrphanedLiveBroadcast(room)) {
       throw recoveryError(
         409,
         'BROADCAST_STILL_LIVE',
-        'This broadcast is still live in another session. End it there first; your local recording stays safe on this device.'
+        room.unknown
+          ? 'Echoo could not verify that the live broadcast ended. Your local recording stays safe; retry when LiveKit is reachable.'
+          : 'This broadcast is still live in another session. End it there first; your local recording stays safe on this device.'
       );
     }
-    const updatedAt = new Date(broadcast.updatedAt || 0).getTime();
-    const stale = Date.now() - updatedAt > STALE_ORPHAN_MS;
-    const recent = Date.now() - updatedAt < RECENT_ACTIVITY_MS;
-    if (room.unknown && recent && !stale) {
-      throw recoveryError(
-        409,
-        'BROADCAST_STILL_LIVE',
-        'Echoo could not confirm this broadcast ended. Your local recording stays safe; retry shortly.'
-      );
-    }
-    if (!room.unknown || stale) {
-      const finalized = await finalizeInterruptedBroadcast(broadcast);
-      return { outcome: 'finalized', broadcast: finalized, audioId: null, readyForUpload: true };
-    }
-    throw recoveryError(
-      409,
-      'BROADCAST_STILL_LIVE',
-      'This broadcast is still live in another session. End it there first; your local recording stays safe on this device.'
-    );
+    const finalized = await finalizeInterruptedBroadcast(broadcast);
+    return { outcome: 'finalized', broadcast: finalized, audioId: null, readyForUpload: true };
   }
 
   // failed / cancelled / scheduled / draft: only reconcile sessions that
