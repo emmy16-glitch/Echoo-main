@@ -95,12 +95,12 @@ export async function prepareServerRecordingSegments({
 // Progress always represents server files, never an optimistic browser count.
 export function watchServerRecordingSegments(config, {
   onProgress = async () => {}, isRecorderFailed = () => false,
-  closed = Promise.resolve(), intervalMs = 15_000,
+  closed = Promise.resolve(), intervalMs = 15_000, now = Date.now,
 } = {}) {
   if (!config) return null;
   const cache = new Map();
-  let count = -1, bytes = -1, ending = false;
-  const recordingStartedAt = Date.now();
+  let count = -1, bytes = -1, status = null, error = null, ending = false;
+  const recordingStartedAt = now();
   let chain = Promise.resolve(), terminal = null;
   const refresh = async ({ final = false } = {}) => {
     // If FFmpeg exited with an error, its last file can be truncated.
@@ -109,7 +109,7 @@ export function watchServerRecordingSegments(config, {
     // The optional tee sink uses onfail=ignore. It can fail while the main
     // encoder succeeds, so never report a healthy backup merely because
     // FFmpeg exited cleanly. Allow one short grace window for segment closure.
-    const elapsedSeconds = Math.max(0, (Date.now() - recordingStartedAt) / 1000);
+    const elapsedSeconds = Math.max(0, (now() - recordingStartedAt) / 1000);
     const expectedMinimum = Math.max(0, Math.floor(
       (elapsedSeconds - Math.max(30, config.segmentSeconds * 0.05)) / config.segmentSeconds
     ));
@@ -119,20 +119,26 @@ export function watchServerRecordingSegments(config, {
     const corruptOrMissing = files.length < Math.max(0, expectedPartNames.length - ((!final || failed) ? 1 : 0));
     const degraded = failed || backupMissing || corruptOrMissing;
     const nextBytes = files.reduce((a, f) => a + f.bytes, 0);
-    if (count !== files.length || bytes !== nextBytes || final) {
+    // A failed tee backup may stop creating files while its count and bytes
+    // remain unchanged. Persist the health transition immediately.
+    const nextStatus = degraded ? 'degraded' : final ? 'completed' : 'recording';
+    const nextError = failed
+      ? 'Segment recording was interrupted; only sealed parts are recoverable.'
+      : backupMissing || corruptOrMissing
+        ? 'Server backup segments are missing, altered or incomplete; check persistent storage.'
+        : null;
+    if (count !== files.length || bytes !== nextBytes || status !== nextStatus ||
+        error !== nextError || final) {
       count = files.length; bytes = nextBytes;
+      status = nextStatus; error = nextError;
       const update = {
-        status: degraded ? 'degraded' : final ? 'completed' : 'recording',
+        status,
         completedSegments: count,
         segmentBytes: bytes,
         segmentSeconds: config.segmentSeconds,
         attemptId: config.attemptId,
         updatedAt: new Date(),
-        error: failed
-          ? 'Segment recording was interrupted; only sealed parts are recoverable.'
-          : backupMissing || corruptOrMissing
-            ? 'Server backup segments are missing, altered or incomplete; check persistent storage.'
-            : null,
+        error,
       };
       chain = chain.catch(() => null).then(() => onProgress(update));
       await chain;
