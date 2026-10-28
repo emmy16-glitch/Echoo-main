@@ -71,3 +71,20 @@ test('recording progress never intercepts the live Reconnect audio button', asyn
   assert.match(css, /studio-persistent-recording\.is-live-workspace > \* \{ pointer-events: none;/);
   assert.match(css, /studio-persistent-recording\.is-live-workspace button \{ pointer-events: auto;/);
 });
+
+test('a linked replay must be physically verified before deleting OPFS recovery', async () => {
+  const autosave = await read('./recordingAutosave.js');
+  const completion = autosave.slice(
+    autosave.indexOf("if (replay.status === 'ready' && replay.audioId)"),
+    autosave.indexOf("if (replay.status === 'incomplete' || replay.status === 'failed')")
+  );
+  assert.match(completion, /getServerRecordingProgress\(recording\.broadcastId\)/);
+  assert.match(completion, /verifiedProgress\?\.data\?\.fullReplaySaved !== true/);
+  assert.match(completion, /verifiedProgress\?\.data\?\.replayFileUnavailable === true/);
+  assert(completion.indexOf('fullReplaySaved !== true') < completion.indexOf('recording.dispose'));
+
+  const boot = autosave.slice(autosave.indexOf('export const installRecordingAutosave'));
+  assert.match(boot, /getServerRecordingProgress\(broadcastId\)/);
+  assert.match(boot, /progress\?\.data\?\.fullReplaySaved === true/);
+  assert.doesNotMatch(boot, /serverBroadcast\?\.replayAudio\s*\|\|/);
+});
