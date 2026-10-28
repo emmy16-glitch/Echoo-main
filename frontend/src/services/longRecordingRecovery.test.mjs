@@ -174,3 +174,72 @@ test('boot recovery checks candidate file availability before hydrating the OPFS
   assert.match(source, /return file\.size > 0/);
   assert.match(source, /const meta = await readRecoveryMetadata\(\)/);
 });
+
+test('resumable chunk retries a 401 once after refreshing credentials without changing offset', async () => {
+  const { postChunkWithAuthRetry } = await import('./resumableUploadAuth.js');
+  let token = 'expired';
+  const offset = 5 * 1024 * 1024;
+  const attempts = [];
+  let refreshes = 0;
+  const result = await postChunkWithAuthRetry(
+    async () => {
+      attempts.push({ token, offset });
+      return { status: token === 'expired' ? 401 : 200 };
+    },
+    async () => { refreshes += 1; token = 'renewed'; return token; }
+  );
+  assert.equal(result.status, 200);
+  assert.equal(refreshes, 1);
+  assert.deepEqual(attempts, [
+    { token: 'expired', offset },
+    { token: 'renewed', offset },
+  ]);
+});
+
+test('resumable chunk does not refresh for authorization failures other than 401', async () => {
+  const { postChunkWithAuthRetry } = await import('./resumableUploadAuth.js');
+  let sends = 0, refreshes = 0;
+  const result = await postChunkWithAuthRetry(
+    async () => { sends += 1; return { status: 403 }; },
+    async () => { refreshes += 1; return 'new-token'; }
+  );
+  assert.equal(result.status, 403);
+  assert.equal(sends, 1);
+  assert.equal(refreshes, 0);
+});
+
+test('resumable chunk never loops on repeated 401 or failed refresh', async () => {
+  const { postChunkWithAuthRetry } = await import('./resumableUploadAuth.js');
+  let sends = 0;
+  const unauthorized = async () => { sends += 1; return { status: 401 }; };
+  const twice = await postChunkWithAuthRetry(unauthorized, async () => 'renewed');
+  assert.equal(twice.status, 401);
+  assert.equal(sends, 2);
+  const failedRefresh = await postChunkWithAuthRetry(unauthorized, async () => { throw new Error('offline'); });
+  assert.equal(failedRefresh.status, 401);
+  assert.equal(sends, 3);
+});
+
+test('resumable chunk does not resend if the user pauses during token refresh', async () => {
+  const { postChunkWithAuthRetry } = await import('./resumableUploadAuth.js');
+  const controller = new AbortController();
+  let sends = 0;
+  const result = await postChunkWithAuthRetry(
+    async () => { sends += 1; return { status: 401 }; },
+    async () => { controller.abort(); return 'renewed'; },
+    controller.signal
+  );
+  assert.equal(result.status, 401);
+  assert.equal(sends, 1);
+});
+
+test('studio resumable upload uses bounded auth refresh with a freshly read token per chunk attempt', async () => {
+  const source = await read('./studioService.js');
+  const start = source.indexOf('uploadAudioResumable: async');
+  const end = source.indexOf('cancelResumableUpload:', start);
+  assert(start >= 0 && end > start);
+  const upload = source.slice(start, end);
+  assert.match(upload, /postChunkWithAuthRetry\(/);
+  assert.match(upload, /refreshSessionAccessToken,/);
+  assert.match(upload, /Authorization: `Bearer \$\{getCurrentAccessToken\(\)\}`/);
+});
