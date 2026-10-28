@@ -6,6 +6,7 @@ import path from 'node:path';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 
 import Audio from '../src/models/Audio.js';
+import { recoverBroadcastForReplay } from '../src/services/broadcastRecoveryService.js';
 import Broadcast from '../src/models/Broadcast.js';
 import BroadcastAudioChunk from '../src/models/BroadcastAudioChunk.js';
 import {
@@ -366,6 +367,59 @@ test('idempotent replay lookup cannot bypass creator authorization', async () =>
   );
   const untouched = await Broadcast.findById(bid);
   assert.equal(untouched.replayStatus, 'none');
+});
+
+
+test('stale foreign replay link cannot claim another creator\'s saved MP3', async () => {
+  const { broadcast, creatorId } = await makeBroadcast();
+  const bid = String(broadcast._id);
+  const foreignCreatorId = new mongoose.Types.ObjectId();
+  const filename = 'foreign-replay-' + bid + '.mp3';
+  const localPath = path.join(process.cwd(), 'uploads', 'audio', filename);
+  const bytes = Buffer.alloc(8192);
+  bytes.write('ID3', 0);
+  await fs.mkdir(path.dirname(localPath), { recursive: true });
+  await fs.writeFile(localPath, bytes, { flag: 'wx' });
+
+  try {
+    const foreign = await Audio.create({
+      title: 'Another organization private replay',
+      description: '',
+      artist: foreignCreatorId,
+      sourceBroadcast: new mongoose.Types.ObjectId(),
+      filename,
+      originalName: 'Another organization.mp3',
+      fileUrl: '/uploads/audio/' + filename,
+      fileSize: bytes.length,
+      fileKey: 'foreign-' + bid,
+      mimeType: 'audio/mpeg',
+      genre: 'Other',
+      visibility: 'private',
+      publicationStatus: 'draft',
+    });
+    await Broadcast.updateOne({ _id: broadcast._id }, {
+      $set: { replayAudio: foreign._id, replayAudioId: foreign._id },
+    });
+
+    // A plausible MP3 on disk made the old unscoped findById() incorrectly
+    // return "ready" and relink a different organization's recording.
+    const finalized = await finalizeBroadcastReplay({
+      broadcastId: bid, creatorId: String(creatorId),
+    });
+    assert.equal(finalized.status, 'incomplete');
+    assert.equal(finalized.reason, 'linked-replay-record-unavailable');
+    assert.equal((await Broadcast.findById(bid)).replayStatus, 'incomplete');
+
+    // The creator recovery endpoint must also refuse the foreign replay ID.
+    await Broadcast.updateOne({ _id: broadcast._id }, { $set: { status: 'completed' } });
+    const recovered = await recoverBroadcastForReplay({
+      broadcastId: bid, userId: String(creatorId),
+    });
+    assert.equal(recovered.outcome, 'ready');
+    assert.equal(recovered.audioId, null);
+  } finally {
+    await fs.rm(localPath, { force: true });
+  }
 });
 
 test('linked replay with a missing Audio record stays incomplete instead of ready', async () => {
