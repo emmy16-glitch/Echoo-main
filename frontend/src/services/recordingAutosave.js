@@ -917,7 +917,14 @@ export const saveRecoveryCopy = async (key, requestedFormat = '') => {
 
 export const retryAutosave = async (key) => {
   const pending = peekLocalMaster(`pending:${key}`);
-  if (!pending?.recording?.blob?.size) return null;
+  if (!pending?.recording?.blob?.size) {
+    // After refresh the OPFS scanner restores the master under "recovered".
+    // Retry only the matching broadcast: never upload another show's audio.
+    const recovered = peekLocalMaster('recovered');
+    if (String(recovered?.recording?.broadcastId || '') !== String(key) ||
+        !recovered?.recording?.blob?.size) return null;
+    return uploadRecoveredTake(recovered);
+  }
 
   // A failed/lost End Broadcast response can leave the backend lifecycle in
   // starting/live/ending. Reconcile that state before asking replay
