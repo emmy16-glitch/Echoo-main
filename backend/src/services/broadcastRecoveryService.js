@@ -125,11 +125,10 @@ export async function recoverBroadcastForReplay({ broadcastId, userId }) {
   // Idempotency: exactly one replay per broadcast. If the link or the Audio
   // record already exists (e.g. a lost response after a committed upload),
   // return it as success — never a user-visible failure, never a duplicate.
+  // A stale linked ID may belong to a different broadcast by the same
+  // creator. Only this broadcast's replay may satisfy recovery idempotency.
   const existingAudio = await Audio.findOne(creatorOwnedReplayQuery(userId, {
-    $or: [
-      { sourceBroadcast: broadcast._id },
-      ...(broadcast.replayAudio ? [{ _id: broadcast.replayAudio }] : []),
-    ],
+    sourceBroadcast: broadcast._id,
   }));
   if (existingAudio) {
     if (!broadcast.replayAudio || String(broadcast.replayAudio) !== String(existingAudio._id)) {

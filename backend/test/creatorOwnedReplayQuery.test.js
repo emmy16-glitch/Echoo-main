@@ -9,9 +9,9 @@ const matchesQuery = (row, query) => Object.entries(query).every(([key, value]) 
     : String(row[key]) === String(value)
 ));
 
-test('a stale linked replay ID cannot resolve another creator\'s recording', () => {
+test('a stale linked replay ID cannot resolve another broadcast or creator', () => {
   const query = creatorOwnedReplayQuery('creator-a', {
-    $or: [{ sourceBroadcast: 'broadcast-a' }, { _id: 'foreign-replay' }],
+    _id: 'foreign-replay', sourceBroadcast: 'broadcast-a',
   });
   assert.equal(query.artist, 'creator-a');
   assert.equal(query.isDeleted, false);
@@ -21,6 +21,10 @@ test('a stale linked replay ID cannot resolve another creator\'s recording', () 
   }, query), false);
   assert.equal(matchesQuery({
     _id: 'foreign-replay', sourceBroadcast: 'broadcast-b',
+    artist: 'creator-a', isDeleted: false,
+  }, query), false);
+  assert.equal(matchesQuery({
+    _id: 'foreign-replay', sourceBroadcast: 'broadcast-a',
     artist: 'creator-a', isDeleted: false,
   }, query), true);
   assert.equal(matchesQuery({
@@ -43,9 +47,9 @@ test('both post-broadcast recovery and replay finalization use owner-scoped look
   const replay = await readFile(
     new URL('../src/services/broadcastReplayService.js', import.meta.url), 'utf8'
   );
-  assert.match(recovery, /Audio\.findOne\(creatorOwnedReplayQuery\(userId, \{/);
+  assert.match(recovery, /Audio\.findOne\(creatorOwnedReplayQuery\(userId, \{\s*sourceBroadcast: broadcast\._id/);
   assert.match(replay, /Audio\.findOne\(creatorOwnedReplayQuery\(broadcastCreatorId, \{ fileKey \}\)\)/);
-  assert.match(replay, /Audio\.findOne\(creatorOwnedReplayQuery\(broadcastCreatorId, \{ _id: linkedId \}\)\)/);
+  assert.match(replay, /Audio\.findOne\(creatorOwnedReplayQuery\(broadcastCreatorId, \{ _id: linkedId, sourceBroadcast: broadcast\._id \}\)\)/);
   const idempotency = replay.slice(replay.indexOf('const already ='), replay.indexOf('if (existing)'));
   assert.doesNotMatch(idempotency, /Audio\.findById\(linkedId\)/);
 });

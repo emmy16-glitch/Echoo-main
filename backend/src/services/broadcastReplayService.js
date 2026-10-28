@@ -441,7 +441,7 @@ async function finalizeInner({
     .select('_id filename fileSize mimeType storage cloudKey isDeleted');
   const linkedId = broadcast.replayAudioId || broadcast.replayAudio;
   const existing = already || (linkedId
-    ? await Audio.findOne(creatorOwnedReplayQuery(broadcastCreatorId, { _id: linkedId }))
+    ? await Audio.findOne(creatorOwnedReplayQuery(broadcastCreatorId, { _id: linkedId, sourceBroadcast: broadcast._id }))
       .select('_id filename fileSize mimeType storage cloudKey isDeleted')
     : null);
   if (existing) {
