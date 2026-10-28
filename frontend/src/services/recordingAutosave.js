@@ -428,6 +428,16 @@ const startAutosaveLive = async ({
       }
 
       if (replay.status === 'ready' && replay.audioId) {
+        // A database Audio ID does not prove its MP3 survived a restart or
+        // vanished storage volume. Preserve OPFS until the owner-only server
+        // endpoint confirms that playable replay bytes are still available.
+        const verifiedProgress = await batch3Service.getServerRecordingProgress(recording.broadcastId);
+        if (verifiedProgress?.data?.fullReplaySaved !== true ||
+            verifiedProgress?.data?.replayFileUnavailable === true) {
+          const error = new Error('The server has not verified the saved replay file. Your recovery copy is still protected.');
+          error.code = 'REPLAY_FINALIZE_RETRY';
+          throw error;
+        }
         const audioId = String(replay.audioId);
 
         // If the creator already saved a device copy while the server was
@@ -944,13 +954,11 @@ export const installRecordingAutosave = ({ recoverOnInstall = true } = {}) => {
       );
       if (broadcastId) {
         try {
-          const processing = await batch3Service.getProcessing(broadcastId);
-          const serverBroadcast = processing?.data?.broadcast || null;
-          const replayReady = Boolean(
-            serverBroadcast?.replayAudio ||
-            serverBroadcast?.replayAudioId ||
-            serverBroadcast?.assetStatus?.audio === 'ready'
-          );
+          // The linked Audio row may remain after a disk failure. Only a
+          // verified on-disk (or registered cloud) replay is safe to trust.
+          const progress = await batch3Service.getServerRecordingProgress(broadcastId);
+          const replayReady = progress?.data?.fullReplaySaved === true &&
+            progress?.data?.replayFileUnavailable !== true;
           if (replayReady) {
             try { await recovered.recording.dispose?.(); } catch { /* best effort */ }
             clearPendingBroadcastRecording(broadcastId);
