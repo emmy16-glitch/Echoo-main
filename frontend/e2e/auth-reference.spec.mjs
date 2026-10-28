@@ -178,6 +178,25 @@ test('login accepts both @username and email and exposes working recovery', asyn
     body: '',
   }));
 
+  // After the fake login, Discover loads public broadcasts. A real API is
+  // deliberately not started for this isolated auth design test; WebKit
+  // otherwise blocks cross-origin requests to the absent test backend.
+  // Return a deterministic, CORS-valid empty catalogue instead of hiding
+  // genuine browser errors from the assertion below.
+  await page.route('**/api/broadcasts*', (route) => route.fulfill({
+    status: route.request().method() === 'OPTIONS' ? 204 : 200,
+    contentType: 'application/json',
+    headers: {
+      'access-control-allow-origin': 'http://127.0.0.1:4173',
+      'access-control-allow-methods': 'GET, OPTIONS',
+      'access-control-allow-headers': '*',
+      'access-control-allow-credentials': 'true',
+    },
+    body: route.request().method() === 'OPTIONS' ? '' : JSON.stringify({
+      data: { broadcasts: [], pagination: { page: 1, limit: 100, total: 0, totalPages: 0 } },
+    }),
+  }));
+
   await page.route('**/api/auth/login', async (route) => {
     loginPayloads.push(JSON.parse(route.request().postData() || '{}'));
     await route.fulfill({
