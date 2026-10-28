@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
 import {
   getBroadcastOutputState,
   pcmFromWavChunk,
@@ -70,4 +71,16 @@ test('disabled optional outputs remain idle and never represent a live encoder',
     process.env.MASTER_ARCHIVE_ENABLED = previousArchive;
     process.env.RADIO_STREAM_ENABLED = previousRadio;
   }
+});
+
+test('recovery encoding is isolated from the LiveKit stream and ordered until shutdown', async () => {
+  const source = await fs.readFile(new URL('../src/services/broadcastOutputService.js', import.meta.url), 'utf8');
+  const append = source.slice(source.indexOf('export async function appendBroadcastOutputPcm'));
+  const stop = source.slice(source.indexOf('export async function stopBroadcastOutputs'));
+  assert.match(append, /session\.outputQueue\.append/);
+  assert.match(stop, /await session\.outputQueue\.close\(\)/);
+  assert(stop.indexOf('await session.outputQueue.close()') < stop.indexOf('finishEncoder(session.radio)'));
+  assert.match(source, /reserveRadioMount\(radio\.mountKey, id\)/);
+  assert.match(stop, /releaseRadioMount\(session\.radioMountKey, id\)/);
+  assert.doesNotMatch(source, /LiveKitProvider|livekitPublisher/);
 });

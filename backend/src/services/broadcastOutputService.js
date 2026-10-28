@@ -2,6 +2,9 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import Broadcast from '../models/Broadcast.js';
+import { createOrderedOutputQueue } from './recoveryOutputWriteQueue.js';
+import { reserveRadioMount, releaseRadioMount } from './radioMountOwnership.js';
+import { encoderExitIsUnexpected } from './recoveryEncoderExit.js';
 
 const SAMPLE_RATE = 48000;
 const CHANNELS = 2;
@@ -45,6 +48,7 @@ const radioConfig = () => {
   return {
     url: `icecast://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}${mount}`,
     publicUrl: base ? `${base}${mount}` : null,
+    mountKey: `${host}:${port}${mount}`,
   };
 };
 
@@ -58,7 +62,7 @@ const persist = async (broadcastId, patch) => {
   });
 };
 
-const spawnEncoder = ({ args, label, onFailure }) => {
+const spawnEncoder = ({ args, label, onFailure, isStopping = () => false }) => {
   const child = spawn(process.env.FFMPEG_PATH || 'ffmpeg', args, {
     stdio: ['pipe', 'ignore', 'pipe'],
     windowsHide: true,
@@ -67,7 +71,9 @@ const spawnEncoder = ({ args, label, onFailure }) => {
   child.stderr.on('data', (data) => { stderr = `${stderr}${data}`.slice(-4000); });
   child.once('error', (error) => onFailure(error));
   child.once('exit', (code, signal) => {
-    if (code !== 0 && code !== null) onFailure(new Error(`${label} stopped (code ${code}${signal ? `, ${signal}` : ''}): ${stderr.trim() || 'encoder error'}`));
+    if (encoderExitIsUnexpected({ code, signal, stopping: isStopping() })) {
+      onFailure(new Error(`${label} stopped unexpectedly (code ${code}${signal ? `, ${signal}` : ''}): ${stderr.trim() || 'encoder error'}`));
+    }
   });
   return child;
 };
@@ -80,20 +86,24 @@ const writeEncoder = async (child, pcm) => {
   if (!child.stdin.write(pcm)) {
     await new Promise((resolve, reject) => {
       const stdin = child.stdin;
+      const timeout = setTimeout(() => {
+        onError(new Error('Audio output encoder write stalled.'));
+      }, 30_000);
+      timeout.unref?.();
       const cleanup = () => {
+        clearTimeout(timeout);
         stdin.off('drain', onDrain);
         stdin.off('error', onError);
+        stdin.off('close', onClose);
+        child.off('close', onClose);
       };
-      const onDrain = () => {
-        cleanup();
-        resolve();
-      };
-      const onError = (error) => {
-        cleanup();
-        reject(error);
-      };
+      const onDrain = () => { cleanup(); resolve(); };
+      const onError = (error) => { cleanup(); reject(error); };
+      const onClose = () => onError(new Error('Audio output encoder closed before draining PCM.'));
       stdin.once('drain', onDrain);
       stdin.once('error', onError);
+      stdin.once('close', onClose);
+      child.once('close', onClose);
     });
   }
 };
@@ -164,18 +174,33 @@ export async function startBroadcastOutputs(broadcastId) {
     // on optional features being enabled.
     replayOutput: state('starting', { codec: 'mp3', sampleRate: SAMPLE_RATE, channels: CHANNELS, bitrate, sourceStage: 'pre_opus_pcm' }),
   };
-  const session = { id, radio: null, archive: null, replay: null, replayBytes: 0, snapshot, failures: new Set() };
+  const session = {
+    id, radio: null, archive: null, replay: null, replayBytes: 0, snapshot,
+    failures: new Set(), outputQueue: createOrderedOutputQueue(),
+    radioMountKey: null, closing: false,
+  };
   sessions.set(id, session);
   await persist(id, snapshot);
 
-  if (radio) {
+  if (radio && !reserveRadioMount(radio.mountKey, id)) {
+    // The configured Icecast mount is shared globally; never let a second
+    // organization's optional encoder replace the first one's audio.
+    session.snapshot.radioOutput = state('failed', {
+      ...session.snapshot.radioOutput,
+      error: 'Radio destination is already used by another broadcast.',
+    });
+  } else if (radio) {
+    session.radioMountKey = radio.mountKey;
     try {
       session.radio = spawnEncoder({
         label: 'MP3 radio encoder',
+        isStopping: () => session.closing,
         args: ['-hide_banner', '-loglevel', 'error', '-f', 's24le', '-ar', String(SAMPLE_RATE), '-ac', String(CHANNELS), '-i', 'pipe:0', '-vn', '-c:a', 'libmp3lame', '-b:a', '320k', '-minrate', '320k', '-maxrate', '320k', '-bufsize', '640k', '-f', 'mp3', radio.url],
         onFailure: async (error) => {
           if (session.failures.has('radio')) return;
           session.failures.add('radio');
+          releaseRadioMount(session.radioMountKey, id);
+          session.radioMountKey = null;
           session.snapshot.radioOutput = state('failed', { ...session.snapshot.radioOutput, error: String(error?.message || error).slice(0, 1000) });
           await persist(id, { radioOutput: session.snapshot.radioOutput });
           console.warn('[Echoo Outputs] radio encoder failed; LiveKit continues:', error?.message || error);
@@ -183,6 +208,8 @@ export async function startBroadcastOutputs(broadcastId) {
       });
       session.snapshot.radioOutput = state('active', { ...session.snapshot.radioOutput });
     } catch (error) {
+      releaseRadioMount(session.radioMountKey, id);
+      session.radioMountKey = null;
       session.snapshot.radioOutput = state('failed', { ...session.snapshot.radioOutput, error: String(error?.message || error) });
     }
   }
@@ -195,6 +222,7 @@ export async function startBroadcastOutputs(broadcastId) {
       const outputPath = path.join(directory, storageKey);
       session.archive = spawnEncoder({
         label: 'FLAC archive encoder',
+        isStopping: () => session.closing,
         args: ['-hide_banner', '-loglevel', 'error', '-f', 's24le', '-ar', String(SAMPLE_RATE), '-ac', String(CHANNELS), '-i', 'pipe:0', '-vn', '-c:a', 'flac', '-compression_level', '5', '-sample_fmt', 's32', '-bits_per_raw_sample', '24', outputPath],
         onFailure: async (error) => {
           if (session.failures.has('archive')) return;
@@ -220,6 +248,7 @@ export async function startBroadcastOutputs(broadcastId) {
     const outputPath = path.join(directory, storageKey);
     session.replay = spawnEncoder({
       label: 'replay MP3 encoder',
+        isStopping: () => session.closing,
       args: ['-hide_banner', '-loglevel', 'error', '-f', 's24le', '-ar', String(SAMPLE_RATE), '-ac', String(CHANNELS), '-i', 'pipe:0', '-vn', '-c:a', 'libmp3lame', '-b:a', bitrate, '-f', 'mp3', outputPath],
       onFailure: async (error) => {
         if (session.failures.has('replay')) return;
@@ -247,8 +276,34 @@ export async function appendBroadcastOutputPcm(broadcastId, wavBuffer) {
   } catch {
     return;
   }
-  session.replayBytes += pcm.length;
-  await Promise.allSettled([writeEncoder(session.radio, pcm), writeEncoder(session.archive, pcm), writeEncoder(session.replay, pcm)]);
+  // Upload retries from different tabs can arrive concurrently. Without a
+  // per-broadcast write queue, asynchronous encoder backpressure reorders
+  // recovery PCM or allows End Broadcast to close before the last write.
+  await session.outputQueue.append(async () => {
+    const fields = [
+      { child: session.radio, field: 'radioOutput', kind: 'radio' },
+      { child: session.archive, field: 'masterRecording', kind: 'archive' },
+      { child: session.replay, field: 'replayOutput', kind: 'replay' },
+    ];
+    const results = await Promise.allSettled(fields.map(({ child }) => writeEncoder(child, pcm)));
+    await Promise.all(results.map(async (result, i) => {
+      const { child, field, kind } = fields[i];
+      if (!child) return;
+      if (result.status === 'fulfilled') {
+        if (kind === 'replay' && session.snapshot.replayOutput.status === 'active') {
+          session.replayBytes += pcm.length;
+        }
+        return;
+      }
+      if (session.failures.has(kind)) return;
+      session.failures.add(kind);
+      session.snapshot[field] = state('failed', {
+        ...session.snapshot[field],
+        error: String(result.reason?.message || result.reason).slice(0, 1000),
+      });
+      await persist(id, { [field]: session.snapshot[field] });
+    }));
+  });
 }
 
 export const getReplayOutputFile = (broadcastId) => {
@@ -262,7 +317,13 @@ export async function stopBroadcastOutputs(broadcastId, { incomplete = false } =
   const session = sessions.get(id);
   if (!session) return null;
   sessions.delete(id);
+  session.closing = true;
+  // Reject new chunks and wait for writes admitted before shutdown. This is
+  // strictly post-live recovery encoding; the LiveKit stream is unaffected.
+  await session.outputQueue.close();
   await Promise.allSettled([finishEncoder(session.radio), finishEncoder(session.archive), finishEncoder(session.replay)]);
+  releaseRadioMount(session.radioMountKey, id);
+  session.radioMountKey = null;
   if (session.snapshot.radioOutput.status === 'active') {
     session.snapshot.radioOutput = state(
       incomplete ? 'failed' : 'completed',
