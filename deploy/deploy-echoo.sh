@@ -21,6 +21,13 @@ node_at_least() {
   [[ "$(printf '%s\n%s\n' "$minimum" "$current" | sort -V | head -n 1)" == "$minimum" ]]
 }
 
+# MongoDB v7 and Mongoose v9 require a recent Node 20 runtime. Check the
+# real systemd binary before changing frontend assets or restarting the API.
+if ! node_at_least "$NODE20_BIN/node" "20.19.0"; then
+  echo "Echoo backend requires Node >=20.19.0; the configured Node 20 binary is too old." >&2
+  exit 1
+fi
+
 if [[ -z "$FRONTEND_NODE_BIN" ]]; then
   system_node="$(command -v node 2>/dev/null || true)"
   if [[ -n "$system_node" ]] && node_at_least "$system_node" "22.22.0"; then
@@ -139,6 +146,17 @@ if [[ ! -L "$UPLOAD_LINK" ]]; then
 fi
 
 (cd "$APP_DIR/backend" && "$NPM20" ci --omit=dev)
+
+# Validate the actual production .env with the exact backend Node binary
+# before rebuilding frontend files or restarting the service. This catches
+# contradictory optional-service settings and missing/invalid LiveKit URLs
+# without connecting to the database or exposing environment secrets.
+if ! (cd "$APP_DIR/backend" &&
+  PATH="$NODE20_BIN:$PATH" NODE_ENV=production "$NODE20_BIN/node" --input-type=module     -e "await import('./src/config/env.js')"); then
+  echo "Echoo backend production configuration is invalid. Existing services were not restarted." >&2
+  exit 1
+fi
+
 (
   cd "$APP_DIR/frontend"
   PATH="$FRONTEND_NODE_BIN:$PATH" "$NPM_FRONTEND" ci
