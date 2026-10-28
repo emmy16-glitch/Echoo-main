@@ -2,8 +2,7 @@ import Broadcast from '../models/Broadcast.js';
 import BroadcastProcessingJob from '../models/BroadcastProcessingJob.js';
 import { retryRecordingFinalization } from '../services/broadcastProcessingService.js';
 import Audio from '../models/Audio.js';
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import { savedReplayFileAvailable } from '../services/savedReplayFileVerification.js';
 import { inspectServerRecordingSegments } from '../services/serverRecordingSegments.js';
 
 // Server-authoritative progress survives browser reloads. Only the creator can
@@ -45,16 +44,8 @@ export async function getBroadcastRecordingProgress(req, res, next) {
     let verifiedReplaySaved = false;
     if (broadcast.replayStatus === 'ready' && (broadcast.replayAudioId || broadcast.replayAudio)) {
       const audio = await Audio.findById(broadcast.replayAudioId || broadcast.replayAudio)
-        .select('filename fileSize storage cloudKey isDeleted').catch(() => null);
-      if (audio && !audio.isDeleted) {
-        const storedName = path.basename(String(audio.filename || ''));
-        const filePath = storedName ? path.join(process.cwd(), 'uploads', 'audio', storedName) : '';
-        const stat = filePath ? await fs.stat(filePath).catch(() => null) : null;
-        verifiedReplaySaved = Boolean(
-          (stat?.isFile() && stat.size >= Math.max(4096, Number(audio.fileSize) || 0)) ||
-          (audio.storage === 'cloud' && audio.cloudKey)
-        );
-      }
+        .select('filename fileSize mimeType storage cloudKey isDeleted').catch(() => null);
+      verifiedReplaySaved = await savedReplayFileAvailable(audio);
     }
     const job = await BroadcastProcessingJob.findOne({
       broadcastId: broadcast._id, jobType: 'audio_finalization',
@@ -110,13 +101,8 @@ export async function retryBroadcastRecordingFinalization(req, res, next) {
     let repairMissing = false;
     if (broadcast.replayAudio || broadcast.replayAudioId) {
       const audio = await Audio.findById(broadcast.replayAudioId || broadcast.replayAudio)
-        .select('filename fileSize storage cloudKey isDeleted');
-      const filename = path.basename(String(audio?.filename || ''));
-      const stat = filename ? await fs.stat(path.join(process.cwd(), 'uploads', 'audio', filename)).catch(() => null) : null;
-      const valid = Boolean(audio && !audio.isDeleted && (
-        (audio.storage === 'cloud' && audio.cloudKey) ||
-        (stat?.isFile() && stat.size >= Math.max(4096, Number(audio.fileSize) || 0))
-      ));
+        .select('filename fileSize mimeType storage cloudKey isDeleted');
+      const valid = await savedReplayFileAvailable(audio);
       if (valid) {
         return res.status(200).set('Cache-Control', 'no-store').json({
           data: { status: 'completed', broadcastId: id },
