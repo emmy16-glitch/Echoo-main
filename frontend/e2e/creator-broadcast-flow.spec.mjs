@@ -102,6 +102,13 @@ const installBaseRoutes = async (page, broadcasts, tracks = []) => {
   }));
   // Live recordings finalize from bounded chunks already received by the
   // backend. The browser must never upload the final WAV through /audio/upload.
+  // A canonical replay is not durable merely because an Audio ID exists.
+  // Mock the independent recording-progress verification used by autosave.
+  await page.route('**/api/broadcasts/*/recording-progress', (route) => fulfill(route, {
+    fullReplaySaved: true,
+    replayFileUnavailable: false,
+    replayStatus: 'ready',
+  }));
   await page.route('**/api/broadcasts/*/recording-chunks/complete', (route) => fulfill(route, {
     replay: {
       status: 'ready',
