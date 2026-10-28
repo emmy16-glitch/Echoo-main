@@ -342,6 +342,32 @@ async function sweep() {
 
     if (
       fresh.status === 'live' &&
+      fresh.mediaState === 'creator_connecting' &&
+      !fresh.creatorDisconnectedAt
+    ) {
+      // A missed track-published webhook can leave MongoDB in
+      // creator_connecting even while the creator is audibly on air.
+      // Never stop a live room or recorder based on the stale timestamp
+      // without checking LiveKit's actual program track first.
+      try {
+        const program = await findProgramAudioWithConfirmedMiss(fresh);
+        if (program) {
+          await healProgramAudioState(fresh, program);
+          continue;
+        }
+      } catch (error) {
+        // An unavailable LiveKit control plane cannot prove that audio
+        // stopped. Preserve the broadcast and retry at the next sweep.
+        console.warn(
+          `[orphan-sweep] connecting program-audio check failed for ${fresh._id}:`,
+          error?.message || error
+        );
+        continue;
+      }
+    }
+
+    if (
+      fresh.status === 'live' &&
       ['audio_disconnected', 'creator_connecting'].includes(fresh.mediaState) &&
       fresh.creatorDisconnectedAt
     ) {
