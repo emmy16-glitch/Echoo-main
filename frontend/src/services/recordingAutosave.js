@@ -669,6 +669,19 @@ const startAutosaveLive = async ({
   return task;
 };
 
+// A device-save button may be clicked long after the server's initial save.
+// Recheck on each potential OPFS disposal; a stale Audio ID is not durable data.
+const isServerReplayVerified = async (broadcastId) => {
+  if (!broadcastId) return false;
+  try {
+    const response = await batch3Service.getServerRecordingProgress(broadcastId);
+    return response?.data?.fullReplaySaved === true &&
+      response?.data?.replayFileUnavailable !== true;
+  } catch {
+    return false; // offline or unknown means preserve the creator's only master
+  }
+};
+
 export const completeDeviceCopyChoice = async (key, format = 'mp3') => {
   const pending = peekLocalMaster(`device-choice:${key}`);
   if (!pending?.recording?.blob?.size) return null;
@@ -761,6 +774,9 @@ export const completeDeviceCopyChoice = async (key, format = 'mp3') => {
   // If this helper is ever used earlier, keep OPFS until the server is also
   // durable; local save success must not destroy the server recovery source.
   if (pending.serverReady !== false) {
+    pending.serverReady = await isServerReplayVerified(pending.recording.broadcastId);
+  }
+  if (pending.serverReady === true) {
     try { await pending.recording.dispose?.(); } catch { /* already disposed */ }
     clearPendingBroadcastRecording(pending.recording.broadcastId);
     forgetLocalMaster(`pending:${key}`);
@@ -796,9 +812,11 @@ export const completeDeviceCopyChoice = async (key, format = 'mp3') => {
     preferredFormat: preferences.format,
     format: preferences.format,
   });
-  notifySaved(localCopy?.saved
-    ? `“${pending.title}” saved to this device.`
-    : `“${pending.title}” will stay on Echoo only.`);
+  if (pending.serverReady === true) {
+    notifySaved(localCopy?.saved
+      ? `“${pending.title}” saved to this device.`
+      : `“${pending.title}” will stay on Echoo only.`);
+  }
   return { audioId: pending.audioId || null, localCopy, preferences };
 };
 
@@ -859,6 +877,9 @@ export const saveRecoveryCopy = async (key, requestedFormat = '') => {
     automaticLocalCopies.add(String(key));
 
     if (pending.serverReady === true) {
+      pending.serverReady = await isServerReplayVerified(pending.recording?.broadcastId);
+    }
+    if (pending.serverReady === true) {
       // Both outcomes are now durable: the server replay was already ready and
       // this explicit user gesture successfully saved the requested device
       // file. Release the OPFS master and move the banner to Done.
@@ -875,9 +896,20 @@ export const saveRecoveryCopy = async (key, requestedFormat = '') => {
       });
       notifySaved(`“${pending.title || broadcast?.title || 'Recording'}” saved to Echoo and this device.`);
     } else {
-      // Server is still pending. Keep OPFS for server recovery while recording
-      // that the creator's device-save requirement has already been satisfied.
+      // Server is still pending or its file disappeared after initial success.
+      // A successful device copy is not proof that the Echoo replay survived.
       rememberLocalMaster(lookupKey, pending);
+      emit({
+        status: 'error', key,
+        title: pending.title || broadcast?.title || 'Echoo live recording',
+        audioId: pending.audioId || null,
+        code: 'REPLAY_FINALIZE_RETRY',
+        message: 'Your device copy was saved, but Echoo could not verify the server recording. Retry Echoo save.',
+        retryable: true, serverReady: false, localSaved: true,
+        hasRecovery: true, localCopy: pending.localCopy,
+        recoveryFormats: availableLocalFormats(pending.recording),
+        preferredFormat: format,
+      });
     }
   }
   return result;
