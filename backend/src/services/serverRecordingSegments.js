@@ -102,7 +102,11 @@ export function watchServerRecordingSegments(config, {
   let count = -1, bytes = -1, status = null, error = null, ending = false;
   const recordingStartedAt = now();
   let chain = Promise.resolve(), terminal = null;
-  const refresh = async ({ final = false } = {}) => {
+  // Timer and explicit finalization can race during a slow disk checkpoint.
+  // Process reads and Mongo progress updates in order so a stale in-flight
+  // refresh cannot overwrite the completed/degraded terminal state.
+  let refreshChain = Promise.resolve();
+  const refreshOnce = async ({ final = false } = {}) => {
     // If FFmpeg exited with an error, its last file can be truncated.
     const failed = Boolean(isRecorderFailed());
     const files = await sealedParts(config.dir, !final || failed, cache);
@@ -144,6 +148,11 @@ export function watchServerRecordingSegments(config, {
       await chain;
     }
     return { count, bytes, files: files.map(f => path.join(config.dir, f.name)) };
+  };
+  const refresh = (options = {}) => {
+    const pending = refreshChain.catch(() => null).then(() => refreshOnce(options));
+    refreshChain = pending;
+    return pending;
   };
   const timer = setInterval(() => { void refresh().catch(error => {
     console.warn('[Echoo Recording Segments] progress warning:', error?.message || error);
