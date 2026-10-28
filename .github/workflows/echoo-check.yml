@@ -35,6 +35,8 @@ jobs:
       - run: npm run lint
       - name: Verify on-device WAV to MP3 encoder
         run: npm run test:local-recording
+      - name: Verify long recordings and OPFS retry after refresh
+        run: node --test src/services/longRecordingRecovery.test.mjs
       - name: Verify live audio recovery policy
         run: npm run test:live-recovery
       - name: Verify realtime identity transitions
