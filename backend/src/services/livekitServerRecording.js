@@ -7,6 +7,7 @@ import Broadcast from '../models/Broadcast.js';
 import LiveKitProvider from '../providers/livekit.js';
 import { assertFfmpegAvailable } from './audioTrimService.js';
 import { getReplayOutputFile } from './broadcastOutputService.js';
+import { encoderExitIsUnexpected } from './recoveryEncoderExit.js';
 import {
   preserveInterruptedRecording,
   preservePriorRecordingOutput,
@@ -22,6 +23,7 @@ const STOP_TIMEOUT_MS = 60_000;
 const PROVIDER_CONTROL_TIMEOUT_MS = 5_000;
 const PROVIDER_START_TIMEOUT_MS = 15_000;
 const WRITE_CHAIN_DRAIN_TIMEOUT_MS = 30_000;
+const RECORDING_ENCODER_BACKPRESSURE_TIMEOUT_MS = 12_000;
 const sessions = new Map();
 const sessionCreationPromises = new Map();
 const startPromises = new Map();
@@ -181,28 +183,40 @@ const persist = async (broadcastId, patch) => {
   });
 };
 
-const writeWithBackpressure = async (child, buffer) => {
+export const writeWithBackpressure = async (child, buffer) => {
   if (!buffer?.length) return;
-  if (!child?.stdin || child.stdin.destroyed || child.exitCode !== null) {
+  if (!child?.stdin || child.stdin.destroyed || child.stdin.writableEnded ||
+      child.exitCode !== null || child.signalCode) {
     throw new Error('Server recording encoder stopped accepting PCM.');
   }
   if (child.stdin.write(buffer)) return;
   await new Promise((resolve, reject) => {
     const stdin = child.stdin;
+    // A process killed by SIGKILL can close its pipes without a drain/error
+    // event. Do not retain an unresolved write promise indefinitely or leave
+    // the recorder marked active until the backlog overflows.
+    const timeout = setTimeout(
+      () => onError(new Error('Server recording encoder PCM backpressure timed out.')),
+      RECORDING_ENCODER_BACKPRESSURE_TIMEOUT_MS
+    );
+    timeout.unref?.();
     const cleanup = () => {
+      clearTimeout(timeout);
       stdin.off('drain', onDrain);
       stdin.off('error', onError);
+      stdin.off('close', onClose);
+      child.off('close', onClose);
     };
-    const onDrain = () => {
-      cleanup();
-      resolve();
-    };
-    const onError = (error) => {
-      cleanup();
-      reject(error);
-    };
+    const onDrain = () => { cleanup(); resolve(); };
+    const onError = (error) => { cleanup(); reject(error); };
+    const onClose = () => onError(new Error('Server recording encoder closed before PCM could drain.'));
     stdin.once('drain', onDrain);
     stdin.once('error', onError);
+    stdin.once('close', onClose);
+    child.once('close', onClose);
+    if (stdin.destroyed || stdin.writableEnded || child.exitCode !== null || child.signalCode) {
+      onClose();
+    }
   });
 };
 
@@ -324,7 +338,10 @@ const createSession = async (broadcastId) => {
   });
   child.once('close', async (code, signal) => {
     const unexpectedCleanExit = !session.stopping && code === 0;
-    if ((code !== 0 && code !== null) || unexpectedCleanExit) {
+    // Node returns (code=null, signal='SIGKILL') for a killed FFmpeg child.
+    // Previously that path bypassed failure handling and could strand an
+    // active recorder until a later write or broadcast end noticed it.
+    if (encoderExitIsUnexpected({ code, signal, stopping: session.stopping })) {
       session.failed = true;
       session.error = unexpectedCleanExit
         ? 'FFmpeg recording encoder exited before End Broadcast.'
@@ -433,10 +450,13 @@ const finishSession = (session) => {
       }
     }
 
-    await Promise.race([
-      session.closed,
-      new Promise((resolve) => setTimeout(resolve, STOP_TIMEOUT_MS)),
-    ]);
+    // A successful shutdown must clear its deadline timer. The previous
+    // Promise.race left a live 60-second timer after every completed show,
+    // accumulating with parallel organizations and delaying process exit.
+    await withDeadline(
+      session.closed, STOP_TIMEOUT_MS,
+      'Server recording encoder did not close within the stop deadline.'
+    ).catch(() => null);
 
     if (session.child?.exitCode === null && !session.child?.killed) {
       try { session.child.kill('SIGKILL'); } catch { /* already stopped */ }
