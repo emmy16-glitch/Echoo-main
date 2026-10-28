@@ -199,8 +199,11 @@ test('recording recovery is visible across Creator Studio without cluttering lis
   assert.match(banner, /is-safe-recovery/);
   assert.match(banner, /Recovered recording is safe/);
   assert.match(banner, /startsWith\('\/creator-studio'\)/);
-  assert.match(autosave, /batch3Service\.getProcessing\(broadcastId\)/);
-  assert.match(autosave, /serverBroadcast\?\.replayAudio/);
+  // A linked database replay row alone is not sufficient to delete the OPFS
+  // recovery master: the actual saved media must still exist.
+  assert.match(autosave, /batch3Service\.getServerRecordingProgress\(broadcastId\)/);
+  assert.match(autosave, /progress\?\.data\?\.fullReplaySaved === true/);
+  assert.doesNotMatch(autosave, /serverBroadcast\?\.replayAudio/);
   assert.match(banner, /Retrying Echoo save · \$\{elapsed\}s/);
   assert.match(css, /grid-template-columns:\s*22px minmax\(0, 1fr\)/);
   assert.match(css, /echoo-save-banner-actions/);
