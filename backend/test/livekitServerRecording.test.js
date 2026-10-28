@@ -5,6 +5,7 @@ import { EventEmitter } from 'node:events';
 
 import { getLiveKitServerRecordingDiagnostics, writeWithBackpressure } from '../src/services/livekitServerRecording.js';
 import { encoderExitIsUnexpected } from '../src/services/recoveryEncoderExit.js';
+import { shouldRejectUnownedRecordingSocket } from '../src/services/livekitRecordingSocketOwnership.js';
 
 const originalEnv = { ...process.env };
 
@@ -16,6 +17,41 @@ const restoreEnv = () => {
 };
 
 test.afterEach(restoreEnv);
+
+test('orphan recording WebSocket after restart cannot create a tail-only MP3 without a persisted Egress ID', async () => {
+  // The old guard required persistedEgressId to be truthy. If the process
+  // crashed before LiveKit returned its ID, a still-signed URL bypassed it.
+  assert.equal(shouldRejectUnownedRecordingSocket({
+    hasSession: false,
+    currentProcessExpectsTrack: false,
+    currentProcessOwnsEgress: false,
+  }), true);
+  const source = await readFile(
+    new URL('../src/services/livekitServerRecording.js', import.meta.url), 'utf8'
+  );
+  assert.match(source, /if \(shouldRejectUnownedRecordingSocket\(\{/);
+  assert.match(source, /hasSession: sessions\.has\(identity\.broadcastId\)/);
+  assert(source.indexOf('if (shouldRejectUnownedRecordingSocket({') <
+    source.indexOf('const session = await getOrCreateSession(identity.broadcastId)'),
+    'reject unowned Egress before launching a new FFmpeg encoder');
+  assert.doesNotMatch(source, /!sessions\.has\(identity\.broadcastId\)\s*&&\s*persistedEgressId/);
+});
+
+test('legitimate current-process LiveKit recording and track handoff remain authorized', () => {
+  assert.equal(shouldRejectUnownedRecordingSocket({
+    hasSession: false, currentProcessExpectsTrack: true, currentProcessOwnsEgress: false,
+  }), false, 'new Egress is allowed while its provider ID is still pending');
+  assert.equal(shouldRejectUnownedRecordingSocket({
+    hasSession: false, currentProcessExpectsTrack: false, currentProcessOwnsEgress: true,
+  }), false, 'current process may adopt its own already-started Egress');
+  assert.equal(shouldRejectUnownedRecordingSocket({
+    hasSession: true, currentProcessExpectsTrack: false, currentProcessOwnsEgress: false,
+  }), false, 'existing session remains available during a track handoff');
+  assert.equal(shouldRejectUnownedRecordingSocket({
+    hasSession: false, currentProcessExpectsTrack: false, currentProcessOwnsEgress: false,
+  }), true, 'stale signed Egress cannot create a recorder after restart');
+});
+
 
 test('server recorder stays disabled unless explicitly enabled', () => {
   Object.assign(process.env, {

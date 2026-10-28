@@ -13,6 +13,7 @@ import {
   preservePriorRecordingOutput,
 } from './serverRecordingPreservation.js';
 import { prepareServerRecordingSegments, watchServerRecordingSegments } from './serverRecordingSegments.js';
+import { shouldRejectUnownedRecordingSocket } from './livekitRecordingSocketOwnership.js';
 
 const SAMPLE_RATE = 48_000;
 const CHANNELS = 2;
@@ -544,15 +545,15 @@ const acceptRecordingSocket = async (socket, request) => {
     persistedEgressId &&
     ownedEgressIds.get(identity.broadcastId) === persistedEgressId;
 
-  if (
-    !sessions.has(identity.broadcastId) &&
-    persistedEgressId &&
-    !currentProcessExpectsTrack &&
-    !currentProcessOwnsEgress
-  ) {
-    // Unsolicited Egress after a backend restart. Starting a fresh FFmpeg here
-    // would overwrite the earlier MP3 and leave a tail-only file that looks
-    // complete. Fail closed and preserve the browser OPFS full-show recovery.
+  if (shouldRejectUnownedRecordingSocket({
+    hasSession: sessions.has(identity.broadcastId),
+    currentProcessExpectsTrack,
+    currentProcessOwnsEgress,
+  })) {
+    // A signed Egress URL can reconnect after a backend restart even when the
+    // previous process crashed before MongoDB received its Egress ID.
+    // Require current-process ownership BEFORE creating any new FFmpeg session;
+    // preserve prior audio and use the full browser OPFS recovery master.
     await stopEgressBounded(persistedEgressId, 'orphan recorder cleanup').catch(() => null);
     await persist(identity.broadcastId, {
       'serverRecording.status': 'failed',
