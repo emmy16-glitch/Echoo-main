@@ -20,6 +20,7 @@ import {
 import { isTranscriptionConfigured } from './transcriptionGateway.js';
 import { checkFfmpegCapability } from './audioTrimService.js';
 import { reconstructServerRecordingFromSegments } from './serverRecordingReconstruction.js';
+import { savedReplayFileAvailable } from './savedReplayFileVerification.js';
 
 // ---------------------------------------------------------------------------
 // Canonical server replay finalization.
@@ -384,11 +385,10 @@ export async function finalizeBroadcastReplay({ broadcastId, creatorId, expected
   const bid = String(broadcastId || '');
   if (!bid) throw Object.assign(new Error('broadcastId is required'), { status: 400, code: 'INVALID_BROADCAST' });
 
-  if (locks.has(bid)) {
-    await locks.get(bid);
-    const existing = await Audio.findOne({ fileKey: replayFileKey(bid) }).select('_id');
-    if (existing) return { status: 'ready', audioId: String(existing._id), duplicate: true };
-  }
+  // The previous fast path treated an Audio database row as a saved MP3
+  // and returned before checking creator ownership. Wait for the active
+  // finalizer, then run the same authenticated durability checks on retries.
+  while (locks.has(bid)) await locks.get(bid);
   let release = null;
   const gate = new Promise((resolve) => { release = resolve; });
   locks.set(bid, gate);
@@ -415,14 +415,8 @@ async function finalizeInner({
 }) {
   const fileKey = replayFileKey(broadcastId);
 
-  // Idempotency first: End Broadcast retries, double complete posts and page
-  // refreshes all resolve to the single canonical replay.
-  const already = await Audio.findOne({ fileKey }).select('_id');
-  if (already) {
-    await linkCanonicalReplay(broadcastId, already._id);
-    return { status: 'ready', audioId: String(already._id), duplicate: true };
-  }
-
+  // Fetch and authorize the broadcast before trusting any idempotent replay.
+  // A stale Audio ID must never bypass this check or count as durable media.
   const broadcast = await Broadcast.findOne({ _id: broadcastId, isDeleted: false })
     .select('_id creator station title description status replayAudio replayAudioId replayStatus startedAt startTime endedAt serverRecording.status serverRecording.startedAt serverRecording.endedAt serverRecording.pcmBytes serverRecording.fileBytes serverRecording.segments');
   if (!broadcast) {
@@ -438,10 +432,43 @@ async function finalizeInner({
     error.code = 'REPLAY_FORBIDDEN';
     throw error;
   }
-  if (broadcast.replayAudio || broadcast.replayAudioId) {
-    const audioId = broadcast.replayAudio || broadcast.replayAudioId;
-    await linkCanonicalReplay(broadcastId, audioId);
-    return { status: 'ready', audioId: String(audioId), duplicate: true };
+  // Crash/redeploy can leave the Audio row and its unique fileKey intact
+  // while the underlying MP3 disappears. Verify physical bytes (or a
+  // registered cloud archive) before reporting success or deleting chunks.
+  const already = await Audio.findOne({ fileKey })
+    .select('_id filename fileSize mimeType storage cloudKey isDeleted');
+  const linkedId = broadcast.replayAudioId || broadcast.replayAudio;
+  const existing = already || (linkedId
+    ? await Audio.findById(linkedId).select('_id filename fileSize mimeType storage cloudKey isDeleted')
+    : null);
+  if (existing) {
+    if (await savedReplayFileAvailable(existing)) {
+      await linkCanonicalReplay(broadcastId, existing._id);
+      return { status: 'ready', audioId: String(existing._id), duplicate: true };
+    }
+    await Broadcast.updateOne(
+      { _id: broadcastId, isDeleted: false },
+      { $set: {
+        replayAudio: existing._id,
+        replayAudioId: existing._id,
+        replayStatus: 'incomplete',
+        'assetStatus.audio': 'processing',
+      } },
+    );
+    // A post-broadcast worker can reconstruct from sealed segments. Browser
+    // OPFS and existing WAV chunks remain available if storage is still down.
+    return {
+      status: 'incomplete', audioId: null, duplicate: true,
+      reason: 'linked-replay-file-unavailable',
+    };
+  }
+  if (linkedId) {
+    await Broadcast.updateOne(
+      { _id: broadcastId, isDeleted: false },
+      { $set: { replayStatus: 'incomplete', 'assetStatus.audio': 'processing' } },
+    );
+    return { status: 'incomplete', audioId: null, duplicate: true,
+      reason: 'linked-replay-record-unavailable' };
   }
 
   const chunks = await BroadcastAudioChunk.find({ broadcastId }).sort({ chunkIndex: 1 });
@@ -731,11 +758,18 @@ async function finalizeInner({
     });
   } catch (error) {
     if (error?.code === 11000) {
-      const winner = await Audio.findOne({ fileKey }).select('_id');
-      if (winner) {
+      const winner = await Audio.findOne({ fileKey })
+        .select('_id filename fileSize mimeType storage cloudKey isDeleted');
+      if (winner && await savedReplayFileAvailable(winner)) {
         await fs.rm(finalPath, { force: true }).catch(() => null);
         await linkCanonicalReplay(broadcastId, winner._id);
         return { status: 'ready', audioId: String(winner._id), duplicate: true };
+      }
+      // Keep the successfully assembled file and source recovery chunks when
+      // another worker won the DB uniqueness race with a missing/corrupt file.
+      // Never advertise that winning row as a successfully saved recording.
+      if (winner) {
+        throw new Error('Canonical replay row exists but its recording file is unavailable; recovery files retained.');
       }
     }
     await fs.rm(finalPath, { force: true }).catch(() => null);
