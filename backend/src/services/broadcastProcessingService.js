@@ -3,6 +3,7 @@ import Audio from '../models/Audio.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { reconstructServerRecordingFromSegments } from './serverRecordingReconstruction.js';
+import { savedReplayFileAvailable } from './savedReplayFileVerification.js';
 import BroadcastProcessingJob from '../models/BroadcastProcessingJob.js';
 import BroadcastAudioChunk from '../models/BroadcastAudioChunk.js';
 import Notification from '../models/Notification.js';
@@ -82,14 +83,12 @@ export async function restoreLinkedRecordingIfMissing(broadcast) {
   if (!id) return false;
   const audio = await Audio.findById(id);
   if (!audio || audio.isDeleted) throw waiting('Waiting for missing audio record recovery');
-  if (audio.storage === 'cloud' && audio.cloudKey) return true;
+  if (await savedReplayFileAvailable(audio)) return true;
   const name = path.basename(String(audio.filename || ''));
   if (!name || !/^replay-[a-f0-9]{24}(?:-[a-f0-9-]+)?\.mp3$/i.test(name)) {
     throw waiting('Replay storage needs recovery; cannot safely restore an unexpected filename');
   }
   const destination = path.join(process.cwd(), 'uploads', 'audio', name);
-  const stat = await fs.stat(destination).catch(() => null);
-  if (stat?.isFile() && stat.size >= Math.max(4096, Number(audio.fileSize) || 0)) return true;
   const state = broadcast.serverRecording?.segments;
   if (!state?.attemptId || !['completed', 'failed'].includes(broadcast.status)) {
     throw waiting('Saved MP3 unavailable; server backup is required for recovery');
