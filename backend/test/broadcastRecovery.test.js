@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { canFinalizeOrphanedLiveBroadcast } from '../src/services/broadcastRecoveryRoomSafety.js';
 
 const read = (relativePath) =>
   readFile(new URL(relativePath, import.meta.url), 'utf8');
@@ -40,6 +41,22 @@ test('recovery reconciles interrupted lifecycles without fabricating history', a
   assert.match(service, /transcriptionEnabled:\s*false/);
   assert.match(service, /transcriptState.*disabled/);
   assert.doesNotMatch(service, /WHISPER|whisper|transcript_completion/);
+});
+
+test('LiveKit API outages never finalize a potentially live 7-9-hour broadcast', async () => {
+  // Even a very old updatedAt cannot prove a show stopped publishing.
+  assert.equal(canFinalizeOrphanedLiveBroadcast({ active: false, unknown: true }), false);
+  assert.equal(canFinalizeOrphanedLiveBroadcast({ active: true, unknown: false }), false);
+  assert.equal(canFinalizeOrphanedLiveBroadcast({ active: true, unknown: true }), false);
+  assert.equal(canFinalizeOrphanedLiveBroadcast(), false);
+  assert.equal(canFinalizeOrphanedLiveBroadcast({ active: false, unknown: false }), true);
+
+  // Assert that the actual live/starting path uses the verified room decision
+  // instead of the previous stale-timestamp override.
+  const service = await read('../src/services/broadcastRecoveryService.js');
+  assert.match(service, /if \(!canFinalizeOrphanedLiveBroadcast\(room\)\)/);
+  assert.doesNotMatch(service, /room\.unknown\s*\|\|\s*stale/);
+  assert.doesNotMatch(service, /STALE_ORPHAN_MS/);
 });
 
 test('recovery route is creator-gated and upload keeps its idempotency key', async () => {
