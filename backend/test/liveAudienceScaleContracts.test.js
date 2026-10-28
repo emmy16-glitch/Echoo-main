@@ -148,8 +148,14 @@ test('server recorder fails closed across backend restarts instead of accepting 
   assert.match(recorder, /const ownedEgressIds = new Map\(\)/);
   assert.match(recorder, /server-process-restarted/);
   assert.match(recorder, /Interrupted server recording requires browser recovery/);
-  assert.match(recorder, /!currentProcessExpectsTrack/);
-  assert.match(recorder, /!currentProcessOwnsEgress/);
+  // The ownership predicate now lives in a pure, behavior-tested helper.
+  // Keep this architecture check aligned with the actual guard rather than
+  // requiring its old inline expression (which missed empty persisted IDs).
+  const ownership = await read('../src/services/livekitRecordingSocketOwnership.js');
+  assert.match(recorder, /if \(shouldRejectUnownedRecordingSocket\(\{/);
+  assert.match(recorder, /currentProcessExpectsTrack,/);
+  assert.match(recorder, /currentProcessOwnsEgress,/);
+  assert.match(ownership, /!hasSession && !currentProcessExpectsTrack && !currentProcessOwnsEgress/);
   assert.match(recorder, /expectedTracks\.set\(id, track\)[\s\S]*?startTrackRecordingEgress/);
   assert.doesNotMatch(
     recorder,
