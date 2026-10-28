@@ -67,19 +67,40 @@ if (nodeEnv === 'production') {
     }
   }
 
-  const whisperFlowUrl = process.env.WHISPER_FLOW_URL?.trim() || '';
-  const whisperQualityFlowUrl = process.env.WHISPER_QUALITY_FLOW_URL?.trim() || '';
-  if (whisperFlowUrl && !whisperFlowUrl.startsWith('wss://')) {
-    throw new Error('WHISPER_FLOW_URL must use wss:// in production.');
-  }
-  if (whisperQualityFlowUrl && !whisperQualityFlowUrl.startsWith('wss://')) {
-    throw new Error('WHISPER_QUALITY_FLOW_URL must use wss:// in production.');
-  }
-  if (whisperFlowUrl && !process.env.WHISPER_FLOW_API_KEY?.trim()) {
-    throw new Error('WHISPER_FLOW_API_KEY is required when Whisper Flow is enabled.');
-  }
-  if (whisperQualityFlowUrl && !process.env.WHISPER_QUALITY_FLOW_API_KEY?.trim() && !process.env.WHISPER_FLOW_API_KEY?.trim()) {
-    throw new Error('WHISPER_QUALITY_FLOW_API_KEY or WHISPER_FLOW_API_KEY is required when the quality provider is enabled.');
+  // Transcription is optional. Disabled example settings must not stop the
+  // production API (and therefore LiveKit recording) from booting. When
+  // explicitly enabled, enforce authenticated transport; allow plain WS only
+  // for the same-host loopback Whisper worker in the Digi02 deploy template.
+  const transcriptionEnabled = /^(true|1|yes)$/i.test(
+    String(process.env.TRANSCRIPTION_ENABLED || '').trim()
+  );
+  if (transcriptionEnabled) {
+    const whisperFlowUrl = process.env.WHISPER_FLOW_URL?.trim() || '';
+    const whisperQualityFlowUrl = process.env.WHISPER_QUALITY_FLOW_URL?.trim() || '';
+    const validWhisperUrl = (value) => {
+      try {
+        const parsed = new URL(value);
+        return parsed.protocol === 'wss:' || (
+          parsed.protocol === 'ws:' &&
+          ['127.0.0.1', 'localhost', '[::1]'].includes(parsed.hostname)
+        );
+      } catch {
+        return false;
+      }
+    };
+    if (!whisperFlowUrl || !validWhisperUrl(whisperFlowUrl)) {
+      throw new Error('WHISPER_FLOW_URL must be wss:// or a local loopback ws:// URL when transcription is enabled.');
+    }
+    if (whisperQualityFlowUrl && !validWhisperUrl(whisperQualityFlowUrl)) {
+      throw new Error('WHISPER_QUALITY_FLOW_URL must be wss:// or a local loopback ws:// URL.');
+    }
+    if (!String(process.env.WHISPER_FLOW_API_KEY || process.env.WHISPER_FLOW_AUTH_TOKEN || '').trim()) {
+      throw new Error('WHISPER_FLOW_API_KEY is required when transcription is enabled.');
+    }
+    if (whisperQualityFlowUrl &&
+        !String(process.env.WHISPER_QUALITY_FLOW_API_KEY || process.env.WHISPER_FLOW_API_KEY || process.env.WHISPER_FLOW_AUTH_TOKEN || '').trim()) {
+      throw new Error('WHISPER_QUALITY_FLOW_API_KEY or WHISPER_FLOW_API_KEY is required when the quality provider is enabled.');
+    }
   }
 }
 
