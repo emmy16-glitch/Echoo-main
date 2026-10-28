@@ -26,3 +26,14 @@ test('Digi02 example has disabled private Whisper configuration and safe permane
   assert.match(example, /^SERVER_RECORDING_SEGMENTS_ENABLED=true$/m);
   assert.match(example, /^REPLAY_ARCHIVE_DIR=\/mnt\/storage\/media\/echoo\/replay$/m);
 });
+
+test('root Docker build context excludes local backend credentials and recording files', async () => {
+  const ignore = await read('.dockerignore');
+  const dockerfile = await read('Dockerfile');
+  assert.match(dockerfile, /^COPY --chown=node:node backend \.\/$/m);
+  assert.match(ignore, /^\*\*\/\.env$/m);
+  assert.match(ignore, /^\*\*\/\.env\.\*$/m);
+  assert.match(ignore, /^backend\/uploads$/m);
+  assert.match(ignore, /^backend\/mongo-data$/m);
+  assert.match(ignore, /^\*\*\/node_modules$/m);
+});
