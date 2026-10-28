@@ -289,3 +289,28 @@ test('backup monitor reports a silent tee failure before End Broadcast', async (
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+test('concurrent segment refreshes cannot overwrite a final recording state', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'echoo-serial-progress-'));
+  const updates = [];
+  const watcher = watchServerRecordingSegments({
+    dir, segmentSeconds: 600, attemptId: 'test-serial-status',
+  }, {
+    closed: Promise.resolve(),
+    onProgress: async value => {
+      if (value.status === 'recording') await new Promise(resolve => setTimeout(resolve, 20));
+      updates.push(value.status);
+    },
+  });
+  try {
+    const first = watcher.refresh();
+    const second = watcher.refresh();
+    const final = watcher.finish();
+    await Promise.all([first, second, final]);
+    assert.equal(updates.at(-1), 'degraded', 'no backup files means an unsafe final recording');
+    assert(!updates.slice(updates.indexOf('degraded') + 1).includes('recording'),
+      'an earlier poll must never regress terminal recording status');
+  } finally {
+    await fs.rm(dir, { force: true, recursive: true });
+  }
+});
