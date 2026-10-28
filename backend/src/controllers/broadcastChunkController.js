@@ -13,6 +13,7 @@ import { finalizeBroadcastReplay } from '../services/broadcastReplayService.js';
 import { checkFfmpegCapability } from '../services/audioTrimService.js';
 import { isTranscriptionConfigured } from '../services/transcriptionGateway.js';
 import { waitForCreatorProgramAudio } from '../services/broadcastAudioReadiness.js';
+import { recoveryChunkDurationMatches } from '../services/recoveryChunkDuration.js';
 import {
   ensureLiveKitServerRecording,
   isLiveKitServerRecordingEnabled,
@@ -332,8 +333,9 @@ export async function uploadBroadcastAudioChunk(req, res, next) {
     if (!validWavUpload(req.file)) {
       return res.status(400).json({ error: { code: 'INVALID_CHUNK_AUDIO', message: 'Quality chunks must be valid RIFF/WAVE audio.' } });
     }
+    let pcmData;
     try {
-      pcmFromWavChunk(req.file.buffer);
+      pcmData = pcmFromWavChunk(req.file.buffer);
     } catch {
       return res.status(400).json({
         error: {
@@ -348,6 +350,11 @@ export async function uploadBroadcastAudioChunk(req, res, next) {
       return res.status(400).json({ error: { code: 'INVALID_CHUNK_ID', message: 'A valid chunkId is required.' } });
     }
     const chunkIndex = numberField(req.body.chunkIndex, 'chunkIndex', { max: 1_000_000 });
+    if (!Number.isInteger(chunkIndex)) {
+      return res.status(400).json({ error: {
+        code: 'INVALID_CHUNK_INDEX', message: 'Recovery chunk index must be an integer.',
+      } });
+    }
     const startMs = numberField(req.body.startMs, 'startMs');
     const endMs = numberField(req.body.endMs, 'endMs', { min: startMs });
     if (endMs <= startMs || endMs - startMs > MAX_CHUNK_DURATION_MS) {
@@ -363,6 +370,14 @@ export async function uploadBroadcastAudioChunk(req, res, next) {
           message: 'Recovery chunks must use the Echoo 48 kHz stereo 24-bit PCM master format.',
         },
       });
+    }
+    if (!recoveryChunkDurationMatches({
+      pcmBytes: pcmData.length, startMs, endMs, sampleRate, channels, bitDepth,
+    })) {
+      return res.status(400).json({ error: {
+        code: 'CHUNK_AUDIO_DURATION_MISMATCH',
+        message: 'Recovery chunk timing does not match its actual audio samples.',
+      } });
     }
 
     const existing = await BroadcastAudioChunk.findOne({ broadcastId, chunkId });
