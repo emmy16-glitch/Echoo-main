@@ -422,6 +422,53 @@ test('stale foreign replay link cannot claim another creator\'s saved MP3', asyn
   }
 });
 
+test('same-creator stale replay link cannot substitute another broadcast\'s audio', async () => {
+  const { broadcast, creatorId } = await makeBroadcast();
+  const bid = String(broadcast._id);
+  const filename = 'stale-same-creator-' + bid + '.mp3';
+  const localPath = path.join(process.cwd(), 'uploads', 'audio', filename);
+  const bytes = Buffer.alloc(8192);
+  bytes.write('ID3', 0);
+  await fs.mkdir(path.dirname(localPath), { recursive: true });
+  await fs.writeFile(localPath, bytes, { flag: 'wx' });
+
+  try {
+    const unrelated = await Audio.create({
+      title: 'Different broadcast from the same creator',
+      description: '', artist: creatorId,
+      sourceBroadcast: new mongoose.Types.ObjectId(),
+      filename, originalName: 'Unrelated replay.mp3',
+      fileUrl: '/uploads/audio/' + filename,
+      fileSize: bytes.length, fileKey: 'unrelated-' + bid,
+      mimeType: 'audio/mpeg', genre: 'Other',
+      visibility: 'private', publicationStatus: 'draft',
+    });
+    await Broadcast.updateOne({ _id: broadcast._id }, {
+      $set: { status: 'completed', replayAudio: unrelated._id, replayAudioId: unrelated._id },
+    });
+
+    const finalized = await finalizeBroadcastReplay({
+      broadcastId: bid, creatorId: String(creatorId),
+    });
+    assert.equal(finalized.status, 'incomplete');
+    assert.equal(finalized.reason, 'linked-replay-record-unavailable');
+    assert.equal(finalized.audioId, null);
+
+    const recovered = await recoverBroadcastForReplay({
+      broadcastId: bid, userId: String(creatorId),
+    });
+    assert.equal(recovered.outcome, 'ready');
+    assert.equal(recovered.audioId, null);
+    assert.equal(recovered.readyForUpload, true);
+    const stored = await Broadcast.findById(bid);
+    assert.notEqual(String(stored.replayAudio || ''), String(unrelated._id));
+    assert.equal(await Audio.countDocuments({ _id: unrelated._id }), 1,
+      'never delete the other broadcast\'s recording');
+  } finally {
+    await fs.rm(localPath, { force: true });
+  }
+});
+
 test('linked replay with a missing Audio record stays incomplete instead of ready', async () => {
   const { broadcast, creatorId } = await makeBroadcast();
   const missingId = new mongoose.Types.ObjectId();
