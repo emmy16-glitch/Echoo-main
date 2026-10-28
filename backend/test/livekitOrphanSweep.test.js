@@ -231,6 +231,70 @@ test('stale live broadcasts are reaped only while still waiting for the creator 
   }
 });
 
+test('missed track-published webhook preserves a seven-hour live program track', { concurrency: 1 }, async () => {
+  const creator = new mongoose.Types.ObjectId();
+  const connecting = makeDoc({
+    status: 'live',
+    mediaState: 'creator_connecting',
+    creator,
+    creatorDisconnectedAt: null,
+    startedAt: new Date(Date.now() - 7 * 60 * 60 * 1000),
+    updatedAt: new Date(Date.now() - 7 * 60 * 60 * 1000),
+  });
+  const provider = makeLivekitProviderMock();
+  provider.listParticipants = async () => [{
+    sid: 'PA_still_live',
+    identity: String(creator),
+    metadata: JSON.stringify({ role: 'creator', userId: String(creator) }),
+    tracks: [{
+      sid: 'TR_still_live',
+      name: 'echoo-studio-mix',
+      mimeType: 'audio/opus',
+      muted: false,
+    }],
+  }];
+
+  const { sweepModule, teardown } = await loadSweepWithMocks([connecting], provider);
+  try {
+    const result = await sweepModule.sweep();
+    assert.equal(result.swept, 0);
+    assert.equal(connecting.status, 'live');
+    assert.equal(connecting.mediaState, 'audio_live');
+    assert.equal(connecting.creatorDisconnectedAt, null);
+    assert.equal(connecting.creatorParticipantSid, 'PA_still_live');
+    assert.equal(connecting.programTrackSid, 'TR_still_live');
+    assert.equal(connecting.saveCalled, 1);
+    assert.equal(provider.calls.length, 0, 'live room and recorder must not be stopped');
+  } finally {
+    teardown();
+  }
+});
+
+test('stale connecting broadcast survives a LiveKit control-plane outage', { concurrency: 1 }, async () => {
+  const connecting = makeDoc({
+    status: 'live',
+    mediaState: 'creator_connecting',
+    creator: new mongoose.Types.ObjectId(),
+    creatorDisconnectedAt: null,
+    startedAt: new Date(Date.now() - 60 * 60 * 1000),
+  });
+  const provider = makeLivekitProviderMock();
+  provider.listParticipants = async () => {
+    throw new Error('LiveKit participant API unavailable');
+  };
+  const { sweepModule, teardown } = await loadSweepWithMocks([connecting], provider);
+  try {
+    const result = await sweepModule.sweep();
+    assert.equal(result.swept, 0);
+    assert.equal(connecting.status, 'live');
+    assert.equal(connecting.mediaState, 'creator_connecting');
+    assert.equal(connecting.saveCalled, 0);
+    assert.equal(provider.calls.length, 0, 'provider outage cannot justify stopping live audio');
+  } finally {
+    teardown();
+  }
+});
+
 test('stale audio-live state heals to the actual LiveKit creator program track', { concurrency: 1 }, async () => {
   const creator = new mongoose.Types.ObjectId();
   const live = makeDoc({
