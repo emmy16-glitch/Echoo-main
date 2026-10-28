@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import Broadcast from '../models/Broadcast.js';
 import BroadcastAudioChunk from '../models/BroadcastAudioChunk.js';
 import BroadcastProcessingJob from '../models/BroadcastProcessingJob.js';
@@ -14,6 +15,7 @@ import { checkFfmpegCapability } from '../services/audioTrimService.js';
 import { isTranscriptionConfigured } from '../services/transcriptionGateway.js';
 import { waitForCreatorProgramAudio } from '../services/broadcastAudioReadiness.js';
 import { recoveryChunkDurationMatches } from '../services/recoveryChunkDuration.js';
+import { cleanupOwnedRecoveryChunkFile, writeRecoveryChunkFile } from '../services/recoveryChunkFile.js';
 import {
   ensureLiveKitServerRecording,
   isLiveKitServerRecordingEnabled,
@@ -302,6 +304,7 @@ export async function completeBroadcastAudioChunks(req, res, next) {
 
 export async function uploadBroadcastAudioChunk(req, res, next) {
   let filePath = null;
+  let fileOwned = false;
   let createdChunkId = null;
   try {
     const { broadcastId } = req.params;
@@ -396,12 +399,15 @@ export async function uploadBroadcastAudioChunk(req, res, next) {
         `${chunkIndex}-${safeChunkName(chunkId)}.wav`
       );
       await fs.mkdir(path.dirname(repairPath), { recursive: true });
-      const tempPath = `${repairPath}.repair-${process.pid}-${Date.now()}`;
+      const tempPath = `${repairPath}.repair-${randomUUID()}`;
+      let tempOwned = false;
       try {
-        await fs.writeFile(tempPath, req.file.buffer, { flag: 'wx' });
+        await writeRecoveryChunkFile(tempPath, req.file.buffer);
+        tempOwned = true;
         await fs.rename(tempPath, repairPath);
+        tempOwned = false;
       } finally {
-        await fs.rm(tempPath, { force: true }).catch(() => null);
+        await cleanupOwnedRecoveryChunkFile(tempPath, tempOwned).catch(() => null);
       }
 
       existing.chunkIndex = chunkIndex;
@@ -429,7 +435,8 @@ export async function uploadBroadcastAudioChunk(req, res, next) {
 
     await fs.mkdir(path.join(CHUNK_DIR, String(broadcastId)), { recursive: true });
     filePath = path.join(CHUNK_DIR, String(broadcastId), `${chunkIndex}-${safeChunkName(chunkId)}.wav`);
-    await fs.writeFile(filePath, req.file.buffer, { flag: 'wx' });
+    await writeRecoveryChunkFile(filePath, req.file.buffer);
+    fileOwned = true;
 
     const chunk = await BroadcastAudioChunk.create({
       broadcastId,
@@ -470,12 +477,13 @@ export async function uploadBroadcastAudioChunk(req, res, next) {
     }
     if (error?.code === 11000) {
       const existing = await BroadcastAudioChunk.findOne({ broadcastId: req.params.broadcastId, chunkId: String(req.body.chunkId || '') });
-      if (existing) {
+      if (existing && await durableWavChunkExists(existing)) {
+        await cleanupOwnedRecoveryChunkFile(filePath, fileOwned).catch(() => null);
         await ensureQualityJob(req.params.broadcastId, existing).catch(() => null);
         return res.status(200).json({ data: existing, duplicate: true, timestamp: new Date().toISOString() });
       }
     }
-    if (filePath) await fs.rm(filePath, { force: true }).catch(() => null);
+    await cleanupOwnedRecoveryChunkFile(filePath, fileOwned).catch(() => null);
     next(error);
   }
 }
