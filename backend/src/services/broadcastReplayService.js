@@ -4,6 +4,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import Audio from '../models/Audio.js';
+import { creatorOwnedReplayQuery } from './creatorOwnedReplayQuery.js';
 import Broadcast from '../models/Broadcast.js';
 import User from '../models/User.js';
 import Station from '../models/Station.js';
@@ -436,11 +437,12 @@ async function finalizeInner({
   // Crash/redeploy can leave the Audio row and its unique fileKey intact
   // while the underlying MP3 disappears. Verify physical bytes (or a
   // registered cloud archive) before reporting success or deleting chunks.
-  const already = await Audio.findOne({ fileKey })
+  const already = await Audio.findOne(creatorOwnedReplayQuery(broadcastCreatorId, { fileKey }))
     .select('_id filename fileSize mimeType storage cloudKey isDeleted');
   const linkedId = broadcast.replayAudioId || broadcast.replayAudio;
   const existing = already || (linkedId
-    ? await Audio.findById(linkedId).select('_id filename fileSize mimeType storage cloudKey isDeleted')
+    ? await Audio.findOne(creatorOwnedReplayQuery(broadcastCreatorId, { _id: linkedId }))
+      .select('_id filename fileSize mimeType storage cloudKey isDeleted')
     : null);
   if (existing) {
     if (await savedReplayFileAvailable(existing)) {
