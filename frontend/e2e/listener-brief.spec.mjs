@@ -91,6 +91,9 @@ test('live player stays mounted after leaving the room and returns without a sec
 test('server finalization is independent of device export and duplicate End requests', async ({ page }) => {
   await authenticate(page);
   let finalizations = 0;
+  await page.route('**/api/broadcasts/*/recording-progress', route => route.fulfill({
+    json: { data: { fullReplaySaved: true, replayFileUnavailable: false, replayStatus: 'ready' } },
+  }));
   await page.route('**/api/broadcasts/*/recording-chunks/complete', async route => {
     finalizations++;
     await route.fulfill({ json: { data: { replay: { status: 'ready', audioId: '507f1f77bcf86cd799439041' } } } });
