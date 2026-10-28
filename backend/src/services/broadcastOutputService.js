@@ -4,6 +4,7 @@ import path from 'node:path';
 import Broadcast from '../models/Broadcast.js';
 import { createOrderedOutputQueue } from './recoveryOutputWriteQueue.js';
 import { reserveRadioMount, releaseRadioMount } from './radioMountOwnership.js';
+import { encoderExitIsUnexpected } from './recoveryEncoderExit.js';
 
 const SAMPLE_RATE = 48000;
 const CHANNELS = 2;
@@ -61,7 +62,7 @@ const persist = async (broadcastId, patch) => {
   });
 };
 
-const spawnEncoder = ({ args, label, onFailure }) => {
+const spawnEncoder = ({ args, label, onFailure, isStopping = () => false }) => {
   const child = spawn(process.env.FFMPEG_PATH || 'ffmpeg', args, {
     stdio: ['pipe', 'ignore', 'pipe'],
     windowsHide: true,
@@ -70,7 +71,9 @@ const spawnEncoder = ({ args, label, onFailure }) => {
   child.stderr.on('data', (data) => { stderr = `${stderr}${data}`.slice(-4000); });
   child.once('error', (error) => onFailure(error));
   child.once('exit', (code, signal) => {
-    if (code !== 0 && code !== null) onFailure(new Error(`${label} stopped (code ${code}${signal ? `, ${signal}` : ''}): ${stderr.trim() || 'encoder error'}`));
+    if (encoderExitIsUnexpected({ code, signal, stopping: isStopping() })) {
+      onFailure(new Error(`${label} stopped unexpectedly (code ${code}${signal ? `, ${signal}` : ''}): ${stderr.trim() || 'encoder error'}`));
+    }
   });
   return child;
 };
@@ -174,7 +177,7 @@ export async function startBroadcastOutputs(broadcastId) {
   const session = {
     id, radio: null, archive: null, replay: null, replayBytes: 0, snapshot,
     failures: new Set(), outputQueue: createOrderedOutputQueue(),
-    radioMountKey: null,
+    radioMountKey: null, closing: false,
   };
   sessions.set(id, session);
   await persist(id, snapshot);
@@ -191,6 +194,7 @@ export async function startBroadcastOutputs(broadcastId) {
     try {
       session.radio = spawnEncoder({
         label: 'MP3 radio encoder',
+        isStopping: () => session.closing,
         args: ['-hide_banner', '-loglevel', 'error', '-f', 's24le', '-ar', String(SAMPLE_RATE), '-ac', String(CHANNELS), '-i', 'pipe:0', '-vn', '-c:a', 'libmp3lame', '-b:a', '320k', '-minrate', '320k', '-maxrate', '320k', '-bufsize', '640k', '-f', 'mp3', radio.url],
         onFailure: async (error) => {
           if (session.failures.has('radio')) return;
@@ -218,6 +222,7 @@ export async function startBroadcastOutputs(broadcastId) {
       const outputPath = path.join(directory, storageKey);
       session.archive = spawnEncoder({
         label: 'FLAC archive encoder',
+        isStopping: () => session.closing,
         args: ['-hide_banner', '-loglevel', 'error', '-f', 's24le', '-ar', String(SAMPLE_RATE), '-ac', String(CHANNELS), '-i', 'pipe:0', '-vn', '-c:a', 'flac', '-compression_level', '5', '-sample_fmt', 's32', '-bits_per_raw_sample', '24', outputPath],
         onFailure: async (error) => {
           if (session.failures.has('archive')) return;
@@ -243,6 +248,7 @@ export async function startBroadcastOutputs(broadcastId) {
     const outputPath = path.join(directory, storageKey);
     session.replay = spawnEncoder({
       label: 'replay MP3 encoder',
+        isStopping: () => session.closing,
       args: ['-hide_banner', '-loglevel', 'error', '-f', 's24le', '-ar', String(SAMPLE_RATE), '-ac', String(CHANNELS), '-i', 'pipe:0', '-vn', '-c:a', 'libmp3lame', '-b:a', bitrate, '-f', 'mp3', outputPath],
       onFailure: async (error) => {
         if (session.failures.has('replay')) return;
@@ -311,6 +317,7 @@ export async function stopBroadcastOutputs(broadcastId, { incomplete = false } =
   const session = sessions.get(id);
   if (!session) return null;
   sessions.delete(id);
+  session.closing = true;
   // Reject new chunks and wait for writes admitted before shutdown. This is
   // strictly post-live recovery encoding; the LiveKit stream is unaffected.
   await session.outputQueue.close();
