@@ -123,3 +123,54 @@ test('persistent recording retry resumes the matching recovered OPFS master afte
   assert.match(retry, /await batch3Service\.recoverBroadcast\(pending\.recording\.broadcastId\)/);
   assert.match(retry, /return startAutosave\(\{/);
 });
+
+test('OPFS recovery skips an evicted newest file without deleting older metadata', async () => {
+  const { recoveryCandidatesForUser, firstAvailableRecoveryManifest } =
+    await import('./recoveryManifestAvailability.js');
+  const entries = [
+    { storageName: 'newest', ownerUserId: 'creator-a' },
+    { storageName: 'older', ownerUserId: 'creator-a' },
+  ];
+  const candidates = recoveryCandidatesForUser(entries, 'creator-a');
+  const seen = [];
+  const found = await firstAvailableRecoveryManifest(candidates, async (manifest) => {
+    seen.push(manifest.storageName);
+    if (manifest.storageName === 'newest') throw new Error('NotFoundError');
+    return true;
+  });
+  assert.equal(found?.storageName, 'older');
+  assert.deepEqual(seen, ['newest', 'older']);
+  assert.equal(entries.length, 2);
+});
+
+test('OPFS recovery skips empty files and never selects another creator recording', async () => {
+  const { recoveryCandidatesForUser, firstAvailableRecoveryManifest } =
+    await import('./recoveryManifestAvailability.js');
+  const manifests = [
+    { storageName: 'other', ownerUserId: 'creator-b' },
+    { storageName: 'empty', ownerUserId: 'creator-a' },
+    { storageName: 'usable', ownerUserId: 'creator-a' },
+    { storageName: 'legacy' },
+  ];
+  const candidates = recoveryCandidatesForUser(manifests, 'creator-a');
+  assert.deepEqual(candidates.map((item) => item.storageName), ['empty', 'usable', 'legacy']);
+  const found = await firstAvailableRecoveryManifest(candidates, async (item) => item.storageName !== 'empty');
+  assert.equal(found?.storageName, 'usable');
+  assert.deepEqual(recoveryCandidatesForUser(manifests, ''), [{ storageName: 'legacy' }]);
+});
+
+test('OPFS recovery preserves registry and returns null if no local file is readable', async () => {
+  const { firstAvailableRecoveryManifest } = await import('./recoveryManifestAvailability.js');
+  const manifests = [{ storageName: 'missing' }, { storageName: 'empty' }];
+  assert.equal(await firstAvailableRecoveryManifest(manifests, async () => false), null);
+  assert.deepEqual(manifests, [{ storageName: 'missing' }, { storageName: 'empty' }]);
+});
+
+test('boot recovery checks candidate file availability before hydrating the OPFS master', async () => {
+  const source = await read('./broadcastRecordingService.js');
+  assert.match(source, /const readRecoveryMetadata = async \(\) =>/);
+  assert.match(source, /recoveryCandidatesForUser\(readRecoveryManifests\(\), currentSessionUserId\(\)\)/);
+  assert.match(source, /firstAvailableRecoveryManifest\(candidates, async \(manifest\) =>/);
+  assert.match(source, /return file\.size > 0/);
+  assert.match(source, /const meta = await readRecoveryMetadata\(\)/);
+});
