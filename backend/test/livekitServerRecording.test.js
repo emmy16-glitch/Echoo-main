@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { EventEmitter } from 'node:events';
 
-import { getLiveKitServerRecordingDiagnostics } from '../src/services/livekitServerRecording.js';
+import { getLiveKitServerRecordingDiagnostics, writeWithBackpressure } from '../src/services/livekitServerRecording.js';
+import { encoderExitIsUnexpected } from '../src/services/recoveryEncoderExit.js';
 
 const originalEnv = { ...process.env };
 
@@ -116,4 +118,72 @@ test('concurrent recorder starts preserve the newest track and bound PCM backlog
   assert.match(source, /candidate\.echooTrackSid === session\.currentTrackSid/);
   assert.match(source, /stdin\.off\('drain', onDrain\)/);
   assert.match(source, /stdin\.off\('error', onError\)/);
+});
+
+const fakeBackpressuredRecorder = () => {
+  const child = new EventEmitter();
+  const stdin = new EventEmitter();
+  stdin.write = () => false;
+  stdin.destroyed = false;
+  stdin.writableEnded = false;
+  child.stdin = stdin;
+  child.exitCode = null;
+  child.signalCode = null;
+  return { child, stdin };
+};
+
+test('killed LiveKit recorder is failed rather than left active with null exit code', async () => {
+  assert.equal(encoderExitIsUnexpected({
+    code: null, signal: 'SIGKILL', stopping: false,
+  }), true);
+  assert.equal(encoderExitIsUnexpected({
+    code: null, signal: 'SIGTERM', stopping: true,
+  }), true);
+  assert.equal(encoderExitIsUnexpected({
+    code: 0, signal: null, stopping: true,
+  }), false);
+  const source = await readFile(
+    new URL('../src/services/livekitServerRecording.js', import.meta.url), 'utf8'
+  );
+  assert.match(source, /encoderExitIsUnexpected\(\{ code, signal, stopping: session\.stopping \}\)/);
+  assert.match(source, /if \(session\.failed\) void finishSession\(session\)/);
+});
+
+test('recorder PCM backpressure drains and unregisters close listeners', async () => {
+  const { child, stdin } = fakeBackpressuredRecorder();
+  const promise = writeWithBackpressure(child, Buffer.alloc(2048));
+  assert.equal(stdin.listenerCount('drain'), 1);
+  stdin.emit('drain');
+  await promise;
+  assert.equal(stdin.listenerCount('close'), 0);
+  assert.equal(child.listenerCount('close'), 0);
+});
+
+test('a signaled encoder close rejects an outstanding recorder write promptly', async () => {
+  const { child, stdin } = fakeBackpressuredRecorder();
+  const promise = writeWithBackpressure(child, Buffer.alloc(2048));
+  child.signalCode = 'SIGKILL';
+  child.emit('close', null, 'SIGKILL');
+  await assert.rejects(promise, /closed before PCM could drain/);
+  assert.equal(stdin.listenerCount('drain'), 0);
+  await assert.rejects(
+    writeWithBackpressure(child, Buffer.alloc(2048)),
+    /stopped accepting PCM/
+  );
+});
+
+test('a closed encoder stdin rejects a backpressured write', async () => {
+  const { child, stdin } = fakeBackpressuredRecorder();
+  const promise = writeWithBackpressure(child, Buffer.alloc(512));
+  stdin.destroyed = true;
+  stdin.emit('close');
+  await assert.rejects(promise, /closed before PCM could drain/);
+});
+
+test('recorder shutdown cleans up its deadline timer instead of leaving a one-minute task', async () => {
+  const source = await readFile(
+    new URL('../src/services/livekitServerRecording.js', import.meta.url), 'utf8'
+  );
+  assert.match(source, /await withDeadline\(\s*session\.closed, STOP_TIMEOUT_MS,/);
+  assert.doesNotMatch(source, /await Promise\.race\(\[\s*session\.closed,/);
 });
