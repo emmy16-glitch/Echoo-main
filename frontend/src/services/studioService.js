@@ -7,6 +7,7 @@ import {
   refreshSessionAccessToken,
 } from "./api.js";
 import { getActiveAccountId } from "./accountStorage.js";
+import { postChunkWithAuthRetry } from "./resumableUploadAuth.js";
 
 const readResponse = async (response) => {
   const contentType = response.headers.get("content-type") || "";
@@ -447,10 +448,14 @@ const studioService = {
           const body = new FormData();
           body.append('chunk', chunk, `${file.name}.part`);
           body.append('offset', String(offset));
-          const response = await fetch(`${API_BASE_URL}/uploads/${encodeURIComponent(session.uploadId)}/chunk`, {
-            method: 'POST', signal, body,
-            headers: { Authorization: `Bearer ${getCurrentAccessToken()}`, 'Upload-Offset': String(offset), 'Upload-Checksum': `sha256 ${checksum}` },
-          });
+          const response = await postChunkWithAuthRetry(
+            () => fetch(`${API_BASE_URL}/uploads/${encodeURIComponent(session.uploadId)}/chunk`, {
+              method: 'POST', signal, body,
+              headers: { Authorization: `Bearer ${getCurrentAccessToken()}`, 'Upload-Offset': String(offset), 'Upload-Checksum': `sha256 ${checksum}` },
+            }),
+            refreshSessionAccessToken,
+            signal
+          );
           if (!response.ok) {
             const payload = await response.json().catch(() => null);
             const error = new Error(payload?.error?.message || `Upload failed (${response.status}).`);
