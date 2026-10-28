@@ -382,3 +382,45 @@ test('linked replay with a missing Audio record stays incomplete instead of read
   const stored = await Broadcast.findById(broadcast._id);
   assert.equal(stored.replayStatus, 'incomplete');
 });
+
+
+test('all numbered chunks cannot conceal a missing half-second of captured audio', async () => {
+  const { broadcast, creatorId } = await makeBroadcast();
+  const bid = String(broadcast._id);
+  const chunks = await storeChunks(bid, creatorId, 3);
+  await BroadcastAudioChunk.updateOne(
+    { _id: chunks[1]._id }, { $set: { startMs: 1000, endMs: 1500 } },
+  );
+  await BroadcastAudioChunk.updateOne(
+    { _id: chunks[2]._id }, { $set: { startMs: 1500, endMs: 2000 } },
+  );
+  const result = await finalizeBroadcastReplay({
+    broadcastId: bid, creatorId: String(creatorId), expectedChunkCount: 3,
+  });
+  assert.equal(result.status, 'incomplete');
+  assert.equal(result.reason, 'timeline-gap');
+  assert.equal(result.invalidTimelineChunkIndex, 1);
+  assert.equal(await Audio.countDocuments({ fileKey: `replay-${bid}` }), 0);
+  assert.equal(await BroadcastAudioChunk.countDocuments({ broadcastId: bid }), 3,
+    'never delete potentially recoverable WAV chunks on timeline failure');
+  await fs.rm(path.join(process.cwd(), 'uploads', 'transcript-chunks', bid), {
+    recursive: true, force: true,
+  });
+  await BroadcastAudioChunk.deleteMany({ broadcastId: bid });
+});
+
+test('simultaneous finalization requests share one canonical saved replay', async () => {
+  const { broadcast, creatorId } = await makeBroadcast();
+  const bid = String(broadcast._id);
+  await storeChunks(bid, creatorId, 2);
+  const requests = await Promise.all(
+    Array.from({ length: 4 }, () => finalizeBroadcastReplay({
+      broadcastId: bid, creatorId: String(creatorId), expectedChunkCount: 2,
+    })),
+  );
+  assert(requests.every(result => result.status === 'ready'));
+  assert.equal(new Set(requests.map(result => String(result.audioId))).size, 1);
+  assert.equal(await Audio.countDocuments({ fileKey: `replay-${bid}` }), 1);
+  const audio = await Audio.findById(requests[0].audioId);
+  await fs.rm(path.join(process.cwd(), 'uploads', 'audio', String(audio.filename)), { force: true });
+});
