@@ -15,6 +15,7 @@ import {
   processTranscriptQualityChunk,
 } from './transcriptQualityService.js';
 import { finalizeBroadcastReplay } from './broadcastReplayService.js';
+import { availableBroadcastJobQuery } from './broadcastProcessingAdmission.js';
 
 const JOB_TYPES = [
   'audio_finalization',
@@ -27,7 +28,12 @@ const POLL_MS = 1500;
 const RETRY_MS = 5000;
 let workerTimer = null;
 let socketServer = null;
-let workerBusy = false;
+// One large finalization must not block every other organization's recording.
+// Stay bounded: encoding/transcription are disk and CPU intensive.
+const MAX_PROCESSING_JOBS = Math.min(3, Math.max(1,
+  Math.floor(Number(process.env.ECHOO_PROCESSING_CONCURRENCY) || 2)));
+const activeProcessingBroadcasts = new Set();
+let workerClaiming = false;
 
 const retryable = (message) => Object.assign(new Error(message), { retryable: true });
 const waiting = (message) => Object.assign(new Error(message), {
@@ -371,16 +377,32 @@ export async function markBroadcastReplayDiscarded(broadcastId) {
 }
 
 async function processNextJob() {
-  if (workerBusy) return;
-  workerBusy = true;
+  if (workerClaiming || activeProcessingBroadcasts.size >= MAX_PROCESSING_JOBS) return;
+  // Serialize only the inexpensive database claim, not the entire job.
+  // Query exclusion is broadcast-scoped, so unrelated stations can progress
+  // while multiple jobs from the SAME broadcast stay strictly ordered.
+  workerClaiming = true;
   let job = null;
+  let activeId = null;
   try {
     job = await BroadcastProcessingJob.findOneAndUpdate(
-      { status: 'queued', availableAt: { $lte: new Date() } },
+      availableBroadcastJobQuery(activeProcessingBroadcasts),
       { $set: { status: 'processing', startedAt: new Date(), error: null }, $inc: { attempts: 1 } },
       { sort: { availableAt: 1, createdAt: 1 }, returnDocument: 'after' }
     );
     if (!job) return;
+    activeId = String(job.broadcastId);
+    activeProcessingBroadcasts.add(activeId);
+  } catch (error) {
+    console.warn('[Echoo Processing] job claim failed:', error?.message || error);
+    return;
+  } finally {
+    workerClaiming = false;
+  }
+  if (activeProcessingBroadcasts.size < MAX_PROCESSING_JOBS) {
+    void processNextJob();
+  }
+  try {
     const broadcast = await Broadcast.findById(job.broadcastId);
     if (!broadcast) throw new Error('Broadcast no longer exists');
     await handlers[job.jobType](job.jobType === 'transcript_quality_chunk' ? job : broadcast);
@@ -422,7 +444,10 @@ async function processNextJob() {
     }
   } finally {
     if (job) await emitProcessing(job.broadcastId).catch(() => null);
-    workerBusy = false;
+    if (activeId) activeProcessingBroadcasts.delete(activeId);
+    // Immediately admit another organization after a long finalization,
+    // rather than waiting for a periodic scan to release the slot.
+    if (workerTimer) void processNextJob();
   }
 }
 
