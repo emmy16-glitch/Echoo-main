@@ -88,3 +88,24 @@ test('a linked replay must be physically verified before deleting OPFS recovery'
   assert.match(boot, /progress\?\.data\?\.fullReplaySaved === true/);
   assert.doesNotMatch(boot, /serverBroadcast\?\.replayAudio\s*\|\|/);
 });
+
+test('delayed device copy cannot delete OPFS after the server replay disappears', async () => {
+  const autosave = await read('./recordingAutosave.js');
+  assert.match(autosave, /const isServerReplayVerified = async \(broadcastId\)/);
+  const choice = autosave.slice(
+    autosave.indexOf('export const completeDeviceCopyChoice'),
+    autosave.indexOf('export const saveRecoveryCopy')
+  );
+  assert.match(choice, /pending\.serverReady = await isServerReplayVerified\(pending\.recording\.broadcastId\)/);
+  assert(choice.indexOf('pending.serverReady = await isServerReplayVerified') <
+    choice.indexOf('pending.recording.dispose'));
+  const saving = autosave.slice(
+    autosave.indexOf('export const saveRecoveryCopy'),
+    autosave.indexOf('export const retryAutosave')
+  );
+  assert.match(saving, /pending\.serverReady = await isServerReplayVerified\(pending\.recording\?\.broadcastId\)/);
+  assert(saving.indexOf('pending.serverReady = await isServerReplayVerified') <
+    saving.indexOf('pending.recording?.dispose'));
+  assert.match(saving, /status: 'error', key,/);
+  assert.match(saving, /rememberLocalMaster\(lookupKey, pending\)/);
+});
