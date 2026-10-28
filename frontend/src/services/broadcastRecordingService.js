@@ -1,4 +1,8 @@
 import {
+  recoveryCandidatesForUser,
+  firstAvailableRecoveryManifest,
+} from './recoveryManifestAvailability.js';
+import {
   startEchooMasterPcmCapture,
   supportsEchooMasterPcmCapture,
 } from './echooMixerService.js';
@@ -199,25 +203,24 @@ const clearRecoveryManifest = (storageName = '') => {
 // Compatibility aliases for call sites merged from the background-autosave
 // line, which names these helpers differently. One v2 registry implementation
 // preserves multiple unfinished takes instead of overwriting the previous one.
-const readRecoveryMetadata = () => {
-  const manifests = readRecoveryManifests();
-  const currentUserId = currentSessionUserId();
-
-  // New manifests are creator-scoped. Never hydrate another signed-in
-  // creator's local safety master into the current Studio session.
-  if (currentUserId) {
-    const owned = manifests.find(
-      (manifest) => String(manifest.ownerUserId || '') === currentUserId
-    );
-    if (owned) return owned;
-
-    // Old v1/v2 manifests predate owner tagging. They are allowed through only
-    // for one backend ownership check in recordingAutosave before any banner
-    // or resume action is exposed.
-    return manifests.find((manifest) => !manifest.ownerUserId) || null;
+const readRecoveryMetadata = async () => {
+  // The newest manifest may point to a file that the browser evicted or that
+  // was never committed. Do not let it hide older, still-recoverable takes.
+  // Keep every manifest and OPFS file untouched during this selection.
+  const candidates = recoveryCandidatesForUser(readRecoveryManifests(), currentSessionUserId());
+  if (!candidates.length) return null;
+  try {
+    const root = await navigator.storage.getDirectory();
+    const directory = await root.getDirectoryHandle(OPFS_DIRECTORY, { create: false });
+    return await firstAvailableRecoveryManifest(candidates, async (manifest) => {
+      const handle = await directory.getFileHandle(manifest.storageName, { create: false });
+      const file = await handle.getFile();
+      return file.size > 0;
+    });
+  } catch {
+    // Storage is temporarily inaccessible. Preserve all recovery metadata.
+    return null;
   }
-
-  return manifests.find((manifest) => !manifest.ownerUserId) || null;
 };
 const persistRecoveryMetadata = (recording) =>
   writeRecoveryManifest(recording, 'recording');
@@ -2181,7 +2184,7 @@ export const flushRecordingForPageHide = async () => {
 export const recoverOrphanedLosslessRecording = async () => {
   if (!supportsOpfs()) return null;
   if (activeRecording || pendingRecording) return null;
-  const meta = readRecoveryMetadata();
+  const meta = await readRecoveryMetadata();
   if (!meta) return null;
   try {
     const root = await navigator.storage.getDirectory();
