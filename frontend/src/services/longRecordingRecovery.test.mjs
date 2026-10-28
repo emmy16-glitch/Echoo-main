@@ -48,7 +48,7 @@ test('persistent recording progress survives navigation, refresh and network fai
   assert.match(source, /retryAutosave\(broadcastId\)/);
   assert.match(source, /retryRecordingFinalization\(broadcastId\)/);
   assert.match(source, /Restoring the last verified recording state/);
-  assert.match(studio, /<ServerRecordingProgress compact=\\{activeNav === 'Broadcast'\\}/);
+  assert.match(studio, /<ServerRecordingProgress compact=\{activeNav === 'Broadcast'\}/);
   assert.match(broadcast, /echoo:recording-track-broadcast/);
 });
 
