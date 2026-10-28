@@ -274,8 +274,19 @@ export async function startBroadcast(req, res, next) {
     if (serverRecordingRequired || segmentsRequired) {
       const ready = serverRecordingRequired && segmentsRequired &&
         isLiveKitServerRecordingEnabled();
+      // Organizations have independent broadcasts but share this server's
+      // recording volume. Include every already-active show in admission
+      // headroom before assigning another creator a live recording lease.
+      const activeRecordings = ready
+        ? await Broadcast.countDocuments({
+          status: { $in: ['starting', 'live', 'ending'] },
+          isDeleted: false,
+        })
+        : 0;
       const storage = ready
-        ? await checkServerRecordingStorageReadiness({ required: true })
+        ? await checkServerRecordingStorageReadiness({
+          required: true, activeRecordings,
+        })
         : { ready: false };
       if (!ready || !storage.ready) {
         return res.status(503).json({
