@@ -414,7 +414,12 @@ const studioService = {
         const previous = await readResponse(await apiFetch(`/uploads/${encodeURIComponent(resumeUploadId)}/status`));
         const candidate = previous?.data;
         if (candidate?.filename === file.name && candidate?.fileSize === file.size && candidate?.mimeType === mimeType && candidate?.fingerprint === fingerprint && ['uploading', 'completed'].includes(candidate?.status)) initiated = previous;
-      } catch (error) { if (error?.status !== 404) throw error; }
+      } catch (error) {
+        // A restarted server may have lost bytes that MongoDB had already
+        // acknowledged. Preserve the old server file and create a new upload
+        // session from the local File instead of resuming with zero-filled holes.
+        if (error?.status !== 404 && error?.code !== 'UPLOAD_STORAGE_TRUNCATED') throw error;
+      }
     }
     if (!initiated) initiated = await readResponse(await apiFetch('/uploads/initiate', {
       method: 'POST',
