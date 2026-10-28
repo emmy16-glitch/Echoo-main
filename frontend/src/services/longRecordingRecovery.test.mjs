@@ -48,7 +48,7 @@ test('persistent recording progress survives navigation, refresh and network fai
   assert.match(source, /retryAutosave\(broadcastId\)/);
   assert.match(source, /retryRecordingFinalization\(broadcastId\)/);
   assert.match(source, /Restoring the last verified recording state/);
-  assert.match(studio, /<ServerRecordingProgress \/>/);
+  assert.match(studio, /<ServerRecordingProgress compact=\{activeNav === 'Broadcast'\}/);
   assert.match(broadcast, /echoo:recording-track-broadcast/);
 });
 
@@ -108,4 +108,18 @@ test('delayed device copy cannot delete OPFS after the server replay disappears'
     saving.indexOf('pending.recording?.dispose'));
   assert.match(saving, /status: 'error', key,/);
   assert.match(saving, /rememberLocalMaster\(lookupKey, pending\)/);
+});
+
+test('persistent recording retry resumes the matching recovered OPFS master after refresh', async () => {
+  const source = await read('./recordingAutosave.js');
+  const start = source.indexOf('export const retryAutosave =');
+  const end = source.indexOf('export const uploadRecoveredTake =', start);
+  assert(start >= 0 && end > start);
+  const retry = source.slice(start, end);
+  assert.match(retry, /peekLocalMaster\('recovered'\)/);
+  assert.match(retry, /String\(recovered\?\.recording\?\.broadcastId \|\| ''\) !== String\(key\)/);
+  assert.match(retry, /!recovered\?\.recording\?\.blob\?\.size/);
+  assert.match(retry, /return uploadRecoveredTake\(recovered\)/);
+  assert.match(retry, /await batch3Service\.recoverBroadcast\(pending\.recording\.broadcastId\)/);
+  assert.match(retry, /return startAutosave\(\{/);
 });

@@ -107,6 +107,8 @@ jobs:
           npm run test:local-recording
           npm run test:download-integrity
           npm run test:desktop-auth
+      - name: Test persistent OPFS recovery after refresh
+        run: node --test src/services/longRecordingRecovery.test.mjs
 
   hourly-summary:
     name: Reliability result gate
@@ -129,6 +131,8 @@ jobs:
             echo "- Recorder/recovery: **$RECORDING**"
             echo "- Listener/browser recovery: **$LISTENER**"
             echo "- Tested commit: ${GITHUB_SHA}"
+            echo "- Trigger: ${GITHUB_EVENT_NAME}"
+            echo "- Run: ${GITHUB_RUN_ID}"
             echo ""
             echo "Synthetic tests do not certify production LiveKit, cloud storage, 500 listeners, or 7–9-hour broadcasts."
           } >> "$GITHUB_STEP_SUMMARY"
