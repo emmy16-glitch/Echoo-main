@@ -258,3 +258,34 @@ test('server recording recovery downloads require creator authentication', async
   assert.match(controller, /createReadStream/);
   assert.doesNotMatch(controller, /readFile\(/);
 });
+
+test('backup monitor reports a silent tee failure before End Broadcast', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'echoo-stalled-backup-'));
+  let clock = 100000;
+  const updates = [];
+  const watcher = watchServerRecordingSegments({
+    dir, segmentSeconds: 1, attemptId: 'test-backup-failure',
+  }, {
+    now: () => clock,
+    onProgress: async update => updates.push(update),
+    closed: Promise.resolve(),
+  });
+  try {
+    await watcher.refresh();
+    assert.equal(updates.at(-1).status, 'recording');
+    assert.equal(updates.at(-1).completedSegments, 0);
+    // No files arrive for 31 seconds, including the 30-second closure grace.
+    // Counts remain 0/0, but the warning must still be persisted while live.
+    clock += 31_000;
+    await watcher.refresh();
+    assert.equal(updates.length, 2);
+    assert.equal(updates.at(-1).status, 'degraded');
+    assert.match(updates.at(-1).error, /backup segments are missing/);
+    assert.equal(updates.at(-1).completedSegments, 0);
+    await watcher.refresh();
+    assert.equal(updates.length, 2, 'unchanged alerts must not spam MongoDB');
+  } finally {
+    await watcher.finish();
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
