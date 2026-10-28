@@ -15,6 +15,18 @@ const baseDir = () => path.resolve(
 const flag = () => String(process.env.SERVER_RECORDING_SEGMENTS_ENABLED || '').toLowerCase().trim();
 export const serverRecordingSegmentsEnabled = () => /^(true|1|yes)$/.test(flag());
 
+// A size and filename alone cannot establish that a backup is even an MP3.
+// Keep this cheap for frequent progress polls; full frame decode still runs
+// in the offline reconstruction worker before publication.
+const hasMp3Header = async (fileHandle) => {
+  const bytes = Buffer.alloc(4);
+  const { bytesRead } = await fileHandle.read(bytes, 0, bytes.length, 0);
+  return bytesRead === 4 && (
+    bytes.toString('ascii', 0, 3) === 'ID3' ||
+    (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0)
+  );
+};
+
 const sealedParts = async (directory, leaveLastOpen = true, cache = new Map()) => {
   const names = (await fs.readdir(directory).catch(() => []))
     .filter((name) => PART_RE.test(name)).sort();
@@ -32,8 +44,14 @@ const sealedParts = async (directory, leaveLastOpen = true, cache = new Map()) =
       break;
     }
     // Only declare completed MP3 parts protected after flushing their bytes.
-    const fd = await fs.open(handle, 'r');
-    try { await fd.sync(); } finally { await fd.close(); }
+    const fd = await fs.open(handle, 'r').catch(() => null);
+    if (!fd) break;
+    let valid = false;
+    try {
+      valid = await hasMp3Header(fd);
+      if (valid) await fd.sync();
+    } finally { await fd.close(); }
+    if (!valid) break;
     cache.set(name, stat.size);
     parts.push({ name, bytes: stat.size });
   }
@@ -54,10 +72,14 @@ export const inspectServerRecordingSegments = async ({
   let count = 0;
   let bytes = 0;
   for (let index = 0; index < expected; index += 1) {
-    const stat = await fs.lstat(
-      path.join(directory, `part-${String(index).padStart(6, '0')}.mp3`)
-    ).catch(() => null);
+    const filePath = path.join(directory, `part-${String(index).padStart(6, '0')}.mp3`);
+    const stat = await fs.lstat(filePath).catch(() => null);
     if (!stat?.isFile() || stat.size < 4096) break;
+    const fd = await fs.open(filePath, 'r').catch(() => null);
+    if (!fd) break;
+    let valid = false;
+    try { valid = await hasMp3Header(fd); } finally { await fd.close(); }
+    if (!valid) break;
     bytes += stat.size;
     count += 1;
   }

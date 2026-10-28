@@ -318,3 +318,67 @@ test('nine-hour recording duration is not considered complete when the last hour
     probedDurationSeconds: nineHours, expectedWallSeconds: nineHours,
   }), true);
 });
+
+
+test('a stale unique replay Audio row must not be advertised as a completed recording', async () => {
+  const { broadcast, creatorId } = await makeBroadcast();
+  const bid = String(broadcast._id);
+  const stale = await Audio.create({
+    title: 'Missing but still linked MP3', description: '', artist: creatorId,
+    sourceBroadcast: broadcast._id,
+    filename: 'replay-' + bid + '-deleted.mp3',
+    originalName: 'Missing replay.mp3',
+    fileUrl: '/uploads/audio/replay-' + bid + '-deleted.mp3',
+    fileSize: 8192, fileKey: 'replay-' + bid, mimeType: 'audio/mpeg',
+    genre: 'Other', visibility: 'private', publicationStatus: 'draft',
+  });
+  const result = await finalizeBroadcastReplay({
+    broadcastId: bid, creatorId: String(creatorId),
+  });
+  assert.equal(result.status, 'incomplete');
+  assert.equal(result.audioId, null);
+  assert.equal(result.reason, 'linked-replay-file-unavailable');
+  const updated = await Broadcast.findById(bid);
+  assert.equal(String(updated.replayAudioId), String(stale._id));
+  assert.equal(updated.replayStatus, 'incomplete');
+  assert.equal(await Audio.countDocuments({ fileKey: 'replay-' + bid }), 1);
+  const retry = await finalizeBroadcastReplay({
+    broadcastId: bid, creatorId: String(creatorId),
+  });
+  assert.equal(retry.status, 'incomplete', 'a second HTTP retry must not turn missing bytes into success');
+});
+
+test('idempotent replay lookup cannot bypass creator authorization', async () => {
+  const { broadcast, creatorId } = await makeBroadcast();
+  const bid = String(broadcast._id);
+  await Audio.create({
+    title: 'Private replay', description: '', artist: creatorId,
+    sourceBroadcast: broadcast._id,
+    filename: 'replay-' + bid + '-missing.mp3',
+    originalName: 'Private replay.mp3',
+    fileUrl: '/uploads/audio/replay-' + bid + '-missing.mp3',
+    fileSize: 8192, fileKey: 'replay-' + bid, mimeType: 'audio/mpeg',
+    genre: 'Other', visibility: 'private', publicationStatus: 'draft',
+  });
+  await assert.rejects(
+    finalizeBroadcastReplay({ broadcastId: bid, creatorId: String(new mongoose.Types.ObjectId()) }),
+    error => error?.status === 403 && error?.code === 'REPLAY_FORBIDDEN',
+  );
+  const untouched = await Broadcast.findById(bid);
+  assert.equal(untouched.replayStatus, 'none');
+});
+
+test('linked replay with a missing Audio record stays incomplete instead of ready', async () => {
+  const { broadcast, creatorId } = await makeBroadcast();
+  const missingId = new mongoose.Types.ObjectId();
+  await Broadcast.updateOne({ _id: broadcast._id }, {
+    $set: { replayAudio: missingId, replayAudioId: missingId, replayStatus: 'ready' },
+  });
+  const result = await finalizeBroadcastReplay({
+    broadcastId: String(broadcast._id), creatorId: String(creatorId),
+  });
+  assert.equal(result.status, 'incomplete');
+  assert.equal(result.reason, 'linked-replay-record-unavailable');
+  const stored = await Broadcast.findById(broadcast._id);
+  assert.equal(stored.replayStatus, 'incomplete');
+});

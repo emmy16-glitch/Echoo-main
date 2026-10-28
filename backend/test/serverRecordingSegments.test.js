@@ -169,8 +169,10 @@ test('the segment monitor downgrades previously sealed files that vanish or chan
     const updates = [];
     const first = path.join(dir, 'part-000000.mp3');
     const active = path.join(dir, 'part-000001.mp3');
-    await fs.writeFile(first, Buffer.alloc(10000, 0x44));
-    await fs.writeFile(active, Buffer.alloc(10000, 0x44));
+    const validMp3 = Buffer.alloc(10000, 0x44);
+    validMp3.write('ID3', 0);
+    await fs.writeFile(first, validMp3);
+    await fs.writeFile(active, validMp3);
     const watcher = watchServerRecordingSegments({
       dir, segmentSeconds: 600, attemptId: 'mock'
     }, {
@@ -312,5 +314,41 @@ test('concurrent segment refreshes cannot overwrite a final recording state', as
       'an earlier poll must never regress terminal recording status');
   } finally {
     await fs.rm(dir, { force: true, recursive: true });
+  }
+});
+
+test('a changed MP3 header must not count as a protected segment even with the same size', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'echoo-corrupt-header-'));
+  const previous = process.env.REPLAY_ARCHIVE_DIR;
+  process.env.REPLAY_ARCHIVE_DIR = tmp;
+  const broadcastId = '507f1f77bcf86cd799439044';
+  const attemptId = '1793010000000-abcd5678';
+  const dir = path.join(tmp, 'segments', broadcastId, attemptId);
+  try {
+    await fs.mkdir(dir, { recursive: true });
+    const valid = Buffer.alloc(8192, 0x44);
+    valid.write('ID3', 0);
+    await fs.writeFile(path.join(dir, 'part-000000.mp3'), valid);
+    let checked = await inspectServerRecordingSegments({
+      broadcastId, attemptId, completedSegments: 1,
+    });
+    assert.equal(checked.verified, true);
+    valid.write('BAD!', 0);
+    await fs.writeFile(path.join(dir, 'part-000000.mp3'), valid);
+    checked = await inspectServerRecordingSegments({
+      broadcastId, attemptId, completedSegments: 1,
+    });
+    assert.equal(checked.verified, false);
+    assert.equal(checked.completedSegments, 0);
+    const watcher = watchServerRecordingSegments(
+      { dir, segmentSeconds: 600, attemptId },
+      { closed: Promise.resolve() },
+    );
+    const status = await watcher.finish();
+    assert.equal(status.count, 0);
+  } finally {
+    if (previous === undefined) delete process.env.REPLAY_ARCHIVE_DIR;
+    else process.env.REPLAY_ARCHIVE_DIR = previous;
+    await fs.rm(tmp, { recursive: true, force: true });
   }
 });

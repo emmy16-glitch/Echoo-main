@@ -49,7 +49,9 @@ test('recording progress is owner-scoped and never exposes private archive paths
     const storageDir = path.join(temp, 'segments', recording._id, attemptId);
     await fs.mkdir(storageDir, { recursive: true });
     for (let i = 0; i < 3; i += 1) {
-      await fs.writeFile(path.join(storageDir, `part-${String(i).padStart(6, '0')}.mp3`), Buffer.alloc(8192, 1));
+      const mp3 = Buffer.alloc(8192, 1);
+      mp3.write('ID3', 0);
+      await fs.writeFile(path.join(storageDir, `part-${String(i).padStart(6, '0')}.mp3`), mp3);
     }
     const response = makeResponse();
     await getBroadcastRecordingProgress({
