@@ -1,0 +1,22 @@
+# Dockerfile lives at the repository root. Nested backend/.dockerignore is not
+# consulted when building with "docker build .". Do not bake .env secrets,
+# auth credentials, local recordings, Mongo files or test artifacts into images.
+.git
+**/.git
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+**/node_modules
+backend/uploads
+backend/mongo-data
+backend/artifacts
+backend/coverage
+backend/test
+**/playwright-report
+**/test-results
+**/dist
+**/build
+**/*.log
+**/*.bak
+**/*.backup
