@@ -21,6 +21,7 @@ import { isTranscriptionConfigured } from './transcriptionGateway.js';
 import { checkFfmpegCapability } from './audioTrimService.js';
 import { reconstructServerRecordingFromSegments } from './serverRecordingReconstruction.js';
 import { savedReplayFileAvailable } from './savedReplayFileVerification.js';
+import { inspectRecoveryChunkTimeline } from './recoveryChunkTimeline.js';
 
 // ---------------------------------------------------------------------------
 // Canonical server replay finalization.
@@ -381,18 +382,18 @@ export const isTrustedCompletedServerReplay = ({
 };
 
 export async function finalizeBroadcastReplay({ broadcastId, creatorId, expectedChunkCount = 0, uploadErrors = 0 } = {}) {
-  const recordingTooling = await checkFfmpegCapability();
   const bid = String(broadcastId || '');
   if (!bid) throw Object.assign(new Error('broadcastId is required'), { status: 400, code: 'INVALID_BROADCAST' });
 
-  // The previous fast path treated an Audio database row as a saved MP3
-  // and returned before checking creator ownership. Wait for the active
-  // finalizer, then run the same authenticated durability checks on retries.
-  while (locks.has(bid)) await locks.get(bid);
+  // Reserve a place in the FIFO before awaiting anything. Several waiters
+  // awakened by the same earlier finalization must not run concurrently.
+  const preceding = locks.get(bid);
   let release = null;
   const gate = new Promise((resolve) => { release = resolve; });
   locks.set(bid, gate);
   try {
+    if (preceding) await preceding;
+    const recordingTooling = await checkFfmpegCapability();
     return await finalizeInner({
       broadcastId: bid,
       creatorId,
@@ -401,7 +402,7 @@ export async function finalizeBroadcastReplay({ broadcastId, creatorId, expected
       toolingAvailable: recordingTooling.ok,
     });
   } finally {
-    locks.delete(bid);
+    if (locks.get(bid) === gate) locks.delete(bid);
     release();
   }
 }
@@ -628,7 +629,8 @@ async function finalizeInner({
     }
   }
   if (!replaySource) {
-    if (!accounted) {
+    const timeline = inspectRecoveryChunkTimeline(chunks);
+    if (!accounted || !timeline.valid) {
       await Broadcast.updateOne({ _id: broadcastId }, { $set: { replayStatus: 'incomplete' } }).catch(() => null);
       return {
         status: 'incomplete',
@@ -637,6 +639,9 @@ async function finalizeInner({
         expectedChunks: expected,
         missingChunkIndices: missing.slice(0, 50),
         uploadErrors: Number(uploadErrors) || 0,
+        ...(!timeline.valid && accounted
+          ? { reason: timeline.reason, invalidTimelineChunkIndex: timeline.chunkIndex }
+          : {}),
       };
     }
     // Validate every chunk before the assembly so one corrupt file fails
