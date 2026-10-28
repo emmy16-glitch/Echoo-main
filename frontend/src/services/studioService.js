@@ -414,7 +414,12 @@ const studioService = {
         const previous = await readResponse(await apiFetch(`/uploads/${encodeURIComponent(resumeUploadId)}/status`));
         const candidate = previous?.data;
         if (candidate?.filename === file.name && candidate?.fileSize === file.size && candidate?.mimeType === mimeType && candidate?.fingerprint === fingerprint && ['uploading', 'completed'].includes(candidate?.status)) initiated = previous;
-      } catch (error) { if (error?.status !== 404) throw error; }
+      } catch (error) {
+        // If the server lost a previously acknowledged prefix after a restart,
+        // start fresh from the local File. Never silently fill missing audio
+        // with zeros or discard the surviving server bytes.
+        if (error?.status !== 404 && error?.code !== 'UPLOAD_STORAGE_TRUNCATED') throw error;
+      }
     }
     if (!initiated) initiated = await readResponse(await apiFetch('/uploads/initiate', {
       method: 'POST',
