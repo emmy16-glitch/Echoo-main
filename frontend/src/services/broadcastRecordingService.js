@@ -3,6 +3,7 @@ import {
   supportsEchooMasterPcmCapture,
 } from './echooMixerService.js';
 import { apiFetch, getCurrentAccessToken } from './api.js';
+import { recoveryUploadConfirmed } from './recordingRecoveryOutcome.js';
 
 const RECORDING_EVENT = 'echoo:broadcast-recording-ready';
 
@@ -808,6 +809,9 @@ const completeQualityChunks = async (
 
       recording.qualityCompletionPending = false;
       recording.qualityCompletionError = '';
+      // HTTP success is not a replay-success acknowledgment. Keep the exact
+      // outcome so a later Save retry knows if any chunks are still missing.
+      recording.qualityCompletionReplay = data?.data?.replay || null;
       return true;
     } catch (error) {
       lastError = error;
@@ -1978,13 +1982,21 @@ export const uploadRecoveryMasterToServer = async (
   recording.qualityChunkErrors = recovery.qualityChunkErrors;
   recording.qualityCompletionPending = recovery.qualityCompletionPending;
   recording.qualityCompletionError = recovery.qualityCompletionError;
-  recording.serverFallbackAttempted = true;
+  const replayConfirmed = recoveryUploadConfirmed({
+    replay: recovery.qualityCompletionReplay,
+    chunkErrors: recovery.qualityChunkErrors,
+  });
+  // Previous code latched this flag after HTTP 200, even when one 10-second
+  // chunk failed or finalization returned "incomplete". Future retries then
+  // skipped those missing parts forever in the same tab.
+  recording.serverFallbackAttempted = replayConfirmed;
 
   return {
-    recovered: true,
+    recovered: replayConfirmed,
     mode: 'browser-fallback',
     qualityChunkCount: recovery.qualityChunkIndex,
     qualityChunkUploadErrors: recovery.qualityChunkErrors.length,
+    replayStatus: recovery.qualityCompletionReplay?.status || 'unconfirmed',
   };
 };
 
