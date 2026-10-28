@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import Audio from '../models/Audio.js';
+import { creatorOwnedReplayQuery } from './creatorOwnedReplayQuery.js';
 import Broadcast from '../models/Broadcast.js';
 import LiveKitProvider from '../providers/livekit.js';
 import { stopBroadcastOutputs } from './broadcastOutputService.js';
@@ -124,12 +125,12 @@ export async function recoverBroadcastForReplay({ broadcastId, userId }) {
   // Idempotency: exactly one replay per broadcast. If the link or the Audio
   // record already exists (e.g. a lost response after a committed upload),
   // return it as success — never a user-visible failure, never a duplicate.
-  const existingAudio = await Audio.findOne({
+  const existingAudio = await Audio.findOne(creatorOwnedReplayQuery(userId, {
     $or: [
-      { sourceBroadcast: broadcast._id, artist: userId, isDeleted: false },
-      ...(broadcast.replayAudio ? [{ _id: broadcast.replayAudio, isDeleted: false }] : []),
+      { sourceBroadcast: broadcast._id },
+      ...(broadcast.replayAudio ? [{ _id: broadcast.replayAudio }] : []),
     ],
-  });
+  }));
   if (existingAudio) {
     if (!broadcast.replayAudio || String(broadcast.replayAudio) !== String(existingAudio._id)) {
       broadcast.replayAudio = existingAudio._id;
