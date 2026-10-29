@@ -45,6 +45,8 @@ jobs:
         run: npm run test:desktop-auth
       - name: Verify Listener playback resource cleanup
         run: npm run test:player-resources
+      - name: Verify background foreground playback reconciliation
+        run: npm run test:background-resume
       - name: Verify packaged Listener route state
         run: npm run test:listener-route
       - name: Verify Listener save and download integrity

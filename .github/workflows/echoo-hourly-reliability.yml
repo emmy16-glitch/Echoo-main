@@ -100,6 +100,7 @@ jobs:
           npm run test:live-recovery
           npm run test:realtime-identity
           npm run test:player-resources
+          npm run test:background-resume
           npm run test:listener-route
       - name: Verify OPFS WAV/MP3 save and download integrity
         run: |
