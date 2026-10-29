@@ -243,3 +243,53 @@ test('studio resumable upload uses bounded auth refresh with a freshly read toke
   assert.match(upload, /refreshSessionAccessToken,/);
   assert.match(upload, /Authorization: `Bearer \$\{getCurrentAccessToken\(\)\}`/);
 });
+
+test('completed resumable retry delays release their abort listeners', async () => {
+  const { waitForUploadRetry } = await import('./resumableUploadAuth.js');
+  const controller = new AbortController();
+  const signal = controller.signal;
+  const add = signal.addEventListener.bind(signal);
+  const remove = signal.removeEventListener.bind(signal);
+  let attached = 0;
+  signal.addEventListener = (...args) => {
+    if (args[0] === 'abort') attached += 1;
+    return add(...args);
+  };
+  signal.removeEventListener = (...args) => {
+    if (args[0] === 'abort') attached -= 1;
+    return remove(...args);
+  };
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await waitForUploadRetry(0, signal);
+    assert.equal(attached, 0, 'resolved upload retries must release their abort listener');
+  }
+});
+
+test('paused resumable retry cancels its timer and rejects without retaining listeners', async () => {
+  const { waitForUploadRetry } = await import('./resumableUploadAuth.js');
+  const controller = new AbortController();
+  const signal = controller.signal;
+  const add = signal.addEventListener.bind(signal);
+  const remove = signal.removeEventListener.bind(signal);
+  let attached = 0;
+  signal.addEventListener = (...args) => {
+    if (args[0] === 'abort') attached += 1;
+    return add(...args);
+  };
+  signal.removeEventListener = (...args) => {
+    if (args[0] === 'abort') attached -= 1;
+    return remove(...args);
+  };
+  const pending = waitForUploadRetry(60_000, signal);
+  assert.equal(attached, 1);
+  controller.abort();
+  await assert.rejects(pending, { name: 'AbortError' });
+  assert.equal(attached, 0);
+  await assert.rejects(waitForUploadRetry(60_000, signal), { name: 'AbortError' });
+  assert.equal(attached, 0);
+});
+
+test('studio resumable retry uses the listener-cleaning delay helper', async () => {
+  const source = await read('./studioService.js');
+  assert.match(source, /const pause = \(ms\) => waitForUploadRetry\(ms, signal\)/);
+});
