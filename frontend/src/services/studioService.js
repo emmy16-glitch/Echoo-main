@@ -7,7 +7,7 @@ import {
   refreshSessionAccessToken,
 } from "./api.js";
 import { getActiveAccountId } from "./accountStorage.js";
-import { postChunkWithAuthRetry } from "./resumableUploadAuth.js";
+import { postChunkWithAuthRetry, waitForUploadRetry } from "./resumableUploadAuth.js";
 
 const readResponse = async (response) => {
   const contentType = response.headers.get("content-type") || "";
@@ -433,10 +433,7 @@ const studioService = {
     let offset = Math.max(0, Number(session.offset) || 0);
     const chunkSize = Math.max(1024 * 1024, Number(session.chunkSize) || 5 * 1024 * 1024);
     onProgress?.({ loaded: offset, total: file.size, percent: Math.round((offset / file.size) * 100) });
-    const pause = (ms) => new Promise((resolve, reject) => {
-      const timer = window.setTimeout(resolve, ms);
-      signal?.addEventListener('abort', () => { window.clearTimeout(timer); reject(new DOMException('Upload paused', 'AbortError')); }, { once: true });
-    });
+    const pause = (ms) => waitForUploadRetry(ms, signal);
 
     while (offset < file.size) {
       const chunk = file.slice(offset, Math.min(file.size, offset + chunkSize));
