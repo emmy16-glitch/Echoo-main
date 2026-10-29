@@ -66,14 +66,14 @@ jobs:
           set -euo pipefail
           for iteration in 1 2 3; do
             echo "Echoo recorder/recovery repeat ${iteration}/3"
-            node --test --test-concurrency=3 \\
-              test/livekitServerRecording.test.js \\
-              test/recoveryEncoderExit.test.js \\
-              test/recoveryOutputWriteQueue.test.js \\
-              test/recoveryChunkTimeline.test.js \\
-              test/broadcastProcessingAdmission.test.js \\
-              test/serverRecordingReconstruction.test.js \\
-              test/broadcastRecordingProgressController.test.js \\
+            node --test --test-concurrency=3 \
+              test/livekitServerRecording.test.js \
+              test/recoveryEncoderExit.test.js \
+              test/recoveryOutputWriteQueue.test.js \
+              test/recoveryChunkTimeline.test.js \
+              test/broadcastProcessingAdmission.test.js \
+              test/serverRecordingReconstruction.test.js \
+              test/broadcastRecordingProgressController.test.js \
               test/serverRecordingPreservation.test.js
           done
 
