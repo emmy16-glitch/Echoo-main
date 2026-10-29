@@ -865,8 +865,63 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         scheduleHardReconnect('browser_online_missing_transport');
       }
     };
+    // Background tabs can have timers throttled and mobile browsers may suspend
+    // an HTMLMediaElement or its auxiliary AudioContext while the app is hidden.
+    // Reconcile playback immediately on foreground/pageshow, but never override
+    // an explicit listener pause or treat a browser policy block as a transport fault.
+    const resumeVisiblePlayback = async () => {
+      if (
+        disposed ||
+        document.visibilityState !== 'visible' ||
+        playbackIntentRef.current !== 'play'
+      ) return;
+
+      const room = roomRef.current;
+      if (!roomCanCarryMedia(room)) return;
+
+      try { await audioCtxRef.current?.resume?.(); } catch { /* analyser is best-effort */ }
+      const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
+      if (!elements.length) {
+        attachExisting(room).catch(() => scheduleHardReconnect('visibility_resume_missing_audio'));
+        return;
+      }
+
+      const attempts = await Promise.allSettled(elements.map((element) => {
+        element.volume = volumeRef.current;
+        element.muted = mutedRef.current;
+        return element.play();
+      }));
+      if (disposed || roomRef.current !== room) return;
+
+      const playing = elements.some((element) => !element.paused && !element.ended);
+      if (playing) {
+        needsAudioStartRef.current = false;
+        setNeedsAudioStart(false);
+        setIsPlaying(true);
+        setStatus('listening');
+        return;
+      }
+
+      const blocked = attempts.some((attempt) => (
+        attempt.status === 'rejected' && attempt.reason?.name === 'NotAllowedError'
+      ));
+      if (blocked) {
+        needsAudioStartRef.current = true;
+        setNeedsAudioStart(true);
+        setStatus('autoplay_blocked');
+      } else {
+        setStatus('recovering_audio');
+      }
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void resumeVisiblePlayback();
+    };
+    const onPageShow = () => { void resumeVisiblePlayback(); };
+
     window.addEventListener('offline', onOffline);
     window.addEventListener('online', onOnline);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pageshow', onPageShow);
 
     playbackWatchdogTimer = window.setInterval(async () => {
       if (disposed || receiverCheckRunning) return;
@@ -971,6 +1026,8 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       reconnectTimerRef.current = null;
       window.removeEventListener('offline', onOffline);
       window.removeEventListener('online', onOnline);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pageshow', onPageShow);
       const room = roomRef.current;
       roomRef.current = null;
       clearAudio();
