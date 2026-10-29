@@ -2,9 +2,8 @@ name: Echoo hourly recording and streaming reliability
 
 # These checks run on source and synthetic media in GitHub runners. They never
 # send data to the live Echoo backend or alter production broadcasts or files.
+# Scheduled runs are paused at the user's request; manual dispatch remains available.
 on:
-  schedule:
-    - cron: '17 * * * *'
   workflow_dispatch:
   pull_request:
     branches:
@@ -67,14 +66,14 @@ jobs:
           set -euo pipefail
           for iteration in 1 2 3; do
             echo "Echoo recorder/recovery repeat ${iteration}/3"
-            node --test --test-concurrency=3 \
-              test/livekitServerRecording.test.js \
-              test/recoveryEncoderExit.test.js \
-              test/recoveryOutputWriteQueue.test.js \
-              test/recoveryChunkTimeline.test.js \
-              test/broadcastProcessingAdmission.test.js \
-              test/serverRecordingReconstruction.test.js \
-              test/broadcastRecordingProgressController.test.js \
+            node --test --test-concurrency=3 \\
+              test/livekitServerRecording.test.js \\
+              test/recoveryEncoderExit.test.js \\
+              test/recoveryOutputWriteQueue.test.js \\
+              test/recoveryChunkTimeline.test.js \\
+              test/broadcastProcessingAdmission.test.js \\
+              test/serverRecordingReconstruction.test.js \\
+              test/broadcastRecordingProgressController.test.js \\
               test/serverRecordingPreservation.test.js
           done
 
@@ -127,7 +126,7 @@ jobs:
           echo "Recorder/recovery: $RECORDING"
           echo "Listener/browser recovery: $LISTENER"
           {
-            echo "## Echoo hourly offline reliability check"
+            echo "## Echoo offline reliability check"
             echo "- Recorder/recovery: **$RECORDING**"
             echo "- Listener/browser recovery: **$LISTENER**"
             echo "- Tested commit: ${GITHUB_SHA}"
