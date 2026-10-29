@@ -23,6 +23,7 @@ import {
   transportSampleAdvanced,
 } from '../../services/liveRecoveryPolicy';
 import { resolveLiveKitUrl } from '../../services/livekitUrl';
+import { createVisiblePlaybackReconciler } from '../../services/listenerVisibleResume';
 import './LiveKitListenerPlayer.css';
 
 const createLiveKitReconnectPolicy = () =>
@@ -865,8 +866,52 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
         scheduleHardReconnect('browser_online_missing_transport');
       }
     };
+    // Background tabs can have timers throttled and mobile browsers may suspend
+    // an HTMLMediaElement or its auxiliary AudioContext while the app is hidden.
+    // Reconcile playback immediately on foreground/pageshow, but never override
+    // an explicit listener pause or treat a browser policy block as a transport fault.
+    // The reconciler is idempotent: visibilitychange and pageshow can fire
+    // together, and duplicate concurrent recoveries must not race.
+    const resumeVisiblePlayback = createVisiblePlaybackReconciler({
+      playbackIntent: () => playbackIntentRef.current,
+      resolveRoom: () => roomRef.current,
+      roomCanCarryMedia,
+      resumeAudioContext: async () => {
+        try { await audioCtxRef.current?.resume?.(); } catch { /* analyser is best-effort */ }
+      },
+      listAudioElements: () => Array.from(audioHostRef.current?.querySelectorAll('audio') || []),
+      syncElement: (element) => {
+        element.volume = volumeRef.current;
+        element.muted = mutedRef.current;
+        return element;
+      },
+      attachMissingRoom: (room) => attachExisting(room),
+      scheduleRecovery: (reason) => scheduleHardReconnect(reason),
+      isStaleSession: (room) => disposed || roomRef.current !== room,
+      onPlaying: () => {
+        needsAudioStartRef.current = false;
+        setNeedsAudioStart(false);
+        setIsPlaying(true);
+        setStatus('listening');
+      },
+      onAutoplayBlocked: () => {
+        needsAudioStartRef.current = true;
+        setNeedsAudioStart(true);
+        setStatus('autoplay_blocked');
+      },
+      onNotPlaying: (room) => {
+        if (!disposed && roomRef.current === room) setStatus('recovering_audio');
+      },
+    });
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void resumeVisiblePlayback();
+    };
+    const onPageShow = () => { void resumeVisiblePlayback(); };
+
     window.addEventListener('offline', onOffline);
     window.addEventListener('online', onOnline);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pageshow', onPageShow);
 
     playbackWatchdogTimer = window.setInterval(async () => {
       if (disposed || receiverCheckRunning) return;
@@ -971,6 +1016,8 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       reconnectTimerRef.current = null;
       window.removeEventListener('offline', onOffline);
       window.removeEventListener('online', onOnline);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pageshow', onPageShow);
       const room = roomRef.current;
       roomRef.current = null;
       clearAudio();
