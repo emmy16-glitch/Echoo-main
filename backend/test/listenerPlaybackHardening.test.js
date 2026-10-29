@@ -215,3 +215,19 @@ test('listener reconnect supervisor never waits forever in LiveKit reconnecting'
   assert.match(player, /clearReconnectDeadline\(\)/);
   assert.match(player, /roomCanCarryMedia\(room\)/);
 });
+
+
+test('live listener immediately reconciles background audio on visibility return without overriding pause', async () => {
+  const player = await source('../../frontend/src/Components/ListenerLiveExperience/LiveKitListenerPlayer.jsx');
+
+  assert.match(player, /const resumeVisiblePlayback = async \(\) =>/);
+  assert.match(player, /document\.visibilityState !== 'visible'[\s\S]{0,100}playbackIntentRef\.current !== 'play'/);
+  assert.match(player, /audioCtxRef\.current\?\.resume/);
+  assert.match(player, /Promise\.allSettled\(elements\.map\(\(element\) =>/);
+  assert.match(player, /setStatus\('listening'\)/);
+  assert.match(player, /setStatus\('autoplay_blocked'\)/);
+  assert.match(player, /document\.addEventListener\('visibilitychange', onVisibilityChange\)/);
+  assert.match(player, /window\.addEventListener\('pageshow', onPageShow\)/);
+  assert.match(player, /document\.removeEventListener\('visibilitychange', onVisibilityChange\)/);
+  assert.match(player, /window\.removeEventListener\('pageshow', onPageShow\)/);
+});
