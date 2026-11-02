@@ -26,7 +26,10 @@ export function useGuardedRouter(guardMs = DEFAULT_GUARD_MS) {
   }, [guardMs]);
 
   const push = useCallback((target: PushTarget) => {
-    if (canNavigate(target)) router.push(target as never);
+    // `navigate` reuses an existing matching route instead of appending another
+    // copy of it. This matters when an async press finishes twice after a fast
+    // double tap, especially for the Now Playing and Live Room screens.
+    if (canNavigate(target)) router.navigate(target as never);
   }, [canNavigate, router]);
 
   const replace = useCallback((target: ReplaceTarget) => {

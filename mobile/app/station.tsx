@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import {
   Bell,
@@ -16,9 +17,10 @@ import {
   Radio,
   Search,
 } from 'lucide-react-native';
-import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -31,6 +33,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AudioRowActions } from '@/src/components/AudioRowActions';
 import { ListenerEmptyState, ListenerSkeletonRows, ListenerToast, friendlyErrorMessage } from '@/src/components/ListenerV2';
+import { AudioPlaybackItem, usePlayback } from '@/src/playback/PlaybackProvider';
 import {
   EchooAudio,
   EchooBroadcast,
@@ -58,6 +61,8 @@ type StationScreenSnapshot = {
 };
 
 const stationScreenCache = new Map<string, StationScreenSnapshot>();
+const STATION_LIVE_REFRESH_MS = 30_000;
+const STATION_LIVE_RETURN_DEBOUNCE_MS = 10_000;
 
 const tabs: { key: StationTab; label: string }[] = [
   { key: 'home', label: 'Home' },
@@ -100,6 +105,7 @@ export default function StationScreen() {
   const scheme = useColorScheme();
   const palette = getEchooColors(scheme);
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const playback = usePlayback();
   const cachedStationScreen = stationId ? stationScreenCache.get(stationId) : undefined;
 
   const [activeTab, setActiveTab] = useState<StationTab>(getInitialTab(String(params.tab || '')));
@@ -115,6 +121,8 @@ export default function StationScreen() {
   const [followBusy, setFollowBusy] = useState(false);
   const [error, setError] = useState('');
   const [contentError, setContentError] = useState('');
+  const refreshingLiveRef = useRef(false);
+  const lastLiveRefreshAtRef = useRef(0);
 
   const load = useCallback(async (force = false, silent = false) => {
     if (!stationId) {
@@ -182,6 +190,45 @@ export default function StationScreen() {
     load(false, Boolean(stationScreenCache.get(stationId)));
   }, [load, stationId]);
 
+  const refreshLiveStatus = useCallback(async () => {
+    if (!stationId || refreshingLiveRef.current) return;
+    refreshingLiveRef.current = true;
+    try {
+      const nextLive = await getLiveBroadcastForStation(stationId, { force: true }).catch(() => null);
+      setLive(nextLive);
+      const cached = stationScreenCache.get(stationId);
+      if (cached) stationScreenCache.set(stationId, { ...cached, live: nextLive });
+    } finally {
+      refreshingLiveRef.current = false;
+    }
+  }, [stationId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let appState = AppState.currentState;
+      const refreshQuietly = () => {
+        const now = Date.now();
+        if (now - lastLiveRefreshAtRef.current < STATION_LIVE_RETURN_DEBOUNCE_MS) return;
+        lastLiveRefreshAtRef.current = now;
+        void refreshLiveStatus();
+      };
+
+      refreshQuietly();
+      const interval = setInterval(refreshQuietly, STATION_LIVE_REFRESH_MS);
+      const subscription = AppState.addEventListener('change', (nextAppState) => {
+        const returnedToApp =
+          (appState === 'background' || appState === 'inactive') && nextAppState === 'active';
+        appState = nextAppState;
+        if (returnedToApp) refreshQuietly();
+      });
+
+      return () => {
+        clearInterval(interval);
+        subscription.remove();
+      };
+    }, [refreshLiveStatus])
+  );
+
   const toggleFollow = async () => {
     if (!stationId) return;
     if (!signedIn) {
@@ -245,7 +292,26 @@ export default function StationScreen() {
     });
   };
 
-  const openAudio = (track: EchooAudio, collection?: EchooPlaylist) => {
+  const stationAudioQueue = useMemo<AudioPlaybackItem[]>(
+    () => publishedAudio.map((track) => ({
+      kind: 'audio',
+      id: track.id,
+      title: track.title,
+      subtitle: station?.name || track.stationName || track.artistName || 'Echoo Audio',
+      coverArt: track.coverArt || '',
+      fileUrl: track.fileUrl || '',
+      genre: track.genre || '',
+      stationId,
+      stationName: station?.name || track.stationName || '',
+      collectionId: '',
+      collectionName: '',
+    })),
+    [publishedAudio, station?.name, stationId]
+  );
+
+  const openAudio = async (track: EchooAudio, collection?: EchooPlaylist) => {
+    const index = Math.max(0, stationAudioQueue.findIndex((item) => item.id === track.id));
+    await playback.playAudioQueue(stationAudioQueue, index);
     push({
       pathname: '/audio-player',
       params: {
@@ -298,7 +364,7 @@ export default function StationScreen() {
           {live ? <LiveFeature live={live} onPress={openLive} palette={palette} /> : null}
           {featuredAudio ? (
             <Section title="Latest audio" action="View all" onAction={() => setActiveTab('audio')} palette={palette}>
-              <AudioRow track={featuredAudio} station={station} onPress={() => openAudio(featuredAudio)} palette={palette} />
+              <AudioRow track={featuredAudio} station={station} onPress={() => void openAudio(featuredAudio)} palette={palette} />
             </Section>
           ) : null}
           {featuredCollection ? (
@@ -322,7 +388,7 @@ export default function StationScreen() {
       return publishedAudio.length ? (
         <View style={styles.listStack}>
           {publishedAudio.map((track) => (
-            <AudioRow key={track.id} track={track} station={station} onPress={() => openAudio(track)} palette={palette} />
+            <AudioRow key={track.id} track={track} station={station} onPress={() => void openAudio(track)} palette={palette} />
           ))}
         </View>
       ) : (

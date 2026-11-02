@@ -121,6 +121,7 @@ export default function CreatorScheduleScreen() {
         title: item.title,
         stationId: item.stationId || station?.id || '',
         stationName: item.stationName || station?.name || 'Echoo Station',
+        coverArt: item.coverArt || '',
       },
     });
   };

@@ -205,6 +205,22 @@ test('stuck broadcasts are detected by their age against the threshold', { concu
   assert.equal(sweepModule.isStuck(recent), false);
 });
 
+test('terminal recorder failure expires a disconnected live broadcast without waiting for the long reconnect lease', { concurrency: 1 }, async () => {
+  process.env.LIVEKIT_CREATOR_RECOVERY_TTL_HOURS = '24';
+  const sweepModule = await import('../src/services/livekitOrphanSweep.js');
+  const disconnected = makeDoc({
+    status: 'live',
+    mediaState: 'audio_disconnected',
+    creatorDisconnectedAt: new Date(Date.now() - 5 * 60 * 1000),
+    serverRecording: {
+      status: 'failed',
+      endedAt: new Date(Date.now() - 31 * 60 * 1000),
+    },
+  });
+
+  assert.equal(sweepModule.isStuck(disconnected), true);
+});
+
 test('stale live broadcasts are reaped only while still waiting for the creator program track', { concurrency: 1 }, async () => {
   const staleConnecting = makeDoc({
     status: 'live',

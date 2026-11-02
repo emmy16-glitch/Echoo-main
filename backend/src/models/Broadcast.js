@@ -4,6 +4,7 @@ import StationFollow from './StationFollow.js';
 import Notification from './Notification.js';
 import Analytics from './Analytics.js';
 import User from './User.js';
+import { sendBroadcastLivePush } from '../services/expoPushService.js';
 
 const broadcastSchema = new mongoose.Schema(
   {
@@ -460,6 +461,7 @@ broadcastSchema.post('save', async function persistBroadcastSideEffects(doc) {
           _id: { $in: [...recipientIds] },
           isActive: true,
           'preferences.notifications.newReleases': { $ne: false },
+          'preferences.notifications.push': { $ne: false },
         }).select('_id');
 
         if (recipients.length > 0) {
@@ -479,6 +481,9 @@ broadcastSchema.post('save', async function persistBroadcastSideEffects(doc) {
             { ordered: false }
           ).catch((error) => {
             console.warn('Broadcast live notification warning:', error?.message || error);
+          });
+          void sendBroadcastLivePush({ recipients, broadcast: doc }).catch((error) => {
+            console.warn('Broadcast live push warning:', error?.message || error);
           });
         }
       }

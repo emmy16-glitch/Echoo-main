@@ -77,6 +77,18 @@ export type EchooBroadcast = {
   coverArt?: string | null;
 };
 
+export type EchooChatMessage = {
+  id: string;
+  broadcastId: string;
+  username: string;
+  displayName: string;
+  avatar?: string | null;
+  content: string;
+  reactions: { emoji: string }[];
+  isPinned: boolean;
+  createdAt?: string | null;
+};
+
 export type EchooAudio = {
   id: string;
   title: string;
@@ -201,7 +213,9 @@ const CACHE = {
   search: 90 * 1000,
   live: 20 * 1000,
   presence: 8 * 1000,
-  liveStale: 2 * 60 * 1000,
+  // Live state is ephemeral. Returning a stale "live" card after a show ends
+  // is worse than waiting for the short network request to finish.
+  liveStale: 0,
   account: 45 * 1000,
   accountStale: 60 * 60 * 1000,
   stale: 24 * 60 * 60 * 1000,
@@ -683,7 +697,7 @@ export async function searchEchoo(query: string, options: CacheControlOptions = 
   const [audioPayload, stationsPayload, livePayload] = await Promise.all([
     cachedPublicRequest(`/audio?search=${value}&public=true&page=1&limit=20`, CACHE.search, CACHE.stale, options).catch(() => ({ data: [] })),
     cachedPublicRequest(`/stations?search=${value}&page=1&limit=20`, CACHE.search, CACHE.stale, options).catch(() => ({ data: [] })),
-    cachedPublicRequest(`/broadcasts?search=${value}&page=1&limit=20`, CACHE.search, CACHE.liveStale, options).catch(() => ({ data: [] })),
+    cachedPublicRequest(`/broadcasts?search=${value}&status=live&page=1&limit=20`, CACHE.live, CACHE.liveStale, options).catch(() => ({ data: [] })),
   ]);
 
   return {
@@ -760,6 +774,7 @@ export async function createCreatorBroadcast(input: {
   startTime?: string;
   endTime?: string;
   isPublic?: boolean;
+  coverArt?: string | null;
 }) {
   const payload = await apiRequest('/broadcasts', {
     method: 'POST',
@@ -770,11 +785,24 @@ export async function createCreatorBroadcast(input: {
       stationId: input.stationId,
       startTime: input.startTime || new Date().toISOString(),
       ...(input.endTime ? { endTime: input.endTime } : {}),
+      ...(input.coverArt ? { coverArt: input.coverArt } : {}),
       type: 'live',
       isPublic: input.isPublic !== false,
       audioSources: [{ id: 'mobile-mic', type: 'microphone', label: 'Phone microphone' }],
       realtimeAudio: { source: 'mobile', device: 'phone-mic' },
     }),
+  });
+  await invalidateAccountCache(['/broadcasts/mine/all', '/studio/dashboard']);
+  return normalizeBroadcast(payload?.data);
+}
+
+export async function updateCreatorBroadcastCover(broadcastId: string, coverArt: string) {
+  const id = String(broadcastId || '').trim();
+  if (!id) throw new Error('Broadcast ID is missing.');
+  const payload = await apiRequest(`/broadcasts/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    auth: 'required',
+    body: JSON.stringify({ coverArt }),
   });
   await invalidateAccountCache(['/broadcasts/mine/all', '/studio/dashboard']);
   return normalizeBroadcast(payload?.data);
@@ -793,6 +821,38 @@ export async function startCreatorBroadcast(broadcastId: string): Promise<EchooC
     broadcastId: payload?.data?.broadcast?.id || payload?.data?.broadcast?._id || broadcastId,
     mediaMode: payload?.data?.mediaMode,
   };
+}
+
+export async function uploadBroadcastCover(cover: {
+  uri: string;
+  name?: string | null;
+  mimeType?: string | null;
+}) {
+  const accessToken = await getAccessToken();
+  if (!accessToken) {
+    const error = new Error('Sign in to upload a Broadcast Cover') as Error & { code?: string; status?: number };
+    error.code = 'AUTH_REQUIRED';
+    error.status = 401;
+    throw error;
+  }
+
+  const body = new FormData();
+  body.append('cover', {
+    uri: cover.uri,
+    name: cover.name || 'echoo-broadcast-cover.jpg',
+    type: cover.mimeType || 'image/jpeg',
+  } as any);
+
+  const response = await fetch(`${API_URL}/broadcasts/covers`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body,
+  });
+  const payload = await parseResponse(response);
+  if (!response.ok) throw makeApiError(payload, response.status);
+
+  await invalidateAccountCache(['/broadcasts/mine/all', '/studio/dashboard']);
+  return String(payload?.data?.coverArt || '');
 }
 
 export async function confirmCreatorBroadcastLive(broadcastId: string) {
@@ -1000,6 +1060,15 @@ export async function logoutEchoo() {
   } finally {
     await clearSession();
   }
+}
+
+export async function registerPushToken(input: { token: string; platform: 'ios' | 'android' }) {
+  const payload = await apiRequest('/push-tokens', {
+    method: 'POST',
+    auth: 'required',
+    body: JSON.stringify(input),
+  });
+  return payload?.data;
 }
 
 export async function deleteEchooAccount(password: string) {
@@ -1268,6 +1337,43 @@ export async function getLiveBroadcastForStation(stationId: string, options: Cac
 export async function getBroadcastPresence(broadcastId: string, options: CacheControlOptions = {}) {
   const payload = await cachedPublicRequest(`/broadcasts/${broadcastId}/presence`, CACHE.presence, CACHE.liveStale, options);
   return payload?.data || null;
+}
+
+const normalizeChatMessage = (message: any): EchooChatMessage => ({
+  id: String(message?.id || message?._id || ''),
+  broadcastId: String(message?.broadcastId || ''),
+  username: String(message?.username || message?.userId?.username || 'listener'),
+  displayName: String(message?.displayName || message?.userId?.displayName || message?.username || 'Echoo Listener'),
+  avatar: normalizeUrl(message?.avatar || message?.userId?.avatar) || null,
+  content: String(message?.content || ''),
+  reactions: Array.isArray(message?.reactions)
+    ? message.reactions.map((reaction: any) => ({ emoji: String(reaction?.emoji || '') })).filter((reaction: { emoji: string }) => reaction.emoji)
+    : [],
+  isPinned: Boolean(message?.isPinned),
+  createdAt: message?.createdAt || message?.sentAt || null,
+});
+
+export async function getPublicLiveChatMessages(broadcastId: string) {
+  const id = encodeURIComponent(String(broadcastId || '').trim());
+  if (!id) throw new Error('Broadcast ID is missing.');
+  const payload = await apiRequest(`/chat/broadcast/${id}/public/messages?limit=100`, {
+    auth: 'none',
+  });
+  const rows = Array.isArray(payload?.data) ? payload.data : [];
+  return rows.map(normalizeChatMessage).filter((message: EchooChatMessage) => message.id);
+}
+
+export async function sendLiveChatMessage(broadcastId: string, content: string) {
+  const id = encodeURIComponent(String(broadcastId || '').trim());
+  const text = String(content || '').trim();
+  if (!id) throw new Error('Broadcast ID is missing.');
+  if (!text) throw new Error('Write a message first.');
+  const payload = await apiRequest(`/chat/broadcast/${id}/messages`, {
+    method: 'POST',
+    auth: 'required',
+    body: JSON.stringify({ content: text }),
+  });
+  return normalizeChatMessage(payload?.data);
 }
 
 export async function getAudioStreamUrl(audioId: string) {

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Echoo",
     "slug": "echoo",
-    "version": "1.0.1",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "echoo",
@@ -11,12 +11,14 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
+        "NSMicrophoneUsageDescription": "Allow Echoo to use your microphone for live broadcasts.",
+        "NSPhotoLibraryUsageDescription": "Allow Echoo to choose a Broadcast Cover from your photo library.",
         "UIBackgroundModes": [
           "audio"
         ]
       },
       "bitcode": false,
-      "buildNumber": "3",
+      "buildNumber": "4",
       "bundleIdentifier": "com.digi02.echoo"
     },
     "android": {
@@ -28,7 +30,8 @@
       "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
       "package": "com.digi02.echoo",
-      "versionCode": 3,
+      "googleServicesFile": "./google-services.json",
+      "versionCode": 6,
       "permissions": [
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.CAMERA",
@@ -78,8 +81,18 @@
           "enableBackgroundRecording": false
         }
       ],
+      "expo-notifications",
       "expo-asset",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "buildReactNativeFromSource": true
+          }
+        }
+      ],
+      "./plugins/with-fmt-consteval-fix"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -19,9 +19,10 @@ import {
   SkipBack,
   SkipForward,
 } from 'lucide-react-native';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   LayoutChangeEvent,
   Modal,
   Pressable,
@@ -32,6 +33,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
@@ -76,6 +78,9 @@ export default function AudioPlayerScreen() {
   const styles = useMemo(() => createStyles(palette), [palette]);
   const playback = usePlayback();
   const playAudio = playback.playAudio;
+  const openedRouteAudioIdRef = useRef('');
+  const swipeInFlightRef = useRef(false);
+  const playerCardTranslateX = useRef(new Animated.Value(0)).current;
 
   const requestedId = String(params.audioId || '');
   const requestedFileUrl = String(params.fileUrl || '');
@@ -110,7 +115,9 @@ export default function AudioPlayerScreen() {
     ]
   );
   const currentAudio = playback.current?.kind === 'audio' ? playback.current : null;
-  const activeAudio = requestedAudio || currentAudio;
+  // The route starts a track, but the provider becomes the source of truth
+  // once a listener moves through the queue with a swipe or skip control.
+  const activeAudio = currentAudio || requestedAudio;
   const audioId = activeAudio?.id || '';
   const title = activeAudio?.title || 'Echoo Audio';
   const subtitle = activeAudio?.subtitle || 'Echoo Creator';
@@ -138,6 +145,7 @@ export default function AudioPlayerScreen() {
   const [downloaded, setDownloaded] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
+  const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
   const [playlistLoading, setPlaylistLoading] = useState(false);
   const [playlistBusyId, setPlaylistBusyId] = useState('');
   const [playlists, setPlaylists] = useState<EchooPlaylist[]>([]);
@@ -146,8 +154,9 @@ export default function AudioPlayerScreen() {
 
   useEffect(() => {
     if (!requestedAudio) return;
-    if (currentAudio?.id === requestedAudio.id) return;
-    playAudio(requestedAudio);
+    if (openedRouteAudioIdRef.current === requestedAudio.id) return;
+    openedRouteAudioIdRef.current = requestedAudio.id;
+    if (currentAudio?.id !== requestedAudio.id) void playAudio(requestedAudio);
   }, [currentAudio?.id, playAudio, requestedAudio]);
 
   useEffect(() => {
@@ -224,15 +233,84 @@ export default function AudioPlayerScreen() {
   }, [activeAudio, audioId, collectionId, collectionName, coverArt, duration, genre, stationId, stationName, title]);
 
   const togglePlayback = () => playback.toggle();
-  const seekBy = (deltaMs: number) => playback.seekBy(deltaMs);
-  const previousTrack = () => {
-    if (hasQueue) playback.playPrevious();
-    else seekBy(-15000);
-  };
-  const nextTrack = () => {
-    if (upNext.length) playback.playNext();
-    else seekBy(15000);
-  };
+  const seekBy = useCallback((deltaMs: number) => playback.seekBy(deltaMs), [playback]);
+  const previousTrack = useCallback(async () => {
+    if (hasQueue) await playback.playPrevious();
+    else await seekBy(-15000);
+  }, [hasQueue, playback, seekBy]);
+  const nextTrack = useCallback(async () => {
+    if (upNext.length) await playback.playNext();
+    else await seekBy(15000);
+  }, [playback, seekBy, upNext.length]);
+
+  const settlePlayerCard = useCallback((toValue = 0, velocity = 0) => new Promise<void>((resolve) => {
+    Animated.spring(playerCardTranslateX, {
+      toValue,
+      velocity,
+      damping: 19,
+      stiffness: 220,
+      mass: 0.75,
+      useNativeDriver: true,
+    }).start(() => resolve());
+  }), [playerCardTranslateX]);
+
+  const movePlayerCard = useCallback((toValue: number) => new Promise<void>((resolve) => {
+    Animated.timing(playerCardTranslateX, {
+      toValue,
+      duration: 150,
+      useNativeDriver: true,
+    }).start(() => resolve());
+  }), [playerCardTranslateX]);
+
+  const changeTrackWithSwipe = useCallback(async (direction: -1 | 1) => {
+    const action = direction === -1 ? nextTrack : previousTrack;
+    // The artwork/title changes immediately; only the audio source continues
+    // loading in the background. This keeps a swipe feeling like a player,
+    // not a network operation.
+    void action();
+    await movePlayerCard(direction * 420);
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    playerCardTranslateX.setValue(direction * -72);
+    await movePlayerCard(0);
+  }, [movePlayerCard, nextTrack, playerCardTranslateX, previousTrack]);
+
+  const artworkSwipeGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .enabled(hasQueue && !swipeInFlightRef.current)
+        .activeOffsetX([-8, 8])
+        .failOffsetY([-24, 24])
+        .runOnJS(true)
+        .onBegin(() => playerCardTranslateX.stopAnimation())
+        .onUpdate((gesture) => {
+          playerCardTranslateX.setValue(Math.max(-180, Math.min(180, gesture.translationX)));
+        })
+        .onFinalize((gesture) => {
+          const wantsNext = gesture.translationX <= -44 && upNext.length > 0;
+          const wantsPrevious = gesture.translationX >= 44 && playback.queueIndex > 0;
+          if ((!wantsNext && !wantsPrevious) || swipeInFlightRef.current) {
+            void settlePlayerCard();
+            return;
+          }
+
+          swipeInFlightRef.current = true;
+          void changeTrackWithSwipe(wantsNext ? -1 : 1).finally(() => {
+            swipeInFlightRef.current = false;
+          });
+        }),
+    [changeTrackWithSwipe, hasQueue, playback.queueIndex, playerCardTranslateX, settlePlayerCard, upNext.length]
+  );
+
+  const playerCardOpacity = playerCardTranslateX.interpolate({
+    inputRange: [-420, -120, 0, 120, 420],
+    outputRange: [0.2, 0.78, 1, 0.78, 0.2],
+    extrapolate: 'clamp',
+  });
+  const playerCardScale = playerCardTranslateX.interpolate({
+    inputRange: [-420, 0, 420],
+    outputRange: [0.96, 1, 0.96],
+    extrapolate: 'clamp',
+  });
 
   const seekToFraction = async (fraction: number) => {
     if (!canControl || duration <= 0) return;
@@ -395,7 +473,10 @@ export default function AudioPlayerScreen() {
   const progressPercent = `${Math.max(0, Math.min(100, progress * 100))}%` as const;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+    <SafeAreaView
+      style={styles.safeArea}
+      edges={['top', 'bottom']}
+    >
       <LinearGradient
         colors={[palette.night2, palette.night, palette.background, palette.background]}
         locations={[0, 0.28, 0.62, 1]}
@@ -408,22 +489,36 @@ export default function AudioPlayerScreen() {
           onPress={() => router.back()}
           accessibilityLabel="Close player"
         >
-          <ChevronDown color={palette.ink} size={26} />
+          <ChevronDown color="#FFFFFF" size={26} />
         </Pressable>
         <View style={styles.headerCopy}>
           <Text style={styles.headerEyebrow}>NOW PLAYING</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{genre || 'Echoo'}</Text>
         </View>
-        <Pressable style={styles.headerButton} accessibilityLabel="More options">
-          <MoreHorizontal color={palette.ink} size={24} />
+        <Pressable
+          style={styles.headerButton}
+          onPress={() => setMoreOptionsOpen(true)}
+          accessibilityLabel="More options"
+        >
+          <MoreHorizontal color="#FFFFFF" size={24} />
         </Pressable>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        bounces={false}
-      >
+      <GestureDetector gesture={artworkSwipeGesture}>
+        <Animated.View
+          style={[
+            styles.playerCard,
+            {
+              opacity: playerCardOpacity,
+              transform: [{ translateX: playerCardTranslateX }, { scale: playerCardScale }],
+            },
+          ]}
+        >
+          <ScrollView
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
         <View style={styles.artwork}>
           {coverArt ? (
             <Image
@@ -621,7 +716,9 @@ export default function AudioPlayerScreen() {
             )}
           </View>
         ) : null}
-      </ScrollView>
+          </ScrollView>
+        </Animated.View>
+      </GestureDetector>
 
       <Modal
         visible={playlistModalOpen}
@@ -678,6 +775,64 @@ export default function AudioPlayerScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <Modal
+        visible={moreOptionsOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setMoreOptionsOpen(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setMoreOptionsOpen(false)}>
+          <Pressable style={styles.optionsSheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle} numberOfLines={1}>{title}</Text>
+            <Text style={styles.sheetSubtitle} numberOfLines={1}>{stationName}</Text>
+
+            <Pressable
+              style={styles.optionRow}
+              onPress={() => {
+                setMoreOptionsOpen(false);
+                void toggleSaved();
+              }}
+              disabled={saving}
+            >
+              <Heart color={saved ? palette.red : palette.ink} fill={saved ? palette.red : 'transparent'} size={20} />
+              <Text style={styles.optionText}>{saved ? 'Remove from saved audio' : 'Save audio'}</Text>
+            </Pressable>
+            <Pressable
+              style={styles.optionRow}
+              onPress={() => {
+                setMoreOptionsOpen(false);
+                void downloadTrack();
+              }}
+              disabled={downloading || !currentTrack}
+            >
+              {downloaded ? <Check color={palette.blue} size={20} /> : <Download color={palette.ink} size={20} />}
+              <Text style={styles.optionText}>{downloaded ? 'Downloaded on this device' : 'Download for offline'}</Text>
+            </Pressable>
+            <Pressable
+              style={styles.optionRow}
+              onPress={() => {
+                setMoreOptionsOpen(false);
+                void openPlaylistPicker();
+              }}
+            >
+              <ListMusic color={palette.ink} size={20} />
+              <Text style={styles.optionText}>Add to playlist</Text>
+            </Pressable>
+            <Pressable
+              style={styles.optionRow}
+              onPress={() => {
+                setMoreOptionsOpen(false);
+                void shareTrack();
+              }}
+            >
+              <Share2 color={palette.ink} size={20} />
+              <Text style={styles.optionText}>Share</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -695,7 +850,8 @@ function formatRemaining(duration: number, position: number) {
 }
 
 const createStyles = (palette: EchooColors) => StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: palette.background },
+  safeArea: { flex: 1, backgroundColor: palette.background, overflow: 'hidden' },
+  playerCard: { flex: 1 },
   header: {
     height: 58,
     paddingHorizontal: 14,
@@ -707,12 +863,13 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
+    backgroundColor: 'rgba(255,255,255,0.14)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerCopy: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
-  headerEyebrow: { color: palette.muted, fontSize: 9, fontWeight: '900' },
-  headerTitle: { color: palette.ink, fontSize: 12, fontWeight: '800', marginTop: 2, maxWidth: 220 },
+  headerEyebrow: { color: 'rgba(255,255,255,0.72)', fontSize: 9, fontWeight: '900' },
+  headerTitle: { color: '#FFFFFF', fontSize: 12, fontWeight: '800', marginTop: 2, maxWidth: 220 },
   content: { paddingHorizontal: 22, paddingTop: 8, paddingBottom: 22 },
   artwork: {
     width: '100%',
@@ -866,6 +1023,16 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 28,
   },
+  optionsSheet: {
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    backgroundColor: palette.surface,
+    borderTopWidth: 1,
+    borderColor: palette.line,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 24,
+  },
   sheetHandle: {
     width: 42,
     height: 4,
@@ -875,6 +1042,16 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     marginBottom: 16,
   },
   sheetTitle: { color: palette.ink, fontSize: 18, fontWeight: '900', marginBottom: 14 },
+  sheetSubtitle: { color: palette.muted, fontSize: 12, marginTop: -10, marginBottom: 14 },
+  optionRow: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+    borderTopWidth: 1,
+    borderTopColor: palette.line,
+  },
+  optionText: { color: palette.ink, fontSize: 14, fontWeight: '800' },
   newPlaylistRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   playlistInput: {
     flex: 1,

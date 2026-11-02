@@ -5,6 +5,7 @@ import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import { Clock3, Headphones, Radio, Users } from 'lucide-react-native';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
+  AppState,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -30,6 +31,9 @@ import {
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
+const LIVE_REFRESH_MS = 30_000;
+const LIVE_RETURN_REFRESH_DEBOUNCE_MS = 10_000;
+
 export default function LiveScreen() {
   const { push } = useGuardedRouter();
   const scheme = useColorScheme();
@@ -42,11 +46,16 @@ export default function LiveScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const hasLoadedOnce = useRef(false);
+  const loadingLiveRef = useRef(false);
+  const lastLiveRefreshAtRef = useRef(0);
 
   const load = useCallback(async (force = false, silent = false) => {
-    if (force) setRefreshing(true);
+    if (loadingLiveRef.current) return;
+    loadingLiveRef.current = true;
+
+    if (force && !silent) setRefreshing(true);
     else if (!silent) setLoading(true);
-    setError('');
+    if (!silent) setError('');
     try {
       const data = await getMobileDiscovery({ force });
       setLive(data.live);
@@ -57,12 +66,40 @@ export default function LiveScreen() {
       setLoading(false);
       setRefreshing(false);
       hasLoadedOnce.current = true;
+      loadingLiveRef.current = false;
     }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      load(false, hasLoadedOnce.current);
+      let appState = AppState.currentState;
+
+      const refreshLive = () => {
+        const now = Date.now();
+        if (
+          !hasLoadedOnce.current ||
+          loadingLiveRef.current ||
+          now - lastLiveRefreshAtRef.current < LIVE_RETURN_REFRESH_DEBOUNCE_MS
+        ) {
+          return;
+        }
+        lastLiveRefreshAtRef.current = now;
+        void load(true, true);
+      };
+
+      void load(hasLoadedOnce.current, hasLoadedOnce.current);
+      const interval = setInterval(refreshLive, LIVE_REFRESH_MS);
+      const subscription = AppState.addEventListener('change', (nextAppState) => {
+        const returnedToApp =
+          (appState === 'background' || appState === 'inactive') && nextAppState === 'active';
+        appState = nextAppState;
+        if (returnedToApp) refreshLive();
+      });
+
+      return () => {
+        clearInterval(interval);
+        subscription.remove();
+      };
     }, [load])
   );
 

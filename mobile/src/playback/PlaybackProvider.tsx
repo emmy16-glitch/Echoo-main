@@ -15,7 +15,12 @@ import {
   useState,
 } from 'react';
 import { View } from 'react-native';
-import { DefaultReconnectPolicy } from 'livekit-client';
+import {
+  DefaultReconnectPolicy,
+  LogLevel,
+  LoggerNames,
+  setLogLevel,
+} from 'livekit-client';
 
 import {
   getAudioStreamUrl,
@@ -99,6 +104,11 @@ type PlayAudioOptions = {
 const PlaybackContext = createContext<PlaybackContextValue | null>(null);
 
 let liveKitGlobalsRegistered = false;
+let liveKitSignalLoggingConfigured = false;
+
+function isLiveBroadcastEndedError(message: string) {
+  return /(?:websocket|ws) closed unexpectedly with code 1001|code[ :=]+1001/i.test(message);
+}
 
 async function configureBackgroundPlaybackMode() {
   await setAudioModeAsync({
@@ -113,6 +123,10 @@ async function loadLiveKitNativeModule() {
   if (!liveKitGlobalsRegistered) {
     liveKit.registerGlobals();
     liveKitGlobalsRegistered = true;
+  }
+  if (!liveKitSignalLoggingConfigured && process.env.NODE_ENV !== 'production') {
+    setLogLevel(LogLevel.silent, LoggerNames.Signal);
+    liveKitSignalLoggingConfigured = true;
   }
   return liveKit;
 }
@@ -137,6 +151,8 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   const liveCredentialsRef = useRef<LiveCredentials | null>(null);
   const liveRecoveryGenerationRef = useRef(0);
   const liveRecoveryRunningRef = useRef(false);
+  const liveIntentionalStopRef = useRef(false);
+  const audioRequestGenerationRef = useRef(0);
   const audioProgressRef = useRef({ trackId: '', position: 0, duration: 0, sentPosition: 0, lastSentAt: 0, wasPlaying: false, completed: false });
 
   const [current, setCurrentState] = useState<PlaybackItem | null>(null);
@@ -194,6 +210,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   }, [persistAudioProgress]);
 
   const clearLiveConnection = useCallback(() => {
+    liveIntentionalStopRef.current = true;
     liveRecoveryGenerationRef.current += 1;
     liveRecoveryRunningRef.current = false;
     liveCredentialsRef.current = null;
@@ -229,6 +246,11 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   }, [persistAudioProgress, repeat]);
 
   const playAudio = useCallback(async (item: AudioPlaybackItem, options: PlayAudioOptions = {}) => {
+    // A later tap or swipe wins. Older stream-grant requests must never be
+    // allowed to create a second player after the listener selected something else.
+    const requestGeneration = ++audioRequestGenerationRef.current;
+    const isLatestRequest = () => requestGeneration === audioRequestGenerationRef.current;
+
     if (options.queue?.length) {
       const nextIndex = Math.max(0, Math.min(options.index ?? 0, options.queue.length - 1));
       setQueue(options.queue, nextIndex);
@@ -255,7 +277,11 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     setPosition(0);
     setDuration(0);
+    // Update the player shell immediately. Artwork and metadata should move
+    // with a queue swipe while the stream grant or local-file lookup continues.
+    setCurrent(item);
     if (liveKit) await liveKit.AudioSession.stopAudioSession().catch(() => undefined);
+    if (!isLatestRequest()) return;
     clearLiveConnection();
     releaseAudio();
     // Foreground-service notifications need a runtime grant on Android 13+;
@@ -268,10 +294,12 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
 
       if (!localUrl && item.id) {
         const localDownload = await getLocalDownloadForTrack(item.id).catch(() => null);
+        if (!isLatestRequest()) return;
         if (localDownload?.status === 'completed' && localDownload.localUri) {
           playbackUrl = localDownload.localUri;
         } else {
           const grant = await getAudioStreamUrl(item.id);
+          if (!isLatestRequest()) return;
           playbackUrl = grant.streamUrl;
           expiresIn = grant.expiresIn;
         }
@@ -280,6 +308,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       if (!playbackUrl) {
         throw new Error('Echoo could not prepare this audio for playback.');
       }
+      if (!isLatestRequest()) return;
 
       const playableItem = { ...item, fileUrl: playbackUrl };
       audioProgressRef.current = { trackId: item.id, position: 0, duration: 0, sentPosition: 0, lastSentAt: 0, wasPlaying: false, completed: false };
@@ -289,6 +318,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
         : 0;
 
       await configureBackgroundPlaybackMode();
+      if (!isLatestRequest()) return;
 
       const player = createAudioPlayer(
         { uri: playbackUrl },
@@ -316,6 +346,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       player.play();
       setIsPlaying(true);
     } catch (playbackError: any) {
+      if (!isLatestRequest()) return;
       releaseAudio();
       setIsLoading(false);
       setIsPlaying(false);
@@ -324,9 +355,15 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   }, [clearLiveConnection, handleAudioStatus, liveKit, releaseAudio, repeat, setCurrent, setQueue]);
 
   const playAudioQueue = useCallback(async (items: AudioPlaybackItem[], startIndex = 0) => {
-    const cleanItems = items.filter((item) => item.id);
+    const selectedId = items[Math.max(0, Math.min(startIndex, items.length - 1))]?.id;
+    const seenTrackIds = new Set<string>();
+    const cleanItems = items.filter((item) => {
+      if (!item.id || seenTrackIds.has(item.id)) return false;
+      seenTrackIds.add(item.id);
+      return true;
+    });
     if (!cleanItems.length) return;
-    const index = Math.max(0, Math.min(startIndex, cleanItems.length - 1));
+    const index = Math.max(0, cleanItems.findIndex((item) => item.id === selectedId));
     await playAudio(cleanItems[index], { queue: cleanItems, index });
   }, [playAudio]);
 
@@ -350,6 +387,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   }, [playAudio, setQueue]);
 
   const playLive = useCallback(async (item: LivePlaybackItem) => {
+    audioRequestGenerationRef.current += 1;
     if (
       currentRef.current?.kind === 'live' &&
       currentRef.current.id === item.id &&
@@ -369,21 +407,20 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     setDuration(0);
     setError('');
     setIsLoading(true);
+    liveIntentionalStopRef.current = false;
     void ensureLiveAudioNotificationPermission();
-    void startLiveAudioService({
-      title: item.title || 'Live on Echoo',
-      artist: item.subtitle || '',
-      broadcastId: item.id,
-      kind: 'live',
-    });
 
+    let connectedLiveKitModule: LiveKitNativeModule | null = null;
     try {
       await configureBackgroundPlaybackMode();
       const [liveKitModule, credentials] = await Promise.all([
         loadLiveKitNativeModule(),
         getListenerLiveKitCredentials(item.id),
       ]);
-      await configureLiveKitListenerAudio(liveKitModule);
+      connectedLiveKitModule = liveKitModule;
+      // PersistentLiveConnection owns the LiveKit audio session. Starting it
+      // before a room has connected lets iOS deactivate it again before a
+      // remote track is available, which also drops the system media session.
       setLiveKit(liveKitModule);
       liveCredentialsRef.current = credentials;
       setLiveCredentials(credentials);
@@ -402,6 +439,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
           ? 'Live audio requires the Echoo iOS or Android development build.'
           : liveError?.message || 'Could not join this live broadcast.'
       );
+      await connectedLiveKitModule?.AudioSession.stopAudioSession().catch(() => undefined);
       void stopLiveAudioService();
     } finally {
       setIsLoading(false);
@@ -469,6 +507,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const stop = useCallback(() => {
+    audioRequestGenerationRef.current += 1;
     isPlayingRef.current = false;
     releaseAudio();
     clearLiveConnection();
@@ -483,6 +522,20 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
 
   const clearError = useCallback(() => setError(''), []);
 
+  const endLivePlayback = useCallback(() => {
+    liveIntentionalStopRef.current = true;
+    liveRecoveryGenerationRef.current += 1;
+    liveRecoveryRunningRef.current = false;
+    liveCredentialsRef.current = null;
+    setLiveCredentials(null);
+    setLiveKit(null);
+    setLiveNativeUnavailable(false);
+    isPlayingRef.current = false;
+    setIsPlaying(false);
+    setIsLoading(false);
+    setError('This live broadcast has ended.');
+  }, []);
+
   useEffect(() => {
     playNextRef.current = playNext;
   }, [playNext]);
@@ -491,6 +544,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     sourceToken: string,
     reason = 'Live audio disconnected.'
   ) => {
+    if (liveIntentionalStopRef.current) return;
     const active = currentRef.current;
     if (
       active?.kind !== 'live' ||
@@ -522,7 +576,10 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
             currentRef.current.id !== broadcastId
           ) return;
 
-          if (liveKit) await configureLiveKitListenerAudio(liveKit);
+          if (liveKit) {
+            await configureLiveKitListenerAudio(liveKit);
+            await liveKit.AudioSession.startAudioSession();
+          }
           liveCredentialsRef.current = credentials;
           setLiveCredentials(credentials);
           setLiveNativeUnavailable(false);
@@ -555,9 +612,14 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   }, [liveKit]);
 
   const handleLiveError = useCallback((message: string, sourceToken: string) => {
+    if (liveIntentionalStopRef.current) return;
+    if (isLiveBroadcastEndedError(message)) {
+      endLivePlayback();
+      return;
+    }
     setError('Reconnecting live audio…');
     void recoverLiveConnection(sourceToken, message);
-  }, [recoverLiveConnection]);
+  }, [endLivePlayback, recoverLiveConnection]);
 
   useEffect(() => {
     void configureBackgroundPlaybackMode().catch(() => undefined);
@@ -565,22 +627,13 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => () => releaseAudio(), [releaseAudio]);
 
-  // Recorded audio uses expo-audio's media session and lock-screen controls.
-  // Only live listener audio needs Echoo's native foreground service.
-  // The provider sits above navigation so minimizing does not unmount the room.
+  // PersistentLiveConnection starts system media integration after LiveKit has
+  // connected. This effect only tears it down after playback really ends.
   useEffect(() => {
-    if (current?.kind !== 'live') return;
-
-    void startLiveAudioService({
-      title: current.title || 'Live on Echoo',
-      artist: current.subtitle || '',
-      broadcastId: current.id,
-      kind: 'live',
-    });
-    return () => {
+    if (current?.kind !== 'live' || (!isPlaying && !isLoading)) {
       void stopLiveAudioService();
-    };
-  }, [current?.kind, current?.id]);
+    }
+  }, [current, isLoading, isPlaying]);
 
   const value = useMemo<PlaybackContextValue>(() => ({
     current,
@@ -641,6 +694,8 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
           key={liveCredentials.token}
           liveKit={liveKit}
           credentials={liveCredentials}
+          title={current.title}
+          artist={current.subtitle}
           onError={handleLiveError}
           onRecover={handleLiveError}
         />
@@ -654,11 +709,15 @@ const MOBILE_LIVEKIT_RECONNECT_DELAYS_MS = [0, 500, 1000, 2000, 4000, 8000, 1200
 function PersistentLiveConnection({
   liveKit,
   credentials,
+  title,
+  artist,
   onError,
   onRecover,
 }: {
   liveKit: LiveKitNativeModule;
   credentials: LiveCredentials;
+  title: string;
+  artist: string;
   onError: (message: string, sourceToken: string) => void;
   onRecover: (message: string, sourceToken: string) => void;
 }) {
@@ -697,6 +756,22 @@ function PersistentLiveConnection({
       audio={false}
       video={false}
       options={{ adaptiveStream: true, reconnectPolicy }}
+      connectOptions={{
+        autoSubscribe: true,
+        peerConnectionTimeout: 30_000,
+        websocketTimeout: 30_000,
+      }}
+      onConnected={() => {
+        // Start the foreground service / Now Playing card only after a native
+        // LiveKit room exists. That keeps Android's process prioritized and
+        // gives iOS an active playback session behind the Lock Screen card.
+        void startLiveAudioService({
+          title: title || 'Live on Echoo',
+          artist,
+          broadcastId: credentials.broadcastId,
+          kind: 'live',
+        });
+      }}
       onDisconnected={() => onRecover('LiveKit disconnected.', credentials.token)}
       onError={(roomError) => onError(
         roomError?.message || 'LiveKit connection failed.',

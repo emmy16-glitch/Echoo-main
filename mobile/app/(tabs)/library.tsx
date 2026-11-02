@@ -54,6 +54,7 @@ import {
 } from '@/src/services/echooApi';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { LocalDownload, deleteLocalDownload, getLocalDownloads } from '@/src/services/localDownloads';
+import { AudioPlaybackItem, usePlayback } from '@/src/playback/PlaybackProvider';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
 const emptyStats: EchooLibraryStats = {
@@ -80,6 +81,7 @@ export default function LibraryScreen() {
   const scheme = useColorScheme();
   const palette = getEchooColors(scheme);
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const playback = usePlayback();
 
   const [signedIn, setSignedIn] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -208,8 +210,30 @@ export default function LibraryScreen() {
     }, [loadLibrary])
   );
 
-  const openAudio = (track?: EchooAudio | null, localUri?: string) => {
+  const toPlaybackItem = useCallback((track: EchooAudio, localUri = ''): AudioPlaybackItem => ({
+    kind: 'audio',
+    id: track.id,
+    title: track.title,
+    subtitle: track.stationName || track.subtitle || track.artistName || track.genre || 'Echoo Audio',
+    coverArt: track.coverArt || '',
+    fileUrl: localUri || track.fileUrl || '',
+    genre: track.genre || '',
+    stationId: track.stationId || '',
+    stationName: track.stationName || track.artistName || '',
+    collectionId: track.collectionId || '',
+    collectionName: track.collectionName || '',
+  }), []);
+
+  const openAudio = async (
+    track?: EchooAudio | null,
+    localUri = '',
+    queue: AudioPlaybackItem[] = []
+  ) => {
     if (!track) return;
+    const fallback = toPlaybackItem(track, localUri);
+    const nextQueue = queue.length ? queue : [fallback];
+    const index = Math.max(0, nextQueue.findIndex((item) => item.id === track.id));
+    await playback.playAudioQueue(nextQueue, index);
     push({
       pathname: '/audio-player',
       params: {
@@ -267,6 +291,21 @@ export default function LibraryScreen() {
     }
     return rows;
   }, [downloadedTrackIds, history, offlineOnly, sortMode]);
+
+  const savedQueue = useMemo(
+    () => visibleSaved.map((track) => toPlaybackItem(track)),
+    [toPlaybackItem, visibleSaved]
+  );
+  const historyQueue = useMemo(
+    () => visibleHistory.flatMap((item) => item.track ? [toPlaybackItem(item.track)] : []),
+    [toPlaybackItem, visibleHistory]
+  );
+  const downloadQueue = useMemo(
+    () => downloads.flatMap((download) =>
+      download.track ? [toPlaybackItem(download.track, download.localUri)] : []
+    ),
+    [downloads, toPlaybackItem]
+  );
 
   const tabCounts: Record<LibraryTab, number> = {
     saved: saved.length,
@@ -394,7 +433,7 @@ export default function LibraryScreen() {
                       onChanged={() => loadLibrary(true)}
                     />
                   }
-                  onPress={() => openAudio(track)}
+                  onPress={() => void openAudio(track, '', savedQueue)}
                 />
               ))
             ) : (
@@ -429,7 +468,7 @@ export default function LibraryScreen() {
                       />
                     ) : null
                   }
-                  onPress={() => openAudio(item.track)}
+                  onPress={() => void openAudio(item.track, '', historyQueue)}
                 />
               ))
             ) : (
@@ -553,7 +592,7 @@ export default function LibraryScreen() {
                       </Pressable>
                     )
                   }
-                  onPress={() => openAudio(download.track, download.localUri)}
+                  onPress={() => void openAudio(download.track, download.localUri, downloadQueue)}
                 />
               ))
             ) : (

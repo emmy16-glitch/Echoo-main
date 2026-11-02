@@ -1,8 +1,15 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
+  getRecordingPermissionsAsync,
+  requestRecordingPermissionsAsync,
+} from 'expo-audio';
+import * as ImagePicker from 'expo-image-picker';
+import {
   AlertTriangle,
   CheckCircle2,
   ChevronLeft,
+  ImagePlus,
+  MessageCircle,
   Mic,
   MicOff,
   Radio,
@@ -16,6 +23,7 @@ import {
   BackHandler,
   PermissionsAndroid,
   Platform,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -29,6 +37,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   ListenerToast,
 } from '@/src/components/ListenerV2';
+import { LiveChatSheet } from '@/src/components/LiveChatSheet';
 import { usePlayback } from '@/src/playback/PlaybackProvider';
 import {
   confirmCreatorBroadcastLive,
@@ -37,6 +46,8 @@ import {
   endCreatorBroadcast,
   getBroadcastPresence,
   startCreatorBroadcast,
+  updateCreatorBroadcastCover,
+  uploadBroadcastCover,
 } from '@/src/services/echooApi';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 import {
@@ -46,6 +57,12 @@ import {
 } from 'echoo-live-audio-service';
 
 type CreatorLiveState = 'idle' | 'preparing' | 'connecting' | 'live' | 'ending' | 'ended' | 'error';
+
+type BroadcastCoverDraft = {
+  uri: string;
+  name?: string | null;
+  mimeType?: string | null;
+};
 
 let liveKitGlobalsRegistered = false;
 
@@ -64,19 +81,36 @@ async function loadLiveKitForCreator() {
 }
 
 async function ensureMicrophonePermission() {
-  if (Platform.OS !== 'android') return true;
+  const current = await getRecordingPermissionsAsync();
+  if (current.granted) return true;
 
-  const granted = await PermissionsAndroid.request(
-    PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-    {
-      title: 'Allow Echoo to use your microphone',
-      message: 'Echoo needs microphone access to broadcast from your phone.',
-      buttonPositive: 'Allow',
-      buttonNegative: 'Not now',
-    }
-  );
+  if (current.canAskAgain === false) {
+    Alert.alert(
+      'Microphone access is off',
+      'Turn on microphone access for Echoo in Settings before going live.',
+      [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ]
+    );
+    return false;
+  }
 
-  return granted === PermissionsAndroid.RESULTS.GRANTED;
+  const requested = await requestRecordingPermissionsAsync();
+  if (requested.granted) return true;
+
+  if (requested.canAskAgain === false) {
+    Alert.alert(
+      'Microphone access is off',
+      'Turn on microphone access for Echoo in Settings before going live.',
+      [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ]
+    );
+  }
+
+  return false;
 }
 
 export default function CreatorLiveScreen() {
@@ -86,6 +120,7 @@ export default function CreatorLiveScreen() {
     title?: string;
     stationId?: string;
     stationName?: string;
+    coverArt?: string;
   }>();
   const scheme = useColorScheme();
   const palette = getEchooColors(scheme);
@@ -95,6 +130,7 @@ export default function CreatorLiveScreen() {
   const stationId = String(params.stationId || '');
   const stationName = String(params.stationName || 'Echoo Station');
   const existingBroadcastId = String(params.broadcastId || '');
+  const existingCoverArt = params.coverArt ? String(params.coverArt) : '';
   const defaultTitle = useMemo(() => {
     const date = new Date();
     return `${stationName} live - ${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
@@ -105,9 +141,13 @@ export default function CreatorLiveScreen() {
   const [title, setTitle] = useState(String(params.title || defaultTitle));
   const [state, setState] = useState<CreatorLiveState>('idle');
   const [broadcastId, setBroadcastId] = useState('');
+  const [broadcastCover, setBroadcastCover] = useState<BroadcastCoverDraft | null>(null);
+  const [broadcastCoverUploaded, setBroadcastCoverUploaded] = useState(Boolean(existingCoverArt));
+  const [uploadedBroadcastCoverArt, setUploadedBroadcastCoverArt] = useState(existingCoverArt);
   const [listenerCount, setListenerCount] = useState(0);
   const [muted, setMuted] = useState(false);
   const [toast, setToast] = useState('');
+  const [chatOpen, setChatOpen] = useState(false);
 
   const live = state === 'live';
   const broadcasting = live || state === 'ending';
@@ -140,6 +180,29 @@ export default function CreatorLiveScreen() {
     return () => clearInterval(timer);
   }, [broadcastId, live]);
 
+  const pickBroadcastCover = async () => {
+    if (busy || live) return;
+    setToast('');
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.86,
+    });
+    if (result.canceled) return;
+    const asset = result.assets?.[0];
+    if (!asset?.uri) return;
+    setBroadcastCover({
+      uri: asset.uri,
+      name: asset.fileName || 'echoo-broadcast-cover.jpg',
+      mimeType: asset.mimeType || 'image/jpeg',
+    });
+    setBroadcastCoverUploaded(false);
+    setUploadedBroadcastCoverArt('');
+    setState((currentState) => currentState === 'error' ? 'idle' : currentState);
+    setToast('Broadcast Cover selected.');
+  };
+
   const startLive = async () => {
     if (!stationId) {
       setToast('Set up a station before going live from mobile.');
@@ -154,12 +217,31 @@ export default function CreatorLiveScreen() {
 
     setToast('');
     setState('preparing');
-    playback.stop();
     let startedBroadcastId = '';
 
     try {
+      if (!broadcastCoverUploaded && !broadcastCover?.uri) {
+        setState('idle');
+        setToast('Add a Broadcast Cover before going live.');
+        return;
+      }
+
       const permission = await ensureMicrophonePermission();
-      if (!permission) throw new Error('Microphone permission is required to go live.');
+      if (!permission) {
+        setState('idle');
+        setToast('Microphone permission is required to go live.');
+        return;
+      }
+
+      let coverArtForBroadcast = uploadedBroadcastCoverArt;
+      if (!broadcastCoverUploaded && broadcastCover?.uri) {
+        coverArtForBroadcast = await uploadBroadcastCover(broadcastCover);
+        if (!coverArtForBroadcast) throw new Error('Could not upload the Broadcast Cover.');
+        setUploadedBroadcastCoverArt(coverArtForBroadcast);
+        setBroadcastCoverUploaded(true);
+      }
+
+      playback.stop();
 
       // Android requires the microphone foreground service to be started while
       // Echoo is visible. Starting it after minimizing is restricted on Android 14+.
@@ -191,9 +273,14 @@ export default function CreatorLiveScreen() {
             title: cleanTitle,
             stationId,
             isPublic: true,
+            coverArt: coverArtForBroadcast,
           });
       startedBroadcastId = broadcast.id;
       setBroadcastId(broadcast.id);
+
+      if (existingBroadcastId && coverArtForBroadcast && coverArtForBroadcast !== existingCoverArt) {
+        await updateCreatorBroadcastCover(existingBroadcastId, coverArtForBroadcast);
+      }
 
       const credentials = await startCreatorBroadcast(broadcast.id);
       if (!credentials?.token || !credentials?.livekitUrl) {
@@ -367,6 +454,15 @@ export default function CreatorLiveScreen() {
                 <Text style={styles.stationHint}>Selected station</Text>
               </View>
             </View>
+            <Pressable style={styles.coverPicker} onPress={pickBroadcastCover} disabled={busy}>
+              <ImagePlus color={palette.blue} size={20} />
+              <View style={styles.stationCopy}>
+                <Text style={styles.coverPickerTitle}>
+                  {broadcastCover || broadcastCoverUploaded ? 'Broadcast Cover ready' : 'Add Broadcast Cover'}
+                </Text>
+                <Text style={styles.stationHint}>Required before going live</Text>
+              </View>
+            </Pressable>
           </View>
         ) : null}
 
@@ -396,15 +492,20 @@ export default function CreatorLiveScreen() {
         {state === 'error' ? (
           <View style={styles.errorCard}>
             <AlertTriangle color={palette.red} size={23} />
-            <Text style={styles.errorText}>Check microphone permission, network, and creator access, then try again.</Text>
+            <Text style={styles.errorText}>
+              {toast || 'Could not start mobile live. Check the Broadcast Cover, microphone permission, network and creator access, then try again.'}
+            </Text>
           </View>
         ) : null}
 
-        <ListenerToast message={toast} tone={state === 'error' ? 'error' : 'info'} />
+        <ListenerToast message={state === 'error' ? '' : toast} tone="info" />
 
         <View style={styles.controls}>
           {broadcasting ? (
             <>
+              <Pressable style={styles.chatButton} onPress={() => setChatOpen(true)} accessibilityLabel="Open live chat">
+                <MessageCircle color={palette.blue} size={21} />
+              </Pressable>
               <Pressable style={styles.secondaryButton} onPress={toggleMute} disabled={busy}>
                 {muted ? <Mic color={palette.ink} size={20} /> : <MicOff color={palette.ink} size={20} />}
                 <Text style={styles.secondaryButtonText}>{muted ? 'Unmute' : 'Mute'}</Text>
@@ -433,6 +534,12 @@ export default function CreatorLiveScreen() {
             </Pressable>
           )}
         </View>
+        <LiveChatSheet
+          visible={chatOpen}
+          broadcastId={broadcastId}
+          title={title}
+          onClose={() => setChatOpen(false)}
+        />
       </View>
     </SafeAreaView>
   );
@@ -459,6 +566,8 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   stationCopy: { flex: 1 },
   stationName: { color: palette.ink, fontSize: 13.5, fontWeight: '900' },
   stationHint: { color: palette.muted, fontSize: 11, marginTop: 2 },
+  coverPicker: { marginTop: 13, minHeight: 52, borderRadius: 8, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.surface, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  coverPickerTitle: { color: palette.ink, fontSize: 12.5, fontWeight: '900' },
   liveStats: { flexDirection: 'row', gap: 10, marginTop: 14 },
   statTile: { flex: 1, minHeight: 94, borderRadius: 8, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.line, padding: 13, justifyContent: 'center' },
   statValue: { color: palette.ink, fontSize: 20, fontWeight: '900', marginTop: 8 },
@@ -473,6 +582,7 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   primaryButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
   secondaryButton: { flex: 1, minHeight: 54, borderRadius: 27, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.line, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   secondaryButtonText: { color: palette.ink, fontSize: 13.5, fontWeight: '900' },
+  chatButton: { width: 54, height: 54, borderRadius: 27, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.line, alignItems: 'center', justifyContent: 'center' },
   endButton: { flex: 1, minHeight: 54, borderRadius: 27, backgroundColor: palette.red, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   endButtonText: { color: '#FFFFFF', fontSize: 13.5, fontWeight: '900' },
 });

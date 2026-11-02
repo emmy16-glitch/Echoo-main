@@ -39,6 +39,7 @@ import {
   searchEchoo,
 } from '@/src/services/echooApi';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { AudioPlaybackItem, usePlayback } from '@/src/playback/PlaybackProvider';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
 const categorySuggestions = [
@@ -61,6 +62,7 @@ export default function SearchScreen() {
   const scheme = useColorScheme();
   const palette = getEchooColors(scheme);
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const playback = usePlayback();
 
   const [query, setQuery] = useState(() => String(params.q || ''));
   const [audio, setAudio] = useState<EchooAudio[]>([]);
@@ -138,7 +140,26 @@ export default function SearchScreen() {
     };
   }, [query]);
 
-  const openAudio = (track: EchooAudio) => {
+  const audioQueue = useMemo<AudioPlaybackItem[]>(
+    () => audio.map((track) => ({
+      kind: 'audio',
+      id: track.id,
+      title: track.title,
+      subtitle: track.subtitle || track.artistName || track.genre || 'Echoo Audio',
+      coverArt: track.coverArt || '',
+      fileUrl: track.fileUrl || '',
+      genre: track.genre || '',
+      stationId: track.stationId || '',
+      stationName: track.stationName || track.artistName || '',
+      collectionId: track.collectionId || '',
+      collectionName: track.collectionName || '',
+    })),
+    [audio]
+  );
+
+  const openAudio = async (track: EchooAudio) => {
+    const index = Math.max(0, audioQueue.findIndex((item) => item.id === track.id));
+    await playback.playAudioQueue(audioQueue, index);
     push({
       pathname: '/audio-player',
       params: {
@@ -271,7 +292,7 @@ export default function SearchScreen() {
                 image={track.coverArt}
                 fallback={<Music2 color={palette.blue} size={21} />}
                 trailing={<AudioRowActions track={track} />}
-                onPress={() => openAudio(track)}
+                onPress={() => void openAudio(track)}
               />
             ))}
           </>

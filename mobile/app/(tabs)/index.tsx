@@ -1,3 +1,4 @@
+import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
@@ -17,11 +18,13 @@ import {
   StyleSheet,
   Text,
   View,
+  AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ListenerSkeletonRows, ListenerToast, ListenerTopBar, friendlyErrorMessage } from '@/src/components/ListenerV2';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { AudioPlaybackItem, usePlayback } from '@/src/playback/PlaybackProvider';
 import {
   EchooAudio,
   EchooBroadcast,
@@ -49,6 +52,8 @@ const emptyDiscovery: Discovery = {
 };
 
 const quickSearches = ['Music', 'Talk', 'Worship', 'News'];
+const HOME_BACKGROUND_REFRESH_MS = 30_000;
+const HOME_RETURN_REFRESH_DEBOUNCE_MS = 12_000;
 
 function greeting() {
   const hour = new Date().getHours();
@@ -65,9 +70,12 @@ function compactNumber(value = 0) {
 
 function collapseCollectionReleases(tracks: EchooAudio[], limit = 8) {
   const seenCollectionIds = new Set<string>();
+  const seenTrackIds = new Set<string>();
   const releases: EchooAudio[] = [];
 
   for (const track of tracks) {
+    if (!track.id || seenTrackIds.has(track.id)) continue;
+    seenTrackIds.add(track.id);
     const collectionId = String(track.collectionId || '');
     if (collectionId) {
       if (seenCollectionIds.has(collectionId)) continue;
@@ -83,6 +91,7 @@ function collapseCollectionReleases(tracks: EchooAudio[], limit = 8) {
 
 export default function HomeScreen() {
   const { push } = useGuardedRouter();
+  const playback = usePlayback();
   const scheme = useColorScheme();
   const palette = getEchooColors(scheme);
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -96,9 +105,14 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const hasLoadedOnce = useRef(false);
+  const loadingHomeRef = useRef(false);
+  const lastBackgroundRefreshAtRef = useRef(0);
 
   const loadHome = useCallback(async (force = false, silent = false) => {
-    if (force) setRefreshing(true);
+    if (loadingHomeRef.current) return;
+    loadingHomeRef.current = true;
+
+    if (force && !silent) setRefreshing(true);
     else if (!silent) setLoading(true);
 
     try {
@@ -126,11 +140,14 @@ export default function HomeScreen() {
 
       setError('');
     } catch (loadError: any) {
-      setError(friendlyErrorMessage(loadError, 'Could not load Echoo right now.'));
+      if (!silent) {
+        setError(friendlyErrorMessage(loadError, 'Could not load Echoo right now.'));
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
       hasLoadedOnce.current = true;
+      loadingHomeRef.current = false;
     }
   }, []);
 
@@ -178,8 +195,60 @@ export default function HomeScreen() {
     };
   }, [loadHome]);
 
+  useFocusEffect(
+    useCallback(() => {
+      let appState = AppState.currentState;
+
+      const refreshInBackground = () => {
+        const now = Date.now();
+        if (
+          !hasLoadedOnce.current ||
+          loadingHomeRef.current ||
+          now - lastBackgroundRefreshAtRef.current < HOME_RETURN_REFRESH_DEBOUNCE_MS
+        ) {
+          return;
+        }
+
+        lastBackgroundRefreshAtRef.current = now;
+        void loadHome(true, true);
+      };
+
+      // A live broadcast can start or end while Home is already open. Keep
+      // discovery current without disturbing the listener's scroll position.
+      const interval = setInterval(refreshInBackground, HOME_BACKGROUND_REFRESH_MS);
+      const subscription = AppState.addEventListener('change', (nextAppState) => {
+        const returnedToApp =
+          (appState === 'background' || appState === 'inactive') && nextAppState === 'active';
+        appState = nextAppState;
+        if (returnedToApp) refreshInBackground();
+      });
+
+      refreshInBackground();
+      return () => {
+        clearInterval(interval);
+        subscription.remove();
+      };
+    }, [loadHome])
+  );
+
 
   const published = collapseCollectionReleases(discovery.audio, 8);
+  const freshReleaseQueue = useMemo<AudioPlaybackItem[]>(
+    () => published.map((track) => ({
+      kind: 'audio',
+      id: track.id,
+      title: track.title,
+      subtitle: track.subtitle || track.artistName || track.genre || 'Echoo Audio',
+      coverArt: track.coverArt || '',
+      fileUrl: track.fileUrl || '',
+      genre: track.genre || '',
+      stationId: track.stationId || '',
+      stationName: track.stationName || track.artistName || '',
+      collectionId: track.collectionId || '',
+      collectionName: track.collectionName || '',
+    })),
+    [published]
+  );
   const liveNow = discovery.live.slice(0, 8);
   const followedStationIds = useMemo(
     () => new Set(followedStations.map((station) => station.id).filter(Boolean)),
@@ -223,6 +292,12 @@ export default function HomeScreen() {
         stationName: track.stationName || track.artistName || '',
       },
     });
+  };
+
+  const openFreshRelease = async (track: EchooAudio) => {
+    const index = freshReleaseQueue.findIndex((item) => item.id === track.id);
+    await playback.playAudioQueue(freshReleaseQueue, Math.max(0, index));
+    openAudio(track);
   };
 
   const openLiveRoom = (item: EchooBroadcast) => {
@@ -382,7 +457,7 @@ export default function HomeScreen() {
             contentContainerStyle={styles.releaseRail}
           >
             {published.map((track: EchooAudio) => (
-              <Pressable key={track.id} style={styles.releaseCard} onPress={() => openAudio(track)}>
+              <Pressable key={track.id} style={styles.releaseCard} onPress={() => void openFreshRelease(track)}>
                 <Artwork uri={track.coverArt} style={styles.releaseArt} palette={palette} />
                 <Text style={styles.releaseTitle} numberOfLines={1}>{track.title}</Text>
                 <Text style={styles.releaseSubtitle} numberOfLines={1}>

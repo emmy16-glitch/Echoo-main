@@ -6,6 +6,12 @@
 !.env.example
 !.env.*.example
 
+# Firebase Admin SDK credentials are server secrets. The Android
+# google-services.json file is intentionally not ignored because it contains
+# public client configuration required by the native app.
+*-firebase-adminsdk-*.json
+*service-account*.json
+
 **/.env
 **/.env.*
 !**/.env.example

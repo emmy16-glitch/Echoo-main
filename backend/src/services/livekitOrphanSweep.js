@@ -57,6 +57,13 @@ function isLiveKitConfigured() {
   return Boolean(process.env.LIVEKIT_URL && process.env.LIVEKIT_API_SECRET);
 }
 
+function hasExpiredTerminalRecordingFailure(doc) {
+  if (doc?.serverRecording?.status !== 'failed' || !doc.serverRecording?.endedAt) return false;
+  const endedAt = new Date(doc.serverRecording.endedAt).getTime();
+  if (!Number.isFinite(endedAt)) return false;
+  return Date.now() - endedAt > getStuckMinutes() * 60 * 1000;
+}
+
 function isStuck(doc) {
   // Full LIVE transport loss has its own long recovery lease. Do not reuse the
   // short transition timeout: a creator can be offline/reconnecting for hours
@@ -66,6 +73,11 @@ function isStuck(doc) {
     ['audio_disconnected', 'creator_connecting'].includes(doc.mediaState) &&
     doc.creatorDisconnectedAt
   ) {
+    // A terminal server-recorder failure plus a confirmed missing LiveKit
+    // program track is evidence that the show ended, rather than a temporary
+    // creator reconnect. Do not show a dead public broadcast for the full
+    // long-session recovery lease.
+    if (hasExpiredTerminalRecordingFailure(doc)) return true;
     const ageHours =
       (Date.now() - new Date(doc.creatorDisconnectedAt).getTime()) / 3600000;
     return ageHours > getCreatorRecoveryHours();
@@ -289,7 +301,7 @@ async function sweep() {
         fresh.programTrackName = null;
         await fresh.save();
         clearBroadcastPresenceCache(fresh._id);
-        continue;
+        if (!hasExpiredTerminalRecordingFailure(fresh)) continue;
       } catch (error) {
         // A provider/control-plane error is not proof that audio disappeared.
         console.warn(

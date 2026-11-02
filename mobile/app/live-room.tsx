@@ -2,8 +2,8 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams } from 'expo-router';
 import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
-import { Headphones, Radio, Users, Volume2, X } from 'lucide-react-native';
-import { useEffect, useMemo, useState } from 'react';
+import { Headphones, MessageCircle, Radio, Users, Volume2, X } from 'lucide-react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ListenerBackHeader, friendlyErrorMessage } from '@/src/components/ListenerV2';
+import { LiveChatSheet } from '@/src/components/LiveChatSheet';
 import { getBroadcastPresence } from '@/src/services/echooApi';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { LivePlaybackItem, usePlayback } from '@/src/playback/PlaybackProvider';
@@ -34,6 +35,7 @@ export default function LiveRoomScreen() {
   const styles = useMemo(() => createStyles(palette), [palette]);
   const playback = usePlayback();
   const playLive = playback.playLive;
+  const stopPlayback = playback.stop;
 
   const broadcastId = String(params.broadcastId || '');
   const title = String(params.title || 'Live broadcast');
@@ -53,12 +55,29 @@ export default function LiveRoomScreen() {
   const [preparing, setPreparing] = useState(true);
   const [prepareError, setPrepareError] = useState('');
   const [listenerCount, setListenerCount] = useState(0);
+  const [chatOpen, setChatOpen] = useState(false);
+  const liveEndedRef = useRef(false);
   const isCurrentLive = playback.current?.kind === 'live' && playback.current.id === broadcastId;
   const listening = isCurrentLive && playback.isPlaying;
   const loading = preparing || (isCurrentLive && playback.isLoading);
   const connecting = isCurrentLive && loading;
   const error = prepareError || (isCurrentLive ? playback.error : '');
+  const broadcastEnded = /live broadcast has ended/i.test(error);
   const nativeModuleUnavailable = isCurrentLive && playback.liveNativeUnavailable;
+
+  const applyPresence = useCallback((presence: { status?: string; listenerCount?: number } | null) => {
+    const status = String(presence?.status || '');
+    setListenerCount(Number(presence?.listenerCount) || 0);
+
+    if (!status || ['starting', 'live'].includes(status) || liveEndedRef.current) return;
+    liveEndedRef.current = true;
+    stopPlayback();
+    setPrepareError('This live broadcast has ended.');
+  }, [stopPlayback]);
+
+  useEffect(() => {
+    liveEndedRef.current = false;
+  }, [broadcastId]);
 
   useEffect(() => {
     let active = true;
@@ -70,11 +89,10 @@ export default function LiveRoomScreen() {
       try {
         if (!broadcastId) throw new Error('Broadcast ID is missing.');
 
-        getBroadcastPresence(broadcastId)
-          .then((presence) => {
-            if (active) setListenerCount(Number(presence?.listenerCount) || 0);
-          })
-          .catch(() => undefined);
+        const presence = await getBroadcastPresence(broadcastId).catch(() => null);
+        if (!active) return;
+        applyPresence(presence);
+        if (liveEndedRef.current) return;
 
         if (!isCurrentLive) await playLive(requestedLive);
       } catch (prepareError: any) {
@@ -89,17 +107,17 @@ export default function LiveRoomScreen() {
     return () => {
       active = false;
     };
-  }, [broadcastId, isCurrentLive, playLive, requestedLive]);
+  }, [applyPresence, broadcastId, isCurrentLive, playLive, requestedLive]);
 
   useEffect(() => {
     if (!broadcastId || nativeModuleUnavailable) return;
     const timer = setInterval(() => {
       getBroadcastPresence(broadcastId)
-        .then((presence) => setListenerCount(Number(presence?.listenerCount) || 0))
+        .then(applyPresence)
         .catch(() => undefined);
     }, 10000);
     return () => clearInterval(timer);
-  }, [broadcastId, nativeModuleUnavailable]);
+  }, [applyPresence, broadcastId, nativeModuleUnavailable]);
 
   const roomContent = (
     <LiveRoomContent
@@ -114,6 +132,7 @@ export default function LiveRoomScreen() {
         playback.stop();
         router.back();
       }}
+      onOpenChat={() => setChatOpen(true)}
       palette={palette}
     />
   );
@@ -147,8 +166,12 @@ export default function LiveRoomScreen() {
         {!loading && !nativeModuleUnavailable && error ? (
           <View style={styles.centerState}>
             <View style={styles.errorIcon}><Radio color={palette.red} size={25} /></View>
-            <Text style={styles.stateTitle}>Could not join live audio</Text>
-            <Text style={styles.stateText}>{friendlyErrorMessage({ message: error }, 'Could not join this live broadcast.')}</Text>
+            <Text style={styles.stateTitle}>{broadcastEnded ? 'Broadcast ended' : 'Could not join live audio'}</Text>
+            <Text style={styles.stateText}>
+              {broadcastEnded
+                ? 'This live broadcast has ended.'
+                : friendlyErrorMessage({ message: error }, 'Could not join this live broadcast.')}
+            </Text>
             <Pressable style={styles.backHomeButton} onPress={() => router.back()}>
               <Text style={styles.backHomeText}>Back to Live</Text>
             </Pressable>
@@ -164,6 +187,12 @@ export default function LiveRoomScreen() {
             {roomContent}
           </ScrollView>
         ) : null}
+        <LiveChatSheet
+          visible={chatOpen}
+          broadcastId={broadcastId}
+          title={title}
+          onClose={() => setChatOpen(false)}
+        />
       </View>
     </SafeAreaView>
   );
@@ -178,6 +207,7 @@ function LiveRoomContent({
   connecting,
   onToggleListening,
   onClose,
+  onOpenChat,
   palette,
 }: {
   title: string;
@@ -188,6 +218,7 @@ function LiveRoomContent({
   connecting: boolean;
   onToggleListening: () => void;
   onClose: () => void;
+  onOpenChat: () => void;
   palette: EchooColors;
 }) {
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -238,6 +269,9 @@ function LiveRoomContent({
           <X color={palette.ink} size={21} />
           <Text style={styles.secondaryControlText}>Leave</Text>
         </Pressable>
+        <Pressable style={styles.chatControl} onPress={onOpenChat} accessibilityLabel="Open live chat">
+          <MessageCircle color={palette.blue} size={21} />
+        </Pressable>
         <Pressable style={[styles.primaryControl, connecting && styles.primaryControlDisabled]} onPress={onToggleListening} disabled={connecting}>
           <Headphones color="#FFFFFF" size={21} />
           <Text style={styles.primaryControlText}>{connecting ? 'Connecting...' : listening ? 'Pause live audio' : 'Resume listening'}</Text>
@@ -275,6 +309,7 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   controls: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 'auto', paddingTop: 16 },
   secondaryControl: { minHeight: 52, borderRadius: 16, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.surface, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   secondaryControlText: { color: palette.ink, fontSize: 12.5, fontWeight: '900' },
+  chatControl: { width: 52, height: 52, borderRadius: 16, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.surface, alignItems: 'center', justifyContent: 'center' },
   primaryControl: { flexGrow: 1, flexShrink: 1, flexBasis: 170, minHeight: 52, borderRadius: 16, backgroundColor: palette.blue, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 12 },
   primaryControlDisabled: { opacity: 0.72 },
   primaryControlText: { color: '#FFFFFF', fontSize: 12.5, fontWeight: '900' },

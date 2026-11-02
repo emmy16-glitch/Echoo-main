@@ -66,10 +66,10 @@ async function loadFileSystem(): Promise<FileSystemModule> {
   return import('expo-file-system/legacy') as Promise<FileSystemModule>;
 }
 
-async function getAccountScope() {
+async function getOptionalAccountScope() {
   const token = await getAccessToken();
   const encodedPayload = token?.split('.')[1];
-  if (!encodedPayload) throw new Error('Sign in to manage offline downloads.');
+  if (!encodedPayload) return null;
   try {
     const base64 = encodedPayload.replace(/-/g, '+').replace(/_/g, '/');
     const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
@@ -77,6 +77,14 @@ async function getAccountScope() {
     const accountId = payload.userId || payload.sub || payload.id || payload._id;
     if (accountId) return String(accountId);
   } catch { /* fail closed below; unscoped files could leak between accounts */ }
+  return null;
+}
+
+async function getAccountScope() {
+  const accountId = await getOptionalAccountScope();
+  if (accountId) return accountId;
+  const token = await getAccessToken();
+  if (!token) throw new Error('Sign in to manage offline downloads.');
   throw new Error('Could not identify the signed-in account for offline storage.');
 }
 

@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ListenerBackHeader, friendlyErrorMessage } from '@/src/components/ListenerV2';
 import { loginEchoo, registerEchoo } from '@/src/services/echooApi';
+import { registerEchooPushNotifications } from '@/src/services/pushNotifications';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
@@ -57,6 +58,7 @@ export default function AuthScreen() {
             password,
             displayName: displayName.trim() || identifier.trim(),
           });
+      void registerEchooPushNotifications().catch(() => undefined);
       if (mode === 'login') {
         router.replace(user.userType === 'creator' ? '/creator' : '/profile');
         return;

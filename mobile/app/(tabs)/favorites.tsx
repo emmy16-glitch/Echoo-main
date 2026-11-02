@@ -33,6 +33,7 @@ import {
 } from '@/src/services/echooApi';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getLocalDownloads, LocalDownload } from '@/src/services/localDownloads';
+import { AudioPlaybackItem, usePlayback } from '@/src/playback/PlaybackProvider';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
 export default function FavoritesScreen() {
@@ -40,6 +41,7 @@ export default function FavoritesScreen() {
   const scheme = useColorScheme();
   const palette = getEchooColors(scheme);
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const playback = usePlayback();
 
   const [signedIn, setSignedIn] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -95,7 +97,26 @@ export default function FavoritesScreen() {
     }, [loadFavorites])
   );
 
-  const openAudio = (track: EchooAudio) => {
+  const savedAudioQueue = useMemo<AudioPlaybackItem[]>(
+    () => savedAudio.map((track) => ({
+      kind: 'audio',
+      id: track.id,
+      title: track.title,
+      subtitle: track.subtitle || track.artistName || track.genre || 'Echoo Audio',
+      coverArt: track.coverArt || '',
+      fileUrl: track.fileUrl || '',
+      genre: track.genre || '',
+      stationId: track.stationId || '',
+      stationName: track.stationName || track.artistName || '',
+      collectionId: track.collectionId || '',
+      collectionName: track.collectionName || '',
+    })),
+    [savedAudio]
+  );
+
+  const openAudio = async (track: EchooAudio) => {
+    const index = Math.max(0, savedAudioQueue.findIndex((item) => item.id === track.id));
+    await playback.playAudioQueue(savedAudioQueue, index);
     push({
       pathname: '/audio-player',
       params: {
@@ -216,7 +237,7 @@ export default function FavoritesScreen() {
                       onChanged={() => loadFavorites(true)}
                     />
                   }
-                  onPress={() => openAudio(track)}
+                  onPress={() => void openAudio(track)}
                 />
               ))
             ) : (

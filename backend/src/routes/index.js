@@ -25,6 +25,7 @@ import historyRoutes from './historyRoutes.js';
 import downloadsRoutes from './downloadsRoutes.js';
 import advancedPlayerRoutes from './advancedPlayerRoutes.js';
 import notificationRoutes from './notificationRoutes.js';
+import pushTokenRoutes from './pushTokenRoutes.js';
 import transcriptRoutes from './transcriptRoutes.js';
 import savedMomentRoutes from './savedMomentRoutes.js';
 import LiveKitProvider from '../providers/livekit.js';
@@ -168,6 +169,7 @@ router.use('/history', historyRoutes);
 router.use('/downloads', downloadsRoutes);
 router.use('/player', advancedPlayerRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/push-tokens', pushTokenRoutes);
 router.use('/transcripts', transcriptRoutes);
 router.use('/saved-moments', savedMomentRoutes);
 

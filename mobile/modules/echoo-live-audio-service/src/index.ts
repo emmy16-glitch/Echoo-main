@@ -15,27 +15,29 @@ type NativeLiveAudioService = {
 let nativeModule: NativeLiveAudioService | null = null;
 
 try {
-  // Lazy require: the native module is absent on iOS/web/Expo Go, where the
-  // service is a no-op by design.
+  // Lazy require keeps Expo Go and web working without the native bridge.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { requireNativeModule } = require('expo-modules-core');
   nativeModule = requireNativeModule(
     'EchooLiveAudioService'
   ) as NativeLiveAudioService;
 } catch {
-  // Expo Go / iOS / web: no native module — callers treat `false` as
-  // "background service unavailable" and audio simply attempts to play
-  // without it (exactly today's behavior, never a regression).
+  // The caller treats an unavailable native bridge as a best-effort no-op.
   nativeModule = null;
 }
 
-// Starts the Android foreground service (mediaPlayback type) with a
-// lock-screen notification. Resolves true when the service accepted the
-// request, false when unavailable — best-effort by design.
+// Android starts a mediaPlayback foreground service. iOS publishes the live
+// stream to Now Playing so listeners can see it in Control Center/lock screen.
 export async function startLiveAudioService(
   info: LiveAudioServiceInfo
 ): Promise<boolean> {
-  if (Platform.OS !== 'android' || !nativeModule) return false;
+  if (!nativeModule || Platform.OS === 'web') return false;
+  // Recorded audio already owns the system media session through expo-audio.
+  // Only LiveKit listener audio needs this native bridge on iOS.
+  if (Platform.OS === 'ios' && info.kind === 'audio') {
+    nativeModule.stop();
+    return false;
+  }
   try {
     return (
       nativeModule.start(
@@ -51,7 +53,7 @@ export async function startLiveAudioService(
 }
 
 export async function stopLiveAudioService(): Promise<void> {
-  if (Platform.OS !== 'android' || !nativeModule) return;
+  if (!nativeModule || Platform.OS === 'web') return;
   try {
     nativeModule.stop();
   } catch {
@@ -60,7 +62,7 @@ export async function stopLiveAudioService(): Promise<void> {
 }
 
 export function isLiveAudioServiceAvailable(): boolean {
-  return Platform.OS === 'android' && nativeModule !== null;
+  return Platform.OS !== 'web' && nativeModule !== null;
 }
 
 // Foreground-service notifications need an explicit runtime grant on
