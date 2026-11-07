@@ -1,3 +1,9 @@
 {
-  "platforms": ["android", "ios"]
+  "platforms": ["android", "ios"],
+  "android": {
+    "modules": ["org.digi02.echoo.liveaudioservice.EchooLiveAudioServiceModule"]
+  },
+  "apple": {
+    "modules": ["EchooLiveAudioServiceModule"]
+  }
 }
