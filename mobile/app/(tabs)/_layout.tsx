@@ -29,11 +29,13 @@ export default function TabLayout() {
   const tabStyle = useMemo(
     () => ({
       height: tabMetrics.height,
-      paddingTop: 7,
+      paddingTop: 10,
       paddingBottom: tabMetrics.bottomPadding,
-      borderTopWidth: 1,
-      borderTopColor: palette.lineStrong,
-      backgroundColor: palette.tab,
+      borderTopWidth: 0,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      backgroundColor: '#F7F9FC',
+      elevation: 12,
     }),
     [palette, tabMetrics.bottomPadding, tabMetrics.height]
   );
@@ -42,12 +44,12 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: palette.blue,
-        tabBarInactiveTintColor: palette.tabInactive,
+        tabBarActiveTintColor: '#050505',
+        tabBarInactiveTintColor: '#050505',
         tabBarStyle: tabStyle,
         tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '700',
+          fontSize: 12,
+          fontFamily: 'DMSans_500Medium',
         },
         tabBarHideOnKeyboard: true,
       }}

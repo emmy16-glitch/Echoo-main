@@ -1,383 +1,106 @@
-import { useLocalSearchParams } from 'expo-router';
-import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
-import {
-  Bell,
-  ChevronRight,
-  Download,
-  FileText,
-  Headphones,
-  Languages,
-  MoonStar,
-  Shield,
-  Trash2,
-  UserRound,
-  Volume2,
-} from 'lucide-react-native';
-import { ReactNode, useEffect, useMemo, useState } from 'react';
-import {
-  Linking,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { ArrowLeft, ChevronRight, Eye, EyeOff, LogOut } from 'lucide-react-native';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { friendlyErrorMessage } from '@/src/components/ListenerV2';
+import { EchooUser, getCurrentUser, getListenerSettings, hasEchooSession, logoutEchoo, requestListenerPasswordReset, updateListenerNotifications, updateListenerPassword } from '@/src/services/echooApi';
+import { getLocalDownloads } from '@/src/services/localDownloads';
+import { useThemePreference } from '@/src/theme/ThemePreference';
 
-import {
-  ListenerAuthCard,
-  ListenerBackHeader,
-  ListenerPageHeader,
-  ListenerSectionHeader,
-} from '@/src/components/ListenerV2';
-import { EchooUser, getCurrentUser, hasEchooSession } from '@/src/services/echooApi';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { ThemePreference, useThemePreference } from '@/src/theme/ThemePreference';
-import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
-
-const themeOptions: { label: string; value: ThemePreference }[] = [
-  { label: 'System', value: 'system' },
-  { label: 'Light', value: 'light' },
-  { label: 'Dark', value: 'dark' },
-];
-
-type SettingsSection = 'all' | 'account' | 'notifications' | 'appearance' | 'playback' | 'privacy';
-
-const isSettingsSection = (value: string): value is SettingsSection =>
-  ['all', 'account', 'notifications', 'appearance', 'playback', 'privacy'].includes(value);
-
-const sectionCopy: Record<SettingsSection, { header: string; eyebrow: string; title: string; subtitle: string }> = {
-  all: {
-    header: 'Settings',
-    eyebrow: 'LISTENER SETTINGS',
-    title: 'Make Echoo feel right',
-    subtitle: 'Playback, appearance, notifications and account-level controls for your listener experience.',
-  },
-  account: {
-    header: 'Account',
-    eyebrow: 'ACCOUNT',
-    title: 'Your Echoo identity',
-    subtitle: 'Profile details and account state for the listener currently signed in on this device.',
-  },
-  notifications: {
-    header: 'Notifications',
-    eyebrow: 'ALERTS',
-    title: 'Notification controls',
-    subtitle: 'Manage device-level Echoo notifications for live rooms, creators and releases.',
-  },
-  appearance: {
-    header: 'Appearance',
-    eyebrow: 'DISPLAY',
-    title: 'Choose your look',
-    subtitle: 'Set Echoo to follow your phone or keep a fixed light or dark theme.',
-  },
-  playback: {
-    header: 'Playback',
-    eyebrow: 'LISTENING',
-    title: 'Playback & downloads',
-    subtitle: 'Control how Echoo plays audio and stores offline media on this device.',
-  },
-  privacy: {
-    header: 'Privacy',
-    eyebrow: 'SECURITY',
-    title: 'Privacy & security',
-    subtitle: 'Review session security, privacy policy and account deletion controls.',
-  },
-};
-
+const BLUE = '#2B5FC0';
+type Section = 'all' | 'account' | 'notifications' | 'playback' | 'appearance';
 export default function SettingsScreen() {
-  const { push } = useGuardedRouter();
+  const router = useRouter();
   const params = useLocalSearchParams<{ section?: string }>();
-  const scheme = useColorScheme();
-  const { preference, setPreference } = useThemePreference();
-  const palette = getEchooColors(scheme);
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  const [signedIn, setSignedIn] = useState(false);
+  const section: Section = ['account', 'notifications', 'playback', 'appearance'].includes(String(params.section)) ? params.section as Section : 'all';
+  const title = ({ all: 'Settings', account: 'Account & Security', notifications: 'Notifications', playback: 'Playback & downloads', appearance: 'Appearance' } as const)[section];
   const [user, setUser] = useState<EchooUser | null>(null);
-  const section = isSettingsSection(String(params.section || 'all'))
-    ? String(params.section || 'all') as SettingsSection
-    : 'all';
-  const copy = sectionCopy[section];
-  const showAll = section === 'all';
+  const [notifications, setNotifications] = useState({ email: true, push: true, newFollowers: true, newReleases: true });
+  const [downloadCount, setDownloadCount] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [signOutOpen, setSignOutOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const { preference, setPreference } = useThemePreference();
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     let active = true;
-    Promise.all([hasEchooSession(), getCurrentUser().catch(() => null)]).then(([session, currentUser]) => {
-      if (!active) return;
-      setSignedIn(session && Boolean(currentUser));
-      setUser(currentUser);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+    void (async () => {
+      const session = await hasEchooSession();
+      if (!active || !session) return;
+      const [current, settings] = await Promise.all([getCurrentUser().catch(() => null), getListenerSettings().catch(() => null)]);
+      if (active) { setUser(current); if (settings) setNotifications(settings.notifications); }
+    })();
+    if (section === 'playback') void getLocalDownloads().then((downloads) => { if (active) setDownloadCount(downloads.length); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [section]));
 
-  return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'right', 'bottom', 'left']}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <ListenerBackHeader title={copy.header} />
-        <ListenerPageHeader
-          eyebrow={copy.eyebrow}
-          title={copy.title}
-          subtitle={copy.subtitle}
-        />
+  const row = (label: string, subtitle: string, onPress: () => void, danger = false) => <Pressable key={label} style={styles.row} onPress={onPress} accessibilityRole="button"><View style={styles.rowCopy}><Text style={[styles.rowText, danger && styles.danger]}>{label}</Text><Text style={styles.rowSub}>{subtitle}</Text></View><ChevronRight color={danger ? '#C5334B' : '#858585'} size={21} /></Pressable>;
+  const toggle = (key: keyof typeof notifications, label: string, subtitle: string) => <View key={key} style={styles.row}><View style={styles.rowCopy}><Text style={styles.rowText}>{label}</Text><Text style={styles.rowSub}>{subtitle}</Text></View><Switch value={notifications[key]} disabled={busy || !user} onValueChange={(value) => { const previous = notifications; setNotifications({ ...notifications, [key]: value }); setBusy(true); void updateListenerNotifications({ [key]: value }).catch((cause) => { setNotifications(previous); setError(friendlyErrorMessage(cause, 'Could not update notifications.')); }).finally(() => setBusy(false)); }} trackColor={{ false: '#CFD2D8', true: BLUE }} thumbColor="#FFFFFF" /></View>;
+  const changePassword = async () => {
+    if (!currentPassword || newPassword.length < 6 || newPassword !== confirmPassword) { setError('Enter your current password and matching new passwords of at least 6 characters.'); return; }
+    setBusy(true); setError('');
+    try { await updateListenerPassword(currentPassword, newPassword); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); Alert.alert('Password updated', 'Your password has been changed.'); }
+    catch (cause: any) { setError(cause?.code === 'INVALID_PASSWORD' ? 'That password is incorrect.' : friendlyErrorMessage(cause, 'Could not update your password.')); }
+    finally { setBusy(false); }
+  };
+  const resetPassword = async () => {
+    if (!user?.email || busy) return;
+    setBusy(true); setError('');
+    try { await requestListenerPasswordReset(user.email); Alert.alert('Check your email', 'A password reset link has been sent to your email address.'); }
+    catch (cause) { setError(friendlyErrorMessage(cause, 'Could not send a password reset link.')); }
+    finally { setBusy(false); }
+  };
+  const signOut = async () => { setBusy(true); await logoutEchoo().catch(() => undefined); setBusy(false); setSignOutOpen(false); router.replace('/(tabs)/profile'); };
 
-        {!signedIn ? (
-          <ListenerAuthCard
-            title="Sign in for synced settings"
-            subtitle="Device appearance works for everyone. Account preferences can sync after you sign in."
-            onPress={() => push('/auth')}
-          />
-        ) : null}
-
-        {(showAll || section === 'account') && signedIn && user ? (
-          <View style={styles.accountStrip}>
-            <View style={styles.accountIcon}>
-              <UserRound color={palette.muted} size={20} strokeWidth={2} />
-            </View>
-            <View style={styles.accountCopy}>
-              <Text style={styles.accountName}>{user.displayName}</Text>
-              <Text style={styles.accountMeta}>@{user.username} · {user.email || 'Echoo account'}</Text>
-            </View>
-          </View>
-        ) : null}
-
-        {(showAll || section === 'account') && signedIn && user ? (
-          <>
-            <ListenerSectionHeader title="Account" />
-            <View style={styles.group}>
-              <SettingRow
-                icon={<UserRound color={palette.muted} size={19} strokeWidth={2} />}
-                title="Display name"
-                subtitle="Shown on your Echoo listener account"
-                value={user.displayName || user.username}
-                palette={palette}
-              />
-              <SettingRow
-                icon={<UserRound color={palette.muted} size={19} strokeWidth={2} />}
-                title="Username"
-                subtitle="Your unique Echoo handle"
-                value={`@${user.username}`}
-                palette={palette}
-              />
-              <SettingRow
-                icon={<UserRound color={palette.muted} size={19} strokeWidth={2} />}
-                title="Account type"
-                subtitle="Controls which mobile tools are available"
-                value={user.userType === 'creator' ? 'Creator' : 'Listener'}
-                palette={palette}
-                last
-              />
-            </View>
-          </>
-        ) : null}
-
-        {(showAll || section === 'appearance' || section === 'playback') ? (
-          <>
-            <ListenerSectionHeader title={section === 'playback' ? 'Playback' : 'Experience'} />
-            <View style={styles.group}>
-              {(showAll || section === 'appearance') ? (
-                <>
-                  <SettingRow
-                    icon={<MoonStar color={palette.muted} size={19} strokeWidth={2} />}
-                    title="Appearance"
-                    subtitle="Choose Echoo's app theme"
-                    value={
-                      preference === 'system'
-                        ? `System ${scheme === 'dark' ? 'Dark' : 'Light'}`
-                        : preference === 'dark' ? 'Dark' : 'Light'
-                    }
-                    palette={palette}
-                  />
-                  <View style={styles.themePicker}>
-                    {themeOptions.map((option) => {
-                      const active = preference === option.value;
-                      return (
-                        <Pressable
-                          key={option.value}
-                          style={[styles.themeOption, active && styles.themeOptionActive]}
-                          onPress={() => setPreference(option.value)}
-                          accessibilityRole="button"
-                          accessibilityState={{ selected: active }}
-                        >
-                          <Text style={[styles.themeOptionText, active && styles.themeOptionTextActive]}>
-                            {option.label}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </>
-              ) : null}
-              {(showAll || section === 'playback') ? (
-                <>
-                  <SettingRow
-                    icon={<Volume2 color={palette.muted} size={19} strokeWidth={2} />}
-                    title="Playback"
-                    subtitle="Normal speed · device volume"
-                    value="Default"
-                    palette={palette}
-                  />
-                  <SettingRow
-                    icon={<Download color={palette.muted} size={19} strokeWidth={2} />}
-                    title="Downloads"
-                    subtitle="Offline media remains on this device"
-                    value="Device"
-                    palette={palette}
-                  />
-                  <SettingRow
-                    icon={<Languages color={palette.muted} size={19} strokeWidth={2} />}
-                    title="Language"
-                    subtitle="Interface language"
-                    value="English"
-                    palette={palette}
-                    last
-                  />
-                </>
-              ) : null}
-            </View>
-          </>
-        ) : null}
-
-        {(showAll || section === 'notifications' || section === 'privacy') ? (
-          <>
-            <ListenerSectionHeader title={section === 'notifications' ? 'Notifications' : 'Notifications & privacy'} />
-            <View style={styles.group}>
-              {(showAll || section === 'notifications') ? (
-                <SettingRow
-                  icon={<Bell color={palette.muted} size={19} strokeWidth={2} />}
-                  title="Device notifications"
-                  subtitle="Open your phone settings for Echoo notification permission"
-                  value="Open"
-                  palette={palette}
-                  onPress={() => Linking.openSettings()}
-                  last={section === 'notifications'}
-                />
-              ) : null}
-              {(showAll || section === 'privacy') ? (
-                <>
-                  <SettingRow
-                    icon={<Shield color={palette.muted} size={19} strokeWidth={2} />}
-                    title="Privacy & security"
-                    subtitle="Secure mobile session storage and account controls"
-                    value={signedIn ? 'Protected' : 'Guest'}
-                    palette={palette}
-                  />
-                  <SettingRow
-                    icon={<FileText color={palette.muted} size={19} strokeWidth={2} />}
-                    title="Privacy Policy"
-                    subtitle="Read how Echoo handles account, listening and broadcast data"
-                    value="Open"
-                    palette={palette}
-                    onPress={() => { void Linking.openURL('https://echoo.digi02.org/privacy-policy'); }}
-                    last={!signedIn}
-                  />
-                  {signedIn ? (
-                    <SettingRow
-                      icon={<Trash2 color={palette.red} size={19} strokeWidth={2} />}
-                      title="Delete account"
-                      subtitle="Permanently delete your Echoo account"
-                      value="Delete"
-                      palette={palette}
-                      onPress={() => push('/delete-account')}
-                      last
-                    />
-                  ) : null}
-                </>
-              ) : null}
-            </View>
-          </>
-        ) : null}
-
-        <View style={styles.securityCard}>
-          <Headphones color={palette.muted} size={20} strokeWidth={2} />
-          <View style={styles.securityCopy}>
-            <Text style={styles.securityTitle}>Mobile session security</Text>
-            <Text style={styles.securityText}>
-              On iOS and Android, Echoo stores account tokens with Expo SecureStore rather than ordinary local app storage.
-            </Text>
-          </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
+  return <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}><ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <View style={styles.header}><Pressable onPress={() => router.back()} accessibilityLabel="Go back"><ArrowLeft color="#050505" size={24} /></Pressable><Text style={styles.heading}>{title}</Text>{section !== 'notifications' && section !== 'playback' ? <Pressable onPress={() => router.back()}><Text style={styles.cancel}>Cancel</Text></Pressable> : null}</View>
+    {section === 'all' ? <>
+      <Text style={styles.groupTitle}>Account</Text>
+      {row('Account & security', 'Email, password and account deletion', () => router.push('/settings?section=account'))}
+      {row('Notifications', 'Live alerts and releases', () => router.push('/settings?section=notifications'))}
+      {row('Playback & downloads', 'Offline audio and storage', () => router.push('/settings?section=playback'))}
+      <Text style={styles.groupTitle}>Preferences & help</Text>
+      {row('Appearance', 'Choose the app theme', () => router.push('/settings?section=appearance'))}
+      {row('Privacy policy', 'Read our privacy information', () => { void Linking.openURL('https://echoo.digi02.org/privacy-policy'); })}
+      {user ? <Pressable style={styles.signOut} onPress={() => setSignOutOpen(true)}><Text style={styles.danger}>Sign out</Text><LogOut color="#C5334B" size={22} /></Pressable> : null}
+    </> : null}
+    {section === 'account' ? <>
+      <Text style={styles.groupTitle}>Email address</Text>{row(user?.email || 'Email address', 'Change email address', () => router.push('/change-email'))}
+      <Text style={styles.groupTitle}>Change password</Text>
+      <Text style={styles.label}>Current password</Text><View style={styles.passwordField}><TextInput style={styles.passwordInput} value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry={!showPassword} placeholder="Current password" placeholderTextColor="#858585" /><Pressable onPress={() => setShowPassword(!showPassword)} accessibilityLabel={showPassword ? 'Hide passwords' : 'Show passwords'}>{showPassword ? <EyeOff color="#858585" size={20} /> : <Eye color="#858585" size={20} />}</Pressable></View>
+      <Text style={styles.label}>New password</Text><TextInput style={styles.input} value={newPassword} onChangeText={setNewPassword} secureTextEntry={!showPassword} placeholder="Enter a new password" placeholderTextColor="#858585" />
+      <Text style={styles.label}>Confirm new password</Text><TextInput style={styles.input} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry={!showPassword} placeholder="Enter it again" placeholderTextColor="#858585" />
+      <Text style={styles.note}>Use at least 6 characters.</Text><Pressable style={styles.primary} onPress={() => void changePassword()} disabled={busy || !user}>{busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryText}>Update password</Text>}</Pressable>
+      {row('Forgot your current password?', 'Send a reset link to your email', () => void resetPassword())}
+      {row('Delete account', 'Review what happens before deleting', () => router.push('/delete-account'), true)}
+    </> : null}
+    {section === 'notifications' ? <><Text style={styles.note}>Choose which Echoo updates you receive.</Text><Text style={styles.groupTitle}>From channels you follow</Text>
+      {toggle('push', 'Push notifications', 'Allow account notifications on this device')}
+      {toggle('newReleases', 'New releases', 'New audio and collections')}
+      {toggle('newFollowers', 'New followers', 'When someone follows your channel')}
+      <Text style={styles.groupTitle}>Email updates</Text>{toggle('email', 'Email notifications', `Updates sent to ${user?.email || 'your email'}`)}
+      {row('Device notification permission', 'Change permission in your phone settings', () => { void Linking.openSettings(); })}
+    </> : null}
+    {section === 'playback' ? <><Text style={styles.note}>Manage offline audio stored on this device.</Text><Text style={styles.groupTitle}>Downloads</Text><Text style={styles.rowText}>{downloadCount} {downloadCount === 1 ? 'download' : 'downloads'} on this device</Text>{row('Manage downloads', 'View, retry or remove downloaded audio', () => router.push({ pathname: '/library-section', params: { section: 'downloads' } }))}</> : null}
+    {section === 'appearance' ? <><Text style={styles.groupTitle}>App theme</Text>{(['system', 'light', 'dark'] as const).map((option) => <Pressable key={option} style={styles.row} onPress={() => setPreference(option)}><Text style={styles.rowText}>{option.charAt(0).toUpperCase() + option.slice(1)}</Text><Text style={styles.cancel}>{preference === option ? 'Selected' : ''}</Text></Pressable>)}</> : null}
+    {error ? <Text style={styles.error}>{error}</Text> : null}
+  </ScrollView>
+  <Modal visible={signOutOpen} transparent animationType="slide" onRequestClose={() => setSignOutOpen(false)}><View style={styles.modalBackdrop}><View style={styles.sheet}><View style={styles.handle} /><Text style={styles.sheetTitle}>Sign out of Echoo?</Text><Text style={styles.note}>You’ll need to sign in again to access your saved library and playlists.</Text><Pressable style={styles.primary} onPress={() => void signOut()} disabled={busy}>{busy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryText}>Sign out</Text>}</Pressable><Pressable style={styles.stay} onPress={() => setSignOutOpen(false)}><Text style={styles.cancel}>Stay signed in</Text></Pressable></View></View></Modal>
+  </SafeAreaView>;
 }
 
-function SettingRow({
-  icon,
-  title,
-  subtitle,
-  value,
-  palette,
-  onPress,
-  last = false,
-}: {
-  icon: ReactNode;
-  title: string;
-  subtitle: string;
-  value: string;
-  palette: EchooColors;
-  onPress?: () => void;
-  last?: boolean;
-}) {
-  const styles = useMemo(() => createStyles(palette), [palette]);
-  return (
-    <Pressable style={[styles.row, last && styles.rowLast]} onPress={onPress} disabled={!onPress}>
-      <View style={styles.rowIcon}>{icon}</View>
-      <View style={styles.rowCopy}>
-        <Text style={styles.rowTitle}>{title}</Text>
-        <Text style={styles.rowSubtitle}>{subtitle}</Text>
-      </View>
-      <Text style={styles.rowValue}>{value}</Text>
-      {onPress ? <ChevronRight color={palette.faint} size={17} /> : null}
-    </Pressable>
-  );
-}
-
-const createStyles = (palette: EchooColors) => StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: palette.background },
-  content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 50 },
-  accountStrip: { minHeight: 72, backgroundColor: palette.surface, borderRadius: 17, borderWidth: 1, borderColor: palette.line, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 11 },
-  accountIcon: { width: 22, alignItems: 'center', justifyContent: 'center' },
-  accountCopy: { flex: 1 },
-  accountName: { color: palette.ink, fontSize: 14, fontWeight: '900' },
-  accountMeta: { color: palette.muted, fontSize: 11, marginTop: 3 },
-  group: { backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, borderRadius: 20, overflow: 'hidden' },
-  row: { minHeight: 72, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, borderBottomWidth: 1, borderBottomColor: palette.line },
-  rowLast: { borderBottomWidth: 0 },
-  rowIcon: { width: 22, alignItems: 'center', justifyContent: 'center' },
-  rowCopy: { flex: 1, paddingHorizontal: 10 },
-  rowTitle: { color: palette.ink, fontSize: 13.5, fontWeight: '900' },
-  rowSubtitle: { color: palette.muted, fontSize: 10.5, lineHeight: 15, marginTop: 2 },
-  rowValue: { color: palette.blue, fontSize: 11, fontWeight: '800', marginRight: 3 },
-  themePicker: {
-    minHeight: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 13,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.line,
-  },
-  themeOption: {
-    flex: 1,
-    minHeight: 36,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: palette.line,
-    backgroundColor: palette.surfaceRaised,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  themeOptionActive: {
-    borderColor: palette.blue,
-    backgroundColor: palette.blue,
-  },
-  themeOptionText: { color: palette.muted, fontSize: 12, fontWeight: '800' },
-  themeOptionTextActive: { color: '#FFFFFF' },
-  securityCard: { marginTop: 18, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, borderRadius: 18, padding: 15, flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
-  securityCopy: { flex: 1 },
-  securityTitle: { color: palette.ink, fontSize: 13, fontWeight: '900' },
-  securityText: { color: palette.muted, fontSize: 11, lineHeight: 16, marginTop: 3 },
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: '#F9FBFF' }, content: { paddingHorizontal: 24, paddingTop: 22, paddingBottom: 70 },
+  header: { height: 42, flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 38 }, heading: { flex: 1, color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 23 }, cancel: { color: BLUE, fontFamily: 'DMSans_500Medium', fontSize: 14 },
+  groupTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 17, marginTop: 24, marginBottom: 12 },
+  row: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 10 }, rowCopy: { flex: 1 }, rowText: { color: '#050505', fontFamily: 'DMSans_500Medium', fontSize: 15 }, rowSub: { color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 12, marginTop: 4 }, danger: { color: '#C5334B', fontFamily: 'DMSans_500Medium', fontSize: 15 }, signOut: { minHeight: 60, marginTop: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  label: { color: '#050505', fontFamily: 'DMSans_500Medium', fontSize: 13, marginTop: 16, marginBottom: 8 }, input: { height: 54, borderRadius: 9, borderWidth: 1, borderColor: '#C7C7C7', backgroundColor: '#FFFFFF', paddingHorizontal: 16, color: '#050505', fontFamily: 'DMSans_400Regular', fontSize: 15 }, passwordField: { height: 54, borderRadius: 9, borderWidth: 1, borderColor: '#C7C7C7', backgroundColor: '#FFFFFF', paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center' }, passwordInput: { flex: 1, color: '#050505', fontFamily: 'DMSans_400Regular', fontSize: 15 },
+  note: { color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 13, lineHeight: 19, marginTop: 10 }, primary: { height: 54, borderRadius: 27, backgroundColor: BLUE, marginTop: 24, alignItems: 'center', justifyContent: 'center' }, primaryText: { color: '#FFFFFF', fontFamily: 'DMSans_700Bold', fontSize: 15 }, error: { marginTop: 18, color: '#C5334B', fontFamily: 'DMSans_400Regular', fontSize: 13 },
+  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.38)' }, sheet: { backgroundColor: '#F9FBFF', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 24, paddingTop: 10, paddingBottom: 45 }, handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: '#C7C7C7', marginBottom: 22 }, sheetTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 21 }, stay: { height: 50, alignItems: 'center', justifyContent: 'center' },
 });

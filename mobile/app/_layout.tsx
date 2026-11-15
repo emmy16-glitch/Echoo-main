@@ -1,6 +1,7 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useFonts, DMSans_400Regular, DMSans_500Medium, DMSans_700Bold } from '@expo-google-fonts/dm-sans';
 import * as Notifications from 'expo-notifications';
 import { useEffect, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -10,6 +11,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ListenerMiniPlayer } from '@/src/components/ListenerV2';
+import { ListenerDetailTabBar } from '@/src/components/ListenerDetailTabBar';
 import { PlaybackProvider } from '@/src/playback/PlaybackProvider';
 import { registerEchooPushNotifications } from '@/src/services/pushNotifications';
 import { EchooThemeProvider } from '@/src/theme/ThemePreference';
@@ -20,6 +22,8 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({ DMSans_400Regular, DMSans_500Medium, DMSans_700Bold });
+  if (!fontsLoaded && !fontError) return null;
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
@@ -97,7 +101,15 @@ function RootLayoutContent() {
             />
             <Stack.Screen name="notifications" />
             <Stack.Screen name="settings" />
+            <Stack.Screen name="edit-profile" />
+            <Stack.Screen name="change-email" />
+            <Stack.Screen name="delete-account" />
             <Stack.Screen name="station" />
+            <Stack.Screen name="popular-channels" />
+            <Stack.Screen name="recently-played" />
+            <Stack.Screen name="listening-history" />
+            <Stack.Screen name="library-section" />
+            <Stack.Screen name="made-for-you" />
             <Stack.Screen name="collection" />
             <Stack.Screen name="audio-player" />
             <Stack.Screen name="live-room" />
@@ -110,6 +122,7 @@ function RootLayoutContent() {
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
           </Stack>
           <ListenerMiniPlayer />
+          <ListenerDetailTabBar />
           <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
         </View>
       </ThemeProvider>

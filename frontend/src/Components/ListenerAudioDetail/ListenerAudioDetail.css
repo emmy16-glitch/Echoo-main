@@ -16,6 +16,7 @@
 .replay-creator > svg { color: var(--echoo-ds-brand); }
 .replay-creator em { display: inline-flex; align-items: center; gap: var(--echoo-space-1); margin-left: var(--echoo-space-5); color: var(--echoo-ds-muted); font-size: var(--echoo-ds-caption-size); font-style: normal; }
 .replay-actions { display: flex; flex-wrap: wrap; gap: var(--echoo-space-2); padding-left: 230px; }
+.replay-app-fallback { margin: -8px 0 4px; padding-left: 230px; color: var(--echoo-ds-muted, #667085); font-size: 0.85rem; }
 .replay-timeline { padding: var(--echoo-space-3) 0; }
 .replay-timeline > div:last-child { display: flex; justify-content: space-between; color: var(--echoo-ds-muted); font-size: 13px; font-variant-numeric: tabular-nums; }
 .replay-tabs { min-height: 48px; padding: var(--echoo-space-1); border-bottom: 1px solid var(--echoo-ds-line); }
@@ -60,6 +61,7 @@
   .replay-creator { flex-wrap: wrap; }
   .replay-creator em { width: 100%; margin-left: 0; }
   .replay-actions { padding-left: 0; }
+  .replay-app-fallback { padding-left: 0; }
   .replay-facts { grid-template-columns: 1fr; }
   .replay-facts > div,
   .replay-facts > div:nth-child(2n),

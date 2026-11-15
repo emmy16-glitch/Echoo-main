@@ -4,11 +4,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import {
   Headphones,
-  Heart,
   Music2,
   Play,
   Radio,
-  Search,
 } from 'lucide-react-native';
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -19,25 +17,22 @@ import {
   Text,
   View,
   AppState,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ListenerSkeletonRows, ListenerToast, ListenerTopBar, friendlyErrorMessage } from '@/src/components/ListenerV2';
+import { ListenerToast, friendlyErrorMessage } from '@/src/components/ListenerV2';
+import { HomeSkeleton } from '@/src/components/DiscoverySkeletons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AudioPlaybackItem, usePlayback } from '@/src/playback/PlaybackProvider';
 import {
   EchooAudio,
   EchooBroadcast,
-  EchooHistoryItem,
   EchooStation,
-  getCachedFollowedStationsSnapshot,
-  getCachedListeningHistorySnapshot,
+  EchooUser,
   getCachedMobileDiscoverySnapshot,
-  getCachedSavedAudioSnapshot,
-  getFollowedStations,
-  getListeningHistory,
+  getCurrentUser,
   getMobileDiscovery,
-  getSavedAudio,
   hasEchooSession,
 } from '@/src/services/echooApi';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
@@ -51,21 +46,27 @@ const emptyDiscovery: Discovery = {
   audio: [],
 };
 
-const quickSearches = ['Music', 'Talk', 'Worship', 'News'];
 const HOME_BACKGROUND_REFRESH_MS = 30_000;
 const HOME_RETURN_REFRESH_DEBOUNCE_MS = 12_000;
-
-function greeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  return 'Good evening';
-}
 
 function compactNumber(value = 0) {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)}M`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)}K`;
   return String(value || 0);
+}
+
+function uniqueById<T extends { id: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (!item.id || seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
+
+function profileInitials(name?: string) {
+  const words = String(name || 'Guest').trim().split(/\s+/).filter(Boolean);
+  return words.slice(0, 2).map((word) => word.charAt(0).toUpperCase()).join('');
 }
 
 function collapseCollectionReleases(tracks: EchooAudio[], limit = 8) {
@@ -97,10 +98,7 @@ export default function HomeScreen() {
   const styles = useMemo(() => createStyles(palette), [palette]);
 
   const [discovery, setDiscovery] = useState<Discovery>(emptyDiscovery);
-  const [signedIn, setSignedIn] = useState(false);
-  const [followedStations, setFollowedStations] = useState<EchooStation[]>([]);
-  const [recentHistory, setRecentHistory] = useState<EchooHistoryItem[]>([]);
-  const [savedAudio, setSavedAudio] = useState<EchooAudio[]>([]);
+  const [viewer, setViewer] = useState<EchooUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -116,27 +114,8 @@ export default function HomeScreen() {
     else if (!silent) setLoading(true);
 
     try {
-      const [next, activeSession] = await Promise.all([
-        getMobileDiscovery({ force }),
-        hasEchooSession(),
-      ]);
+      const next = await getMobileDiscovery({ force });
       setDiscovery(next);
-      setSignedIn(activeSession);
-
-      if (activeSession) {
-        const [followed, history, saved] = await Promise.all([
-          getFollowedStations({ force }).catch(() => []),
-          getListeningHistory({ force }).catch(() => []),
-          getSavedAudio({ force }).catch(() => []),
-        ]);
-        setFollowedStations(followed);
-        setRecentHistory(history);
-        setSavedAudio(saved);
-      } else {
-        setFollowedStations([]);
-        setRecentHistory([]);
-        setSavedAudio([]);
-      }
 
       setError('');
     } catch (loadError: any) {
@@ -152,35 +131,22 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
+    void hasEchooSession().then((session) => session ? getCurrentUser().then(setViewer) : setViewer(null)).catch(() => setViewer(null));
+  }, []);
+
+  useEffect(() => {
     let active = true;
 
     const hydrateThenRefresh = async () => {
       let hydrated = false;
 
       if (!hasLoadedOnce.current) {
-        const [cachedDiscovery, activeSession] = await Promise.all([
-          getCachedMobileDiscoverySnapshot(),
-          hasEchooSession(),
-        ]);
+        const cachedDiscovery = await getCachedMobileDiscoverySnapshot();
         if (!active) return;
 
         if (cachedDiscovery) {
           setDiscovery(cachedDiscovery);
           hydrated = true;
-        }
-
-        setSignedIn(activeSession);
-        if (activeSession) {
-          const [followed, history, saved] = await Promise.all([
-            getCachedFollowedStationsSnapshot().catch(() => []),
-            getCachedListeningHistorySnapshot().catch(() => []),
-            getCachedSavedAudioSnapshot().catch(() => []),
-          ]);
-          if (!active) return;
-          setFollowedStations(followed);
-          setRecentHistory(history);
-          setSavedAudio(saved);
-          hydrated = hydrated || followed.length > 0 || history.length > 0 || saved.length > 0;
         }
 
         if (hydrated) setLoading(false);
@@ -249,28 +215,9 @@ export default function HomeScreen() {
     })),
     [published]
   );
-  const liveNow = discovery.live.slice(0, 8);
-  const followedStationIds = useMemo(
-    () => new Set(followedStations.map((station) => station.id).filter(Boolean)),
-    [followedStations]
-  );
-  const followedStationNames = useMemo(
-    () => new Set(followedStations.map((station) => station.name.toLowerCase()).filter(Boolean)),
-    [followedStations]
-  );
-  const continueListening = recentHistory
-    .map((item) => item.track)
-    .filter((track): track is EchooAudio => Boolean(track?.id))
-    .slice(0, 8);
-  const fromYourStations: EchooAudio[] = published.filter((track: EchooAudio) =>
-    followedStationIds.has(track.stationId || '') ||
-    followedStationNames.has(String(track.stationName || '').toLowerCase())
-  );
-  const followedLive: EchooBroadcast[] = liveNow.filter((item: EchooBroadcast) =>
-    followedStationIds.has(item.stationId || '') ||
-    followedStationNames.has(String(item.stationName || '').toLowerCase())
-  );
-  const topStations = [...discovery.stations]
+  const liveNow = uniqueById<EchooBroadcast>(discovery.live).slice(0, 8);
+  const featuredLive = liveNow[0];
+  const topStations = uniqueById<EchooStation>(discovery.stations)
     .sort(
       (a, b) =>
         (b.listenerCount || 0) - (a.listenerCount || 0) ||
@@ -307,6 +254,7 @@ export default function HomeScreen() {
         broadcastId: item.id,
         title: item.title,
         stationName: item.stationName || 'Echoo Station',
+        stationId: item.stationId || '',
         coverArt: item.coverArt || '',
       },
     });
@@ -314,7 +262,6 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <ListenerTopBar />
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -327,128 +274,57 @@ export default function HomeScreen() {
           />
         }
       >
-        <View style={styles.welcomeRow}>
-          <View>
-            <Text style={styles.greeting}>{greeting()}</Text>
-            <Text style={styles.welcomeTitle}>Listen now</Text>
-          </View>
-          <Pressable
-            style={styles.searchButton}
-            onPress={() => push('/search')}
-            accessibilityLabel="Search Echoo"
+        <Pressable style={styles.avatarButton} onPress={() => push('/profile')} accessibilityLabel="Open your profile">
+          {viewer?.avatar ? <Image source={{ uri: viewer.avatar }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : <Text style={styles.avatarInitial}>{profileInitials(viewer?.displayName || viewer?.username)}</Text>}
+        </Pressable>
+
+        {loading && !topStations.length && !published.length && !featuredLive ? <HomeSkeleton /> : <>
+        <HomeHeroCarousel live={featuredLive} onLivePress={() => featuredLive ? openLiveRoom(featuredLive) : push('/live')} onBrowsePress={() => push('/search')} palette={palette} />
+
+        {!loading && error ? <ListenerToast message={error} /> : null}
+
+        <SectionHeader
+          title="Popular Channel"
+          action="See All"
+          onPress={() => push('/popular-channels')}
+          palette={palette}
+        />
+        {topStations.length ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.channelRail}
           >
-            <Search color={palette.ink} size={21} />
-          </Pressable>
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipRail}
-        >
-          {quickSearches.map((label) => (
-            <Pressable
-              key={label}
-              style={styles.chip}
-              onPress={() => push({ pathname: '/search', params: { q: label } })}
-            >
-              <Text style={styles.chipText}>{label}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-
-        {loading ? (
-          <ListenerSkeletonRows count={3} />
-        ) : null}
-
-        {!loading && error ? (
-          <ListenerToast message={error} />
-        ) : null}
-
-        {signedIn && continueListening.length ? (
-          <>
-            <SectionHeader
-              title="Continue listening"
-              action="Library"
-              onPress={() => push('/library')}
-              palette={palette}
-            />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.releaseRail}
-            >
-              {continueListening.map((track) => (
-                <Pressable key={track.id} style={styles.releaseCard} onPress={() => openAudio(track)}>
-                  <Artwork uri={track.coverArt} style={styles.releaseArt} palette={palette} />
-                  <Text style={styles.releaseTitle} numberOfLines={1}>{track.title}</Text>
-                  <Text style={styles.releaseSubtitle} numberOfLines={1}>
-                    {track.stationName || track.subtitle || track.artistName || 'Recent play'}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </>
-        ) : null}
-
-        {signedIn && followedLive.length ? (
-          <>
-            <SectionHeader
-              title="Live from your stations"
-              action="Live"
-              onPress={() => push('/live')}
-              palette={palette}
-            />
-            <View style={styles.personalStack}>
-              {followedLive.slice(0, 3).map((item: EchooBroadcast) => (
-                <Pressable key={item.id} style={styles.personalRow} onPress={() => openLiveRoom(item)}>
-                  <View style={styles.personalIcon}>
-                    <Headphones color={palette.red} size={20} />
-                  </View>
-                  <View style={styles.personalCopy}>
-                    <Text style={styles.personalTitle} numberOfLines={1}>{item.title}</Text>
-                    <Text style={styles.personalText} numberOfLines={1}>{item.stationName || 'Echoo Station'}</Text>
-                  </View>
-                  <View style={styles.liveTinyBadge}>
-                    <Text style={styles.liveTinyText}>LIVE</Text>
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          </>
-        ) : null}
-
-        {signedIn && fromYourStations.length ? (
-          <>
-            <SectionHeader
-              title="New from your stations"
-              action="Library"
-              onPress={() => push('/library')}
-              palette={palette}
-            />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.releaseRail}
-            >
-              {fromYourStations.slice(0, 8).map((track: EchooAudio) => (
-                <Pressable key={track.id} style={styles.releaseCard} onPress={() => openAudio(track)}>
-                  <Artwork uri={track.coverArt} style={styles.releaseArt} palette={palette} />
-                  <Text style={styles.releaseTitle} numberOfLines={1}>{track.title}</Text>
-                  <Text style={styles.releaseSubtitle} numberOfLines={1}>
-                    {track.stationName || track.subtitle || track.artistName || 'Followed station'}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </>
+            {topStations.map((station) => (
+              <Pressable
+                key={station.id}
+                style={styles.channelCard}
+                onPress={() => push({ pathname: '/station', params: { stationId: station.id } })}
+              >
+                <Artwork uri={station.coverArt} style={styles.channelArt} palette={palette} />
+                <Text style={styles.channelTitle} numberOfLines={1}>{station.name}</Text>
+                <Text style={styles.channelMeta} numberOfLines={1}>
+                  {station.isLive ? 'Live now' : `${compactNumber(station.followerCount)} followers`}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : !loading ? (
+          <EmptyRow
+            icon={<Radio color={palette.blue} size={22} />}
+            backgroundIcon="station"
+            title="Channels are warming up"
+            subtitle="Popular channels appear as listeners grow."
+            palette={palette}
+          />
         ) : null}
 
         <SectionHeader
-          title="Fresh releases"
-          action="Search"
-          onPress={() => push('/search')}
+          title="Made for you"
+          action="See All"
+          onPress={() => push('/made-for-you')}
           palette={palette}
+          extraTopSpace
         />
         {published.length ? (
           <ScrollView
@@ -466,123 +342,41 @@ export default function HomeScreen() {
               </Pressable>
             ))}
           </ScrollView>
-        ) : (
+        ) : !loading ? (
           <EmptyRow
             icon={<Music2 color={palette.blue} size={22} />}
             backgroundIcon="music"
-            title="Fresh audio is coming"
+            title="Audio is coming"
             subtitle="New uploads will land here."
             palette={palette}
           />
-        )}
-
-        <SectionHeader
-          title="Live now"
-          action="View all"
-          onPress={() => push('/live')}
-          palette={palette}
-        />
-        {liveNow.length ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.liveRail}
-          >
-            {liveNow.map((item: EchooBroadcast) => (
-              <Pressable key={item.id} style={styles.liveCard} onPress={() => openLiveRoom(item)}>
-                <Artwork uri={item.coverArt} style={styles.liveArt} palette={palette} />
-                <View style={styles.liveBadge}>
-                  <View style={styles.liveDot} />
-                  <Text style={styles.liveBadgeText}>LIVE</Text>
-                </View>
-                <View style={styles.liveCopy}>
-                  <Text style={styles.liveTitle} numberOfLines={1}>{item.title}</Text>
-                  <Text style={styles.liveSubtitle} numberOfLines={1}>
-                    {item.stationName || 'Echoo Station'}
-                  </Text>
-                  <Text style={styles.liveMeta}>{compactNumber(item.listenerCount)} listening</Text>
-                </View>
-                <View style={styles.livePlay}>
-                  <Play color="#FFFFFF" fill="#FFFFFF" size={16} />
-                </View>
-              </Pressable>
-            ))}
-          </ScrollView>
-        ) : (
-          <EmptyRow
-            icon={<Headphones color={palette.red} size={22} />}
-            backgroundIcon="live"
-            title="No live rooms"
-            subtitle="Live shows appear as they start."
-            palette={palette}
-          />
-        )}
-
-        <SectionHeader
-          title="Popular stations"
-          action="Discover"
-          onPress={() => push('/search')}
-          palette={palette}
-        />
-        <View style={styles.stationList}>
-          {topStations.length ? (
-            topStations.map((station, index) => (
-              <Pressable
-                key={station.id}
-                style={styles.stationRow}
-                onPress={() => push({ pathname: '/station', params: { stationId: station.id } })}
-              >
-                <Text style={styles.rank}>{String(index + 1).padStart(2, '0')}</Text>
-                <Artwork uri={station.coverArt} style={styles.stationArt} palette={palette} />
-                <View style={styles.stationCopy}>
-                  <Text style={styles.stationTitle} numberOfLines={1}>{station.name}</Text>
-                  <Text style={styles.stationSubtitle} numberOfLines={1}>
-                    {station.category || 'Echoo Station'}
-                  </Text>
-                </View>
-                <Text style={styles.stationMeta}>
-                  {station.isLive ? 'LIVE' : compactNumber(station.followerCount)}
-                </Text>
-              </Pressable>
-            ))
-          ) : (
-            <EmptyRow
-              icon={<Radio color={palette.blue} size={22} />}
-              backgroundIcon="station"
-              title="Stations are warming up"
-              subtitle="Rankings show as listeners grow."
-              palette={palette}
-            />
-          )}
-        </View>
-
-        {signedIn && savedAudio.length ? (
-          <>
-            <SectionHeader
-              title="Saved for later"
-              action="See all"
-              onPress={() => push('/favorites')}
-              palette={palette}
-            />
-            <View style={styles.personalStack}>
-              {savedAudio.slice(0, 3).map((track) => (
-                <Pressable key={track.id} style={styles.personalRow} onPress={() => openAudio(track)}>
-                  <Artwork uri={track.coverArt} style={styles.personalArt} palette={palette} />
-                  <View style={styles.personalCopy}>
-                    <Text style={styles.personalTitle} numberOfLines={1}>{track.title}</Text>
-                    <Text style={styles.personalText} numberOfLines={1}>
-                      {track.stationName || track.subtitle || track.artistName || 'Saved audio'}
-                    </Text>
-                  </View>
-                  <Heart color={palette.blue} fill={palette.blue} size={18} />
-                </Pressable>
-              ))}
-            </View>
-          </>
         ) : null}
+        </>}
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+function HomeHeroCarousel({ live, onLivePress, onBrowsePress, palette }: { live?: EchooBroadcast; onLivePress: () => void; onBrowsePress: () => void; palette: EchooColors }) {
+  const { width } = useWindowDimensions();
+  const cardWidth = width - 48;
+  const [page, setPage] = useState(0);
+  const heroStyles = useMemo(() => createStyles(palette), [palette]);
+  const cards = [
+    { key: 'live', label: live ? 'Live Now' : 'Live on Echoo', title: live?.title || 'Find a voice to listen to live', button: live ? 'Listen' : 'Explore live', onPress: onLivePress, live: Boolean(live) },
+    { key: 'discover', label: 'Discover more', title: 'Good audio stays with you, wherever you go.', button: 'Explore audio', onPress: onBrowsePress, live: false },
+    { key: 'premium', label: 'Coming soon', title: 'A richer way to listen is on its way.', button: 'Browse Echoo', onPress: onBrowsePress, live: false },
+  ];
+  return <View style={heroStyles.carouselWrap}>
+    <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} decelerationRate="fast" onMomentumScrollEnd={(event) => setPage(Math.min(2, Math.max(0, Math.round(event.nativeEvent.contentOffset.x / cardWidth))))}>
+      {cards.map((card) => <View key={card.key} style={{ width: cardWidth, paddingVertical: 7, paddingHorizontal: 3 }}><View style={heroStyles.carouselCard}>
+        <View style={heroStyles.liveHeroStatus}>{card.live ? <View style={heroStyles.liveHeroDot} /> : null}<Text style={heroStyles.liveHeroStatusText}>{card.label}</Text></View>
+        <Text style={heroStyles.carouselTitle} numberOfLines={2}>{card.title}</Text>
+        <Pressable style={heroStyles.listenButton} onPress={card.onPress} accessibilityRole="button" accessibilityLabel={card.button}><Play color="#FFFFFF" fill="#FFFFFF" size={16} /><Text style={heroStyles.listenButtonText}>{card.button}</Text></Pressable>
+      </View></View>)}
+    </ScrollView>
+    <View style={heroStyles.carouselDots}>{cards.map((card, index) => <View key={card.key} style={[heroStyles.carouselDot, index === page && heroStyles.carouselDotActive]} />)}</View>
+  </View>;
 }
 
 function Artwork({
@@ -615,15 +409,17 @@ function SectionHeader({
   action,
   onPress,
   palette,
+  extraTopSpace = false,
 }: {
   title: string;
   action: string;
   onPress: () => void;
   palette: EchooColors;
+  extraTopSpace?: boolean;
 }) {
   const sectionStyles = useMemo(() => createStyles(palette), [palette]);
   return (
-    <View style={sectionStyles.sectionHeader}>
+    <View style={[sectionStyles.sectionHeader, extraTopSpace && sectionStyles.sectionHeaderSpaced]}>
       <Text style={sectionStyles.sectionTitle}>{title}</Text>
       <Pressable onPress={onPress} hitSlop={8}>
         <Text style={sectionStyles.sectionAction}>{action}</Text>
@@ -671,56 +467,50 @@ const stylesForArtwork = StyleSheet.create({
 });
 
 const createStyles = (palette: EchooColors) => StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: palette.background },
-  content: { paddingHorizontal: 18, paddingTop: 4, paddingBottom: 140 },
-  welcomeRow: {
-    marginTop: 12,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: 16,
-  },
-  greeting: { color: palette.muted, fontSize: 12.5, fontWeight: '700' },
-  welcomeTitle: { color: palette.ink, fontSize: 30, lineHeight: 34, fontWeight: '900', marginTop: 1 },
-  searchButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: palette.surfaceRaised,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipRail: { gap: 8, paddingTop: 14, paddingBottom: 0 },
-  chip: {
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: palette.surfaceRaised,
-    borderWidth: 1,
-    borderColor: palette.line,
-    paddingHorizontal: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipText: { color: palette.ink2, fontSize: 12, fontWeight: '800' },
+  safeArea: { flex: 1, backgroundColor: '#F9FBFF' },
+  content: { paddingHorizontal: 24, paddingTop: 15, paddingBottom: 150 },
+  avatarButton: { width: 49, height: 49, borderRadius: 25, overflow: 'hidden', backgroundColor: '#A7BED0', alignItems: 'center', justifyContent: 'center', marginBottom: 36 },
+  avatarInitial: { color: '#FFFFFF', fontFamily: 'DMSans_700Bold', fontSize: 23 },
+  carouselWrap: {},
+  carouselCard: { minHeight: 138, borderRadius: 18, backgroundColor: '#FFFFFF', paddingHorizontal: 17, paddingVertical: 11, justifyContent: 'center', shadowColor: '#58708C', shadowOpacity: 0.13, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
+  carouselTitle: { color: '#050505', fontFamily: 'DMSans_500Medium', fontSize: 20, lineHeight: 24, letterSpacing: -0.7, marginTop: 5 },
+  carouselDots: { flexDirection: 'row', alignSelf: 'center', alignItems: 'center', gap: 7, marginTop: 7 },
+  carouselDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#C9D0D9' },
+  carouselDotActive: { width: 17, borderRadius: 4, backgroundColor: '#2B5FC0' },
+  liveHero: { paddingTop: 0, paddingBottom: 16, minHeight: 175 },
+  emptyLiveHero: { minHeight: 130 },
+  liveHeroStatus: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  liveHeroDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FC4C53' },
+  liveHeroStatusText: { color: '#808080', fontFamily: 'DMSans_400Regular', fontSize: 14 },
+  liveHeroTitle: { color: '#050505', fontFamily: 'DMSans_500Medium', fontSize: 32, lineHeight: 40, letterSpacing: -1.6, marginTop: 7 },
+  emptyLiveHeroTitle: { fontFamily: 'DMSans_500Medium', fontSize: 20, lineHeight: 27, letterSpacing: -0.5 },
+  listenButton: { alignSelf: 'flex-start', height: 34, minWidth: 96, borderRadius: 18, backgroundColor: '#2B5FC0', paddingHorizontal: 14, marginTop: 7, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  listenButtonText: { color: '#FFFFFF', fontFamily: 'DMSans_700Bold', fontSize: 14 },
   loadingState: { minHeight: 92, alignItems: 'center', justifyContent: 'center', gap: 9 },
   loadingText: { color: palette.muted, fontSize: 12, fontWeight: '700' },
   notice: { marginTop: 18, backgroundColor: palette.surfaceRaised, borderRadius: 8, padding: 15 },
   noticeTitle: { color: palette.ink, fontSize: 14, fontWeight: '900' },
   noticeText: { color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: 4 },
   sectionHeader: {
-    marginTop: 25,
-    marginBottom: 10,
+    marginTop: 26,
+    marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  sectionTitle: { color: palette.ink, fontSize: 18, fontWeight: '900' },
-  sectionAction: { color: palette.muted, fontSize: 12, fontWeight: '800' },
-  releaseRail: { gap: 13, paddingRight: 18 },
-  releaseCard: { width: 146 },
-  releaseArt: { width: 146, height: 146, borderRadius: 8 },
-  releaseTitle: { color: palette.ink, fontSize: 13.5, fontWeight: '800', marginTop: 9 },
-  releaseSubtitle: { color: palette.muted, fontSize: 11.5, marginTop: 3 },
+  sectionHeaderSpaced: { marginTop: 42 },
+  sectionTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 20, letterSpacing: -0.6 },
+  sectionAction: { color: '#2B5FC0', fontFamily: 'DMSans_700Bold', fontSize: 14 },
+  channelRail: { gap: 16, paddingRight: 18 },
+  channelCard: { width: 151 },
+  channelArt: { width: 151, height: 153, borderRadius: 20 },
+  channelTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 17, marginTop: 12 },
+  channelMeta: { color: '#868686', fontFamily: 'DMSans_400Regular', fontSize: 13.5, marginTop: 3 },
+  releaseRail: { gap: 16, paddingRight: 18 },
+  releaseCard: { width: 151 },
+  releaseArt: { width: 151, height: 153, borderRadius: 20 },
+  releaseTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 13.5, marginTop: 9 },
+  releaseSubtitle: { color: '#868686', fontFamily: 'DMSans_400Regular', fontSize: 11.5, marginTop: 3 },
   liveRail: { gap: 14, paddingRight: 18 },
   liveCard: {
     width: 246,

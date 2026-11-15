@@ -225,7 +225,8 @@ export function AudioRowActions({
   };
 
   const shareTrack = async () => {
-    await Share.share({ message: `${track.title} - ${track.stationName || track.artistName || 'Echoo'} on Echoo` });
+    const url = `https://echoo.digi02.org/listen/audio/${encodeURIComponent(track.id)}`;
+    await Share.share({ title: track.title, message: `${track.title} on Echoo\n${url}`, url });
   };
 
   const openStation = () => {

@@ -10,6 +10,7 @@ import {
   getPinnedMessages,
   getChatStats,
   muteChatUser,
+  reportMessage,
 } from '../controllers/chatController.js';
 
 const router = express.Router();
@@ -39,6 +40,7 @@ router.delete('/messages/:messageId', deleteMessage);
 
 // Add reaction
 router.post('/messages/:messageId/reactions', addReaction);
+router.post('/messages/:messageId/report', reportMessage);
 
 // Pin message
 router.post('/messages/:messageId/pin', pinMessage);

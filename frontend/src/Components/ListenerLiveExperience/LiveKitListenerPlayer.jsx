@@ -341,7 +341,8 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
 
     const loadOutputs = async () => {
       try {
-        const devices = await Room.getLocalDevices('audiooutput');
+        // List speakers without asking for capture permissions. Listeners never need a microphone.
+        const devices = await Room.getLocalDevices('audiooutput', false);
         if (!disposed) {
           setOutputs(devices.map((device) => ({
             deviceId: device.deviceId,

@@ -1,280 +1,147 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
-import { Clock3, Headphones, Radio, Users } from 'lucide-react-native';
-import { useCallback, useMemo, useRef, useState } from 'react';
-import {
-  AppState,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ArrowLeft, ChevronRight, Clock3, Headphones, Mic, Play, Radio } from 'lucide-react-native';
+import { useCallback, useRef, useState } from 'react';
+import { AppState, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ListenerSkeletonRows, ListenerToast, friendlyErrorMessage } from '@/src/components/ListenerV2';
+import { EchooBroadcast, getCachedMobileDiscoverySnapshot, getMobileDiscovery } from '@/src/services/echooApi';
 
-import {
-  ListenerEmptyState,
-  ListenerListRow,
-  ListenerPageHeader,
-  ListenerSectionHeader,
-  ListenerSkeletonRows,
-  ListenerTopBar,
-  friendlyErrorMessage,
-} from '@/src/components/ListenerV2';
-import {
-  EchooBroadcast,
-  getMobileDiscovery,
-} from '@/src/services/echooApi';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
-
-const LIVE_REFRESH_MS = 30_000;
-const LIVE_RETURN_REFRESH_DEBOUNCE_MS = 10_000;
+const BLUE = '#2B5FC0';
 
 export default function LiveScreen() {
-  const { push } = useGuardedRouter();
-  const scheme = useColorScheme();
-  const palette = getEchooColors(scheme);
-  const styles = useMemo(() => createStyles(palette), [palette]);
-
+  const { push, router } = useGuardedRouter();
   const [live, setLive] = useState<EchooBroadcast[]>([]);
   const [scheduled, setScheduled] = useState<EchooBroadcast[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const hasLoadedOnce = useRef(false);
-  const loadingLiveRef = useRef(false);
-  const lastLiveRefreshAtRef = useRef(0);
+  const loaded = useRef(false);
+  const loadingRef = useRef(false);
+  const lastRefresh = useRef(0);
 
   const load = useCallback(async (force = false, silent = false) => {
-    if (loadingLiveRef.current) return;
-    loadingLiveRef.current = true;
-
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     if (force && !silent) setRefreshing(true);
     else if (!silent) setLoading(true);
-    if (!silent) setError('');
     try {
       const data = await getMobileDiscovery({ force });
       setLive(data.live);
       setScheduled(data.scheduled);
-    } catch (loadError: any) {
-      setError(friendlyErrorMessage(loadError, 'Could not load live broadcasts.'));
+      setError('');
+    } catch (cause) {
+      if (!silent) setError(friendlyErrorMessage(cause, 'Could not load live broadcasts.'));
     } finally {
+      loaded.current = true;
+      loadingRef.current = false;
       setLoading(false);
       setRefreshing(false);
-      hasLoadedOnce.current = true;
-      loadingLiveRef.current = false;
     }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      let appState = AppState.currentState;
-
-      const refreshLive = () => {
-        const now = Date.now();
-        if (
-          !hasLoadedOnce.current ||
-          loadingLiveRef.current ||
-          now - lastLiveRefreshAtRef.current < LIVE_RETURN_REFRESH_DEBOUNCE_MS
-        ) {
-          return;
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    let appState = AppState.currentState;
+    void (async () => {
+      if (!loaded.current) {
+        const cached = await getCachedMobileDiscoverySnapshot();
+        if (!active) return;
+        if (cached) {
+          setLive(cached.live);
+          setScheduled(cached.scheduled);
+          setLoading(false);
         }
-        lastLiveRefreshAtRef.current = now;
-        void load(true, true);
-      };
-
-      void load(hasLoadedOnce.current, hasLoadedOnce.current);
-      const interval = setInterval(refreshLive, LIVE_REFRESH_MS);
-      const subscription = AppState.addEventListener('change', (nextAppState) => {
-        const returnedToApp =
-          (appState === 'background' || appState === 'inactive') && nextAppState === 'active';
-        appState = nextAppState;
-        if (returnedToApp) refreshLive();
-      });
-
-      return () => {
-        clearInterval(interval);
-        subscription.remove();
-      };
-    }, [load])
-  );
-
-  const openLiveRoom = (item: EchooBroadcast) => {
-    push({
-      pathname: '/live-room',
-      params: {
-        broadcastId: item.id,
-        title: item.title,
-        stationName: item.stationName || 'Echoo Station',
-        coverArt: item.coverArt || '',
-      },
+      }
+      if (active) void load(loaded.current, loaded.current);
+    })();
+    const refresh = () => {
+      if (!active || loadingRef.current || Date.now() - lastRefresh.current < 10_000) return;
+      lastRefresh.current = Date.now();
+      void load(true, true);
+    };
+    const interval = setInterval(refresh, 30_000);
+    const subscription = AppState.addEventListener('change', (next) => {
+      if ((appState === 'background' || appState === 'inactive') && next === 'active') refresh();
+      appState = next;
     });
-  };
+    return () => { active = false; clearInterval(interval); subscription.remove(); };
+  }, [load]));
 
-  const featured = live[0];
-  const liveAudience = live.reduce((sum, item) => sum + (item.listenerCount || 0), 0);
+  const openRoom = (item: EchooBroadcast) => push({ pathname: '/live-room', params: {
+    broadcastId: item.id, title: item.title, stationName: item.stationName || 'Echoo Station',
+    stationId: item.stationId || '', coverArt: item.coverArt || '',
+  } });
 
-  return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <ListenerTopBar />
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => load(true)}
-            tintColor={palette.blue}
-            colors={[palette.blue]}
-          />
-        }
-      >
-        <ListenerPageHeader
-          eyebrow="ON AIR"
-          title="Live on Echoo"
-          subtitle="Join creators as they broadcast in real time, or see what is starting soon."
-        />
+  return <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={BLUE} colors={[BLUE]} />}>
+      <Pressable style={styles.search} onPress={() => push('/search')} accessibilityRole="search" accessibilityLabel="Search channels and audio">
+        <Text style={styles.searchText}>Channels, title, artist, shows</Text><Mic color="#050505" size={25} strokeWidth={2.5} />
+      </Pressable>
+      <View style={styles.headingRow}>
+        <Pressable style={styles.back} onPress={() => router.back()} accessibilityLabel="Go back"><ArrowLeft color="#050505" size={25} /></Pressable>
+        <Text style={styles.heading}>Live now</Text>
+      </View>
+      <Text style={styles.intro}>Listen with others as it happens.</Text>
+      {error ? <View style={styles.notice}><ListenerToast message={error} /></View> : null}
+      {loading && !live.length && !scheduled.length ? <View style={styles.skeleton}><ListenerSkeletonRows count={4} /></View> : null}
 
-        {loading ? (
-          <ListenerSkeletonRows count={5} />
-        ) : null}
+      {!loading && !live.length ? <View style={styles.empty}>
+        <View style={styles.emptyIcon}><Radio color={BLUE} size={25} /></View>
+        <Text style={styles.emptyTitle}>No one is live right now</Text>
+        <Text style={styles.emptyCopy}>When a channel starts broadcasting, you’ll find it here.</Text>
+        <Pressable style={styles.emptyButton} onPress={() => push('/search')}><Text style={styles.emptyButtonText}>Browse audio</Text></Pressable>
+      </View> : null}
 
-        {!loading && error ? (
-          <ListenerEmptyState
-            title="Live discovery is unavailable"
-            subtitle={error}
-            action="Try again"
-            onAction={() => load(true)}
-          />
-        ) : null}
-
-        {!loading && !error && featured ? (
-          <Pressable style={styles.featuredCard} onPress={() => openLiveRoom(featured)}>
-            {featured.coverArt ? (
-              <Image source={{ uri: featured.coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
-            ) : (
-              <LinearGradient colors={['#123E85', '#071126']} style={StyleSheet.absoluteFillObject} />
-            )}
-            <LinearGradient
-              colors={['rgba(2,8,24,0.12)', 'rgba(2,8,24,0.94)']}
-              style={StyleSheet.absoluteFillObject}
-            />
-            <View style={styles.liveBadge}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveBadgeText}>LIVE NOW</Text>
-            </View>
-            <View style={styles.featuredCopy}>
-              <Text style={styles.featuredTitle} numberOfLines={2}>{featured.stationName || 'Echoo Station'}</Text>
-              {featured.title !== featured.stationName ? (
-                <Text style={styles.featuredBroadcastTitle} numberOfLines={2}>{featured.title}</Text>
-              ) : null}
-              <View style={styles.featuredMeta}>
-                <Users color="#FFFFFF" size={14} />
-                <Text style={styles.featuredMetaText}>{featured.listenerCount || 0} listening</Text>
-              </View>
-              <View style={styles.listenButton}>
-                <Headphones color="#FFFFFF" size={18} />
-                <Text style={styles.listenButtonText}>Open live room</Text>
-              </View>
-            </View>
-          </Pressable>
-        ) : null}
-
-        {!loading && !error && !featured ? (
-          <ListenerEmptyState
-            title="No one is live right now"
-            subtitle="Scheduled broadcasts move here automatically once creators go on air."
-            icon={<Radio color={palette.blue} size={24} />}
-          />
-        ) : null}
-
-        {!loading && !error ? (
-          <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-              <Radio color={palette.red} size={19} />
-              <Text style={styles.statValue}>{live.length}</Text>
-              <Text style={styles.statLabel}>Live rooms</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Users color={palette.blue} size={19} />
-              <Text style={styles.statValue}>{liveAudience}</Text>
-              <Text style={styles.statLabel}>Listening now</Text>
-            </View>
+      {live.length ? <View style={styles.section}>
+        <Text style={styles.sectionTitle}>On air</Text>
+        {live.map((item) => <Pressable key={item.id} style={styles.liveRow} onPress={() => openRoom(item)} accessibilityRole="button" accessibilityLabel={`Listen to ${item.title}`}>
+          <View style={styles.artwork}>
+            {item.coverArt ? <Image source={{ uri: item.coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : <Radio color={BLUE} size={32} />}
+            <View style={styles.liveBadge}><View style={styles.dot} /><Text style={styles.badgeText}>LIVE</Text></View>
           </View>
-        ) : null}
+          <View style={styles.rowCopy}>
+            <Text style={styles.rowTitle} numberOfLines={2}>{item.title}</Text>
+            <Text style={styles.rowSubtitle} numberOfLines={1}>{item.stationName || 'Echoo Station'}</Text>
+            <View style={styles.listenerLine}><Headphones color="#858585" size={14} /><Text style={styles.listenerText}>{item.listenerCount || 0} listening</Text></View>
+          </View>
+          <View style={styles.playButton}><Play color="#FFFFFF" fill="#FFFFFF" size={18} /></View>
+        </Pressable>)}
+      </View> : null}
 
-        {live.length ? (
-          <>
-            <ListenerSectionHeader title="All live broadcasts" />
-            {live.map((item) => (
-              <ListenerListRow
-                key={item.id}
-                title={item.stationName || 'Echoo Station'}
-                subtitle={item.title}
-                meta={`${item.listenerCount || 0} live`}
-                image={item.coverArt}
-                fallback={<Radio color={palette.red} size={21} />}
-                onPress={() => openLiveRoom(item)}
-              />
-            ))}
-          </>
-        ) : null}
-
-        <ListenerSectionHeader title="Starting soon" />
-        {scheduled.length ? (
-          scheduled.slice(0, 10).map((item) => (
-            <ListenerListRow
-              key={item.id}
-              title={item.stationName || 'Echoo Station'}
-              subtitle={item.title}
-              meta={item.startTime ? formatStart(item.startTime) : 'Scheduled'}
-              image={item.coverArt}
-              fallback={<Clock3 color={palette.blue} size={21} />}
-            />
-          ))
-        ) : (
-          <ListenerEmptyState
-            title="Nothing scheduled yet"
-            subtitle="Upcoming public broadcasts will be listed here as creators schedule them."
-            icon={<Clock3 color={palette.blue} size={24} />}
-          />
-        )}
-      </ScrollView>
-    </SafeAreaView>
-  );
+      {!loading && scheduled.length ? <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Starting soon</Text>
+        {scheduled.map((item) => <View key={item.id} style={styles.scheduledRow}>
+          <View style={styles.smallArtwork}>{item.coverArt ? <Image source={{ uri: item.coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : <Clock3 color={BLUE} size={25} />}</View>
+          <View style={styles.rowCopy}><Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text><Text style={styles.rowSubtitle} numberOfLines={1}>{item.stationName || 'Echoo Station'} · {formatStart(item.startTime)}</Text></View>
+          {item.stationId ? <Pressable style={styles.channelLink} onPress={() => push({ pathname: '/station', params: { stationId: item.stationId } })} accessibilityLabel={`View ${item.stationName || 'channel'}`}><ChevronRight color="#050505" size={22} /></Pressable> : null}
+        </View>)}
+      </View> : null}
+    </ScrollView>
+  </SafeAreaView>;
 }
 
-function formatStart(value: string) {
+function formatStart(value?: string) {
+  if (!value) return 'Scheduled';
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Scheduled';
-  return date.toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  return Number.isNaN(date.getTime()) ? 'Scheduled' : date.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
-const createStyles = (palette: EchooColors) => StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: palette.background },
-  content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 120 },
-  featuredCard: { height: 290, borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: palette.lineStrong },
-  liveBadge: { position: 'absolute', top: 16, left: 16, minHeight: 28, borderRadius: 9, backgroundColor: palette.red, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FFFFFF' },
-  liveBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900', letterSpacing: 0.4 },
-  featuredCopy: { position: 'absolute', left: 18, right: 18, bottom: 18 },
-  featuredTitle: { color: '#FFFFFF', fontSize: 27, lineHeight: 30, fontWeight: '900', letterSpacing: -0.7, marginTop: 4, maxWidth: 310 },
-  featuredBroadcastTitle: { color: '#DCE4F5', fontSize: 14, lineHeight: 19, fontWeight: '700', marginTop: 5, maxWidth: 310 },
-  featuredMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
-  featuredMetaText: { color: '#FFFFFF', fontSize: 11.5, fontWeight: '700' },
-  listenButton: { marginTop: 14, alignSelf: 'flex-start', minHeight: 43, borderRadius: 14, backgroundColor: palette.blue, paddingHorizontal: 15, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  listenButtonText: { color: '#FFFFFF', fontSize: 12.5, fontWeight: '900' },
-  statsRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  statCard: { flex: 1, minHeight: 103, borderRadius: 18, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.surface, padding: 13 },
-  statValue: { color: palette.ink, fontSize: 23, fontWeight: '900', marginTop: 7 },
-  statLabel: { color: palette.muted, fontSize: 11.5, fontWeight: '700' },
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: '#F9FBFF' }, content: { paddingTop: 22, paddingBottom: 150 },
+  search: { height: 48, borderRadius: 25, backgroundColor: '#F2F3F5', marginHorizontal: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 31 },
+  searchText: { color: '#848484', fontFamily: 'DMSans_400Regular', fontSize: 16, flexShrink: 1 },
+  headingRow: { marginTop: 18, marginHorizontal: 24, flexDirection: 'row', alignItems: 'center', gap: 8 }, back: { width: 25, height: 36, alignItems: 'flex-start', justifyContent: 'center' },
+  heading: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 24, letterSpacing: -0.5 }, intro: { marginTop: 12, marginHorizontal: 24, color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 14, lineHeight: 20 },
+  notice: { marginHorizontal: 24 }, skeleton: { marginHorizontal: 24, marginTop: 24 },
+  section: { marginTop: 30 }, sectionTitle: { marginHorizontal: 24, marginBottom: 14, color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 21, letterSpacing: -0.5 },
+  liveRow: { marginHorizontal: 24, marginBottom: 18, minHeight: 112, flexDirection: 'row', alignItems: 'center', gap: 13 },
+  artwork: { width: 106, height: 106, borderRadius: 17, overflow: 'hidden', backgroundColor: '#E7EAF0', alignItems: 'center', justifyContent: 'center' },
+  liveBadge: { position: 'absolute', left: 6, top: 6, backgroundColor: '#FFFFFF', borderRadius: 7, paddingHorizontal: 7, height: 20, flexDirection: 'row', alignItems: 'center', gap: 4 }, dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#FF4D59' }, badgeText: { color: '#6B6B6B', fontFamily: 'DMSans_700Bold', fontSize: 9 },
+  rowCopy: { flex: 1, justifyContent: 'center' }, rowTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 16, lineHeight: 21 }, rowSubtitle: { marginTop: 3, color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 13 }, listenerLine: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }, listenerText: { color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 12 },
+  playButton: { width: 31, height: 31, borderRadius: 16, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' },
+  scheduledRow: { marginHorizontal: 24, marginBottom: 14, minHeight: 65, flexDirection: 'row', alignItems: 'center', gap: 12 }, smallArtwork: { width: 62, height: 62, borderRadius: 9, overflow: 'hidden', backgroundColor: '#E7EAF0', alignItems: 'center', justifyContent: 'center' }, channelLink: { width: 30, height: 40, alignItems: 'center', justifyContent: 'center' },
+  empty: { marginTop: 32, marginHorizontal: 24, paddingVertical: 25, alignItems: 'center' }, emptyIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#E5EEFE', alignItems: 'center', justifyContent: 'center' }, emptyTitle: { marginTop: 14, color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 19 }, emptyCopy: { marginTop: 5, color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 13, lineHeight: 19, textAlign: 'center' }, emptyButton: { marginTop: 18, minHeight: 42, borderRadius: 21, paddingHorizontal: 22, backgroundColor: BLUE, justifyContent: 'center' }, emptyButtonText: { color: '#FFFFFF', fontFamily: 'DMSans_700Bold', fontSize: 13 },
 });

@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSegments } from 'expo-router';
 import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import {
@@ -14,9 +15,10 @@ import {
   Search,
   X,
 } from 'lucide-react-native';
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Pressable,
   StyleSheet,
   Text,
@@ -237,9 +239,19 @@ export function ListenerEmptyState({
 export function ListenerSkeletonRows({ count = 4 }: { count?: number }) {
   const palette = useListenerPalette();
   const styles = useMemo(() => makeStyles(palette), [palette]);
+  const opacity = useRef(new Animated.Value(0.55)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(Animated.sequence([
+      Animated.timing(opacity, { toValue: 0.9, duration: 650, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 0.55, duration: 650, useNativeDriver: true }),
+    ]));
+    animation.start();
+    return () => animation.stop();
+  }, [opacity]);
 
   return (
-    <View style={styles.skeletonStack}>
+    <Animated.View style={[styles.skeletonStack, { opacity }]} accessible accessibilityLabel="Loading content">
       {Array.from({ length: count }).map((_, index) => (
         <View key={index} style={styles.skeletonRow}>
           <View style={styles.skeletonArt} />
@@ -249,7 +261,7 @@ export function ListenerSkeletonRows({ count = 4 }: { count?: number }) {
           </View>
         </View>
       ))}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -343,13 +355,15 @@ export function ListenerMiniPlayer() {
   const insets = useSafeAreaInsets();
   const palette = useListenerPalette();
   const styles = useMemo(() => makeStyles(palette), [palette]);
-  const { current, duration, isLoading, isPlaying, position, stop, toggle } = usePlayback();
+  const { current, duration, isLoading, isPlaying, position, seekTo, stop, toggle } = usePlayback();
+  const [seekWidth, setSeekWidth] = useState(0);
+  const [previewFraction, setPreviewFraction] = useState<number | null>(null);
+  useEffect(() => setPreviewFraction(null), [current?.id]);
 
   const rootRoute = String(segments[0] || '');
-  if (!current || rootRoute === 'audio-player' || rootRoute === 'live-room') return null;
-  const bottomOffset = rootRoute === '(tabs)'
-    ? getListenerTabBarMetrics(insets.bottom).height + 8
-    : insets.bottom + 12;
+  const onHome = rootRoute === '(tabs)' && String(segments[1] || 'index') === 'index';
+  if (!current || !onHome) return null;
+  const bottomOffset = getListenerTabBarMetrics(insets.bottom).height + 32;
 
   const openPlayer = () => {
     if (current.kind === 'audio') push('/audio-player');
@@ -367,13 +381,17 @@ export function ListenerMiniPlayer() {
   };
 
   const progress = current.kind === 'audio' && duration > 0
-    ? Math.max(0, Math.min(100, (position / duration) * 100))
+    ? Math.max(0, Math.min(100, (previewFraction ?? position / duration) * 100))
+    : 0;
+  const fractionAt = (locationX: number) => seekWidth > 0
+    ? Math.max(0, Math.min(1, locationX / seekWidth))
     : 0;
 
   return (
-    <View style={[styles.miniPlayer, { bottom: bottomOffset }]}>
+    <View style={[styles.miniPlayer, onHome && styles.homeMiniPlayer, { bottom: bottomOffset }]}>
+      {onHome ? <LinearGradient colors={['#536783', '#A9BBD7']} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.homeMiniGradient} /> : null}
       <Pressable style={styles.miniOpenArea} onPress={openPlayer} accessibilityLabel="Open player">
-        <View style={styles.miniArt}>
+        <View style={[styles.miniArt, onHome && styles.homeMiniArt]}>
           {current.coverArt ? (
             <Image source={{ uri: current.coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
           ) : current.kind === 'live' ? (
@@ -383,18 +401,18 @@ export function ListenerMiniPlayer() {
           )}
         </View>
         <View style={styles.miniCopy}>
-          <View style={styles.miniMetaRow}>
+          {!onHome ? <View style={styles.miniMetaRow}>
             {current.kind === 'live' ? <View style={styles.miniLiveDot} /> : null}
             <Text style={styles.miniMeta} numberOfLines={1}>
               {current.kind === 'live' ? 'LIVE' : 'NOW PLAYING'}
             </Text>
-          </View>
-          <Text style={styles.miniTitle} numberOfLines={1}>{current.title}</Text>
-          <Text style={styles.miniSubtitle} numberOfLines={1}>{current.subtitle}</Text>
+          </View> : null}
+          <Text style={[styles.miniTitle, onHome && styles.homeMiniTitle]} numberOfLines={1}>{current.title}</Text>
+          <Text style={[styles.miniSubtitle, onHome && styles.homeMiniSubtitle]} numberOfLines={1}>{current.subtitle}</Text>
         </View>
       </Pressable>
       <Pressable
-        style={styles.miniPlayButton}
+        style={[styles.miniPlayButton, onHome && styles.homeMiniPlayButton]}
         onPress={toggle}
         disabled={isLoading}
         accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
@@ -408,15 +426,38 @@ export function ListenerMiniPlayer() {
         )}
       </Pressable>
       <Pressable
-        style={styles.miniCloseButton}
+        style={[styles.miniCloseButton, onHome && styles.homeMiniCloseButton]}
         onPress={stop}
         accessibilityLabel="Stop playback"
       >
-        <X color={palette.muted} size={18} />
+        <X color={onHome ? '#FFFFFF' : palette.muted} size={onHome ? 19 : 18} />
       </Pressable>
       {current.kind === 'audio' ? (
-        <View style={styles.miniProgressTrack}>
-          <View style={[styles.miniProgressFill, { width: `${progress}%` }]} />
+        <View
+          style={[styles.miniSeekArea, onHome && styles.homeMiniSeekArea]}
+          onLayout={(event) => setSeekWidth(event.nativeEvent.layout.width)}
+          onStartShouldSetResponder={() => duration > 0}
+          onMoveShouldSetResponder={() => duration > 0}
+          onResponderGrant={(event) => setPreviewFraction(fractionAt(event.nativeEvent.locationX))}
+          onResponderMove={(event) => setPreviewFraction(fractionAt(event.nativeEvent.locationX))}
+          onResponderRelease={(event) => {
+            const nextFraction = fractionAt(event.nativeEvent.locationX);
+            setPreviewFraction(nextFraction);
+            void seekTo(nextFraction * duration).catch(() => undefined).finally(() => setPreviewFraction(null));
+          }}
+          onResponderTerminate={() => setPreviewFraction(null)}
+          accessibilityRole="adjustable"
+          accessibilityLabel="Audio progress"
+          accessibilityValue={{ min: 0, max: 100, now: Math.round(progress) }}
+          onAccessibilityAction={(event) => {
+            if (event.nativeEvent.actionName === 'increment') void seekTo(Math.min(duration, position + 10000)).catch(() => undefined);
+            if (event.nativeEvent.actionName === 'decrement') void seekTo(Math.max(0, position - 10000)).catch(() => undefined);
+          }}
+          accessibilityActions={[{ name: 'increment', label: 'Forward ten seconds' }, { name: 'decrement', label: 'Back ten seconds' }]}
+        >
+          <View style={[styles.miniSeekTrack, onHome && styles.homeMiniSeekTrack]}>
+            <View style={[styles.miniProgressFill, { width: `${progress}%` }]} />
+          </View>
         </View>
       ) : (
         <View style={[styles.miniProgressTrack, styles.miniLiveTrack]} />
@@ -486,6 +527,12 @@ const makeStyles = (palette: EchooColors) =>
     listSubtitle: { color: palette.muted, fontSize: 11.5, marginTop: 3 },
     listMeta: { color: palette.muted, fontSize: 11, fontWeight: '700', marginRight: 6 },
     miniPlayer: { position: 'absolute', left: 10, right: 10, minHeight: 68, borderRadius: 8, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.lineStrong, flexDirection: 'row', alignItems: 'center', padding: 8, paddingBottom: 11, shadowColor: '#000', shadowOpacity: 0.28, shadowRadius: 18, shadowOffset: { width: 0, height: 7 }, elevation: 14 },
+    homeMiniPlayer: { left: 24, right: 24, minHeight: 96, borderRadius: 23, borderWidth: 1, borderColor: '#D5E0F0', padding: 16, paddingBottom: 22, backgroundColor: '#A9BBD7', overflow: 'hidden', shadowOpacity: 0.12 },
+    homeMiniGradient: { ...StyleSheet.absoluteFillObject },
+    homeMiniArt: { width: 66, height: 60, borderRadius: 8 },
+    homeMiniTitle: { color: '#FFFFFF', fontFamily: 'DMSans_700Bold', fontSize: 16 },
+    homeMiniSubtitle: { color: 'rgba(255,255,255,0.78)', fontFamily: 'DMSans_400Regular', fontSize: 13 },
+    homeMiniPlayButton: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#2F61C0', marginRight: 10, marginTop: 12 },
     miniOpenArea: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
     miniArt: { width: 46, height: 46, borderRadius: 8, backgroundColor: palette.blueDeep, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
     miniCopy: { flex: 1, paddingHorizontal: 10 },
@@ -496,6 +543,11 @@ const makeStyles = (palette: EchooColors) =>
     miniSubtitle: { color: palette.muted, fontSize: 11, marginTop: 2 },
     miniPlayButton: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
     miniCloseButton: { width: 34, height: 38, alignItems: 'center', justifyContent: 'center' },
+    homeMiniCloseButton: { position: 'absolute', top: 4, right: 4, width: 28, height: 28, zIndex: 2 },
+    miniSeekArea: { position: 'absolute', left: 8, right: 8, bottom: 0, height: 20, justifyContent: 'center' },
+    homeMiniSeekArea: { left: 96, right: 90, bottom: 11, height: 28 },
+    miniSeekTrack: { height: 2, borderRadius: 1, backgroundColor: palette.lineStrong, overflow: 'hidden' },
+    homeMiniSeekTrack: { height: 6, borderRadius: 3, backgroundColor: '#E9E8E8' },
     miniProgressTrack: { position: 'absolute', left: 8, right: 8, bottom: 0, height: 2, borderRadius: 1, backgroundColor: palette.lineStrong, overflow: 'hidden' },
     miniProgressFill: { height: '100%', borderRadius: 1, backgroundColor: palette.blue },
     miniLiveTrack: { backgroundColor: palette.red },

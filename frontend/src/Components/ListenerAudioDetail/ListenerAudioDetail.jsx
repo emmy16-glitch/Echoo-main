@@ -324,6 +324,10 @@ const ListenerAudioDetail = () => {
       setError('Could not share this recording.');
     }
   };
+  const openInApp = () => {
+    if (!audioId || typeof window === 'undefined') return;
+    window.location.href = `echoo:///audio-player?audioId=${encodeURIComponent(audioId)}`;
+  };
 
   if (loading) return <div className="replay-page"><div className="replay-state">Loading recording...</div></div>;
   if (!normalizedTrack) return <div className="replay-page"><button type="button" className="replay-back" onClick={() => navigate('/listen')}><FiArrowLeft /> Back</button><div className="replay-state">{error || 'Recording unavailable.'}</div></div>;
@@ -346,7 +350,8 @@ const ListenerAudioDetail = () => {
         <div className="replay-copy"><h1 id="replay-title">{normalizedTrack.title}</h1><strong>{normalizedTrack.genre}</strong><p>{normalizedTrack.description || 'No description is available for this recording.'}</p><div className="replay-creator"><span>{normalizedTrack.artistName.charAt(0)}</span><span><strong>{normalizedTrack.artistName}</strong><small>@{normalizedTrack.artistName.toLowerCase().replace(/\s+/g, '')}</small></span><FiCheck aria-label="Verified" /><em><FiUsers /> {Number(normalizedTrack.sourceBroadcast?.peakListeners || normalizedTrack.playCount || 0).toLocaleString()} listens</em></div></div>
       </section>
 
-      <div className="replay-actions"><EchooButton icon={playing ? <FiPause /> : <FiPlay />} onClick={play}>{playing ? 'Pause' : 'Play'}</EchooButton><EchooButton variant="secondary" icon={<FiHeart />} onClick={toggleSavedAudio} disabled={savingAudio}>{savingAudio ? 'Saving…' : savedAudio ? 'Saved' : 'Save'}</EchooButton><EchooButton variant="secondary" icon={<FiBookmark />} onClick={saveCurrentMoment} disabled={!active}>Save moment</EchooButton><EchooButton variant="secondary" icon={<FiCheck />} onClick={toggleFollow}>{following ? 'Following' : 'Follow'}</EchooButton><EchooButton variant="secondary" icon={<FiShare2 />} onClick={share}>Share</EchooButton><EchooButton variant="secondary" icon={<FiDownload />} onClick={download}>Download for offline</EchooButton><EchooButton variant="secondary" icon={<FiSave />} onClick={saveFile}>Save file</EchooButton></div>
+      <div className="replay-actions"><EchooButton icon={playing ? <FiPause /> : <FiPlay />} onClick={play}>{playing ? 'Pause' : 'Play'}</EchooButton><EchooButton variant="secondary" icon={<FiHeart />} onClick={toggleSavedAudio} disabled={savingAudio}>{savingAudio ? 'Saving…' : savedAudio ? 'Saved' : 'Save'}</EchooButton><EchooButton variant="secondary" icon={<FiBookmark />} onClick={saveCurrentMoment} disabled={!active}>Save moment</EchooButton><EchooButton variant="secondary" icon={<FiCheck />} onClick={toggleFollow}>{following ? 'Following' : 'Follow'}</EchooButton><EchooButton variant="secondary" icon={<FiShare2 />} onClick={share}>Share</EchooButton><EchooButton variant="secondary" icon={<FiPlay />} onClick={openInApp}>Open in Echoo app</EchooButton><EchooButton variant="secondary" icon={<FiDownload />} onClick={download}>Download for offline</EchooButton><EchooButton variant="secondary" icon={<FiSave />} onClick={saveFile}>Save file</EchooButton></div>
+      <p className="replay-app-fallback">No app installed? You can listen here in your browser.</p>
 
       <section className="replay-timeline" aria-label="Recording audio timeline"><Waveform progress={progress} onSeek={seekPercent} /><div><span>{formatTime(displayCurrent)}</span><span>{formatTime(displayDuration)}</span></div></section>
       <Tabs items={tabs} value={activeTab} onChange={setActiveTab} ariaLabel="Recording sections" className="replay-tabs" />

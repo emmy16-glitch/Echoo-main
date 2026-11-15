@@ -5,10 +5,11 @@ import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import {
   ChevronDown,
   Check,
+  CheckCircle2,
   Download,
   Heart,
   ListMusic,
-  MoreHorizontal,
+  MoreVertical,
   Music2,
   Pause,
   Play,
@@ -18,6 +19,7 @@ import {
   Shuffle,
   SkipBack,
   SkipForward,
+  X,
 } from 'lucide-react-native';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -41,6 +43,7 @@ import {
   EchooPlaylist,
   addTrackToPlaylist,
   createPlaylist,
+  getAudioById,
   getCachedMyPlaylistsSnapshot,
   getSavedAudio,
   getMyPlaylists,
@@ -137,27 +140,40 @@ export default function AudioPlayerScreen() {
   const hasQueue = playback.queue.length > 1;
 
   const [progressWidth, setProgressWidth] = useState(1);
+  const [seekPreview, setSeekPreview] = useState<number | null>(null);
   const [actionError, setActionError] = useState('');
   const [signedIn, setSignedIn] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [, setDownloadProgress] = useState(0);
   const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
+  const [addedPlaylist, setAddedPlaylist] = useState<EchooPlaylist | null>(null);
+  const [creatingPlaylist, setCreatingPlaylist] = useState(false);
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
+  const [audioInfoOpen, setAudioInfoOpen] = useState(false);
+  const [shareAudioOpen, setShareAudioOpen] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const [playlistLoading, setPlaylistLoading] = useState(false);
   const [playlistBusyId, setPlaylistBusyId] = useState('');
   const [playlists, setPlaylists] = useState<EchooPlaylist[]>([]);
   const [newPlaylistName, setNewPlaylistName] = useState('');
-  const error = actionError || playback.error;
+  const playbackError = playback.error;
 
   useEffect(() => {
     if (!requestedAudio) return;
     if (openedRouteAudioIdRef.current === requestedAudio.id) return;
     openedRouteAudioIdRef.current = requestedAudio.id;
-    if (currentAudio?.id !== requestedAudio.id) void playAudio(requestedAudio);
-  }, [currentAudio?.id, playAudio, requestedAudio]);
+    if (currentAudio?.id === requestedAudio.id) return;
+    if (params.title) { void playAudio(requestedAudio); return; }
+    let active = true;
+    void getAudioById(requestedAudio.id).then((track) => {
+      if (!active) return;
+      void playAudio({ kind: 'audio', id: track.id, title: track.title, subtitle: track.stationName || track.subtitle || track.artistName || 'Echoo Audio', coverArt: track.coverArt || '', fileUrl: track.fileUrl || '', genre: track.genre || '', stationId: track.stationId || '', stationName: track.stationName || '', collectionId: track.collectionId || '', collectionName: track.collectionName || '' });
+    }).catch(() => { if (active) void playAudio(requestedAudio); });
+    return () => { active = false; };
+  }, [currentAudio?.id, params.title, playAudio, requestedAudio]);
 
   useEffect(() => {
     let active = true;
@@ -344,9 +360,9 @@ export default function AudioPlayerScreen() {
   };
 
   const shareTrack = async () => {
-    await Share.share({
-      message: `${title} - ${subtitle} on Echoo`,
-    });
+    if (!audioId) return;
+    const url = `https://echoo.digi02.org/listen/audio/${encodeURIComponent(audioId)}`;
+    await Share.share({ title, message: `${title} on Echoo\n${url}`, url });
   };
 
   const downloadTrack = async () => {
@@ -397,6 +413,8 @@ export default function AudioPlayerScreen() {
     }
 
     setPlaylistModalOpen(true);
+    setAddedPlaylist(null);
+    setCreatingPlaylist(false);
     setActionError('');
 
     const cachedPlaylists = await getCachedMyPlaylistsSnapshot().catch(() => []);
@@ -424,8 +442,7 @@ export default function AudioPlayerScreen() {
     setActionError('');
     try {
       await addTrackToPlaylist(playlist.id, audioId);
-      setPlaylistModalOpen(false);
-      setActionError(`Added to ${playlist.name}.`);
+      setAddedPlaylist({ ...playlist, trackCount: (playlist.trackCount || playlist.tracks.length) + 1 });
     } catch (playlistError: any) {
       if (playlistError?.code === 'TRACK_ALREADY_IN_PLAYLIST') {
         setPlaylistModalOpen(false);
@@ -447,8 +464,8 @@ export default function AudioPlayerScreen() {
       const playlist = await createPlaylist({ name: cleanName });
       await addTrackToPlaylist(playlist.id, audioId);
       setNewPlaylistName('');
-      setPlaylistModalOpen(false);
-      setActionError(`Added to ${playlist.name}.`);
+      setCreatingPlaylist(false);
+      setAddedPlaylist({ ...playlist, trackCount: (playlist.trackCount || playlist.tracks.length) + 1 });
     } catch (playlistError: any) {
       setActionError(friendlyErrorMessage(playlistError, 'Could not create this playlist.'));
     } finally {
@@ -469,17 +486,28 @@ export default function AudioPlayerScreen() {
     });
   };
 
-  const progress = duration > 0 ? Math.min(1, position / duration) : 0;
+  const progress = seekPreview ?? (duration > 0 ? Math.min(1, position / duration) : 0);
   const progressPercent = `${Math.max(0, Math.min(100, progress * 100))}%` as const;
+  const displayPosition = seekPreview === null ? position : duration * seekPreview;
 
   return (
     <SafeAreaView
       style={styles.safeArea}
       edges={['top', 'bottom']}
     >
+      {coverArt ? (
+        <Image
+          source={{ uri: coverArt }}
+          style={styles.backgroundArtwork}
+          contentFit="cover"
+          blurRadius={60}
+        />
+      ) : null}
       <LinearGradient
-        colors={[palette.night2, palette.night, palette.background, palette.background]}
-        locations={[0, 0.28, 0.62, 1]}
+        colors={coverArt
+          ? ['rgba(32,20,16,0.36)', 'rgba(35,23,20,0.58)', 'rgba(247,249,253,0.96)', palette.background]
+          : [palette.night2, palette.night, palette.background, palette.background]}
+        locations={[0, 0.34, 0.72, 1]}
         style={StyleSheet.absoluteFillObject}
       />
 
@@ -491,51 +519,55 @@ export default function AudioPlayerScreen() {
         >
           <ChevronDown color="#FFFFFF" size={26} />
         </Pressable>
-        <View style={styles.headerCopy}>
-          <Text style={styles.headerEyebrow}>NOW PLAYING</Text>
-          <Text style={styles.headerTitle} numberOfLines={1}>{genre || 'Echoo'}</Text>
-        </View>
+        <Text style={styles.headerTitle}>Now Playing</Text>
         <Pressable
           style={styles.headerButton}
           onPress={() => setMoreOptionsOpen(true)}
           accessibilityLabel="More options"
         >
-          <MoreHorizontal color="#FFFFFF" size={24} />
+          <MoreVertical color="#FFFFFF" size={24} />
         </Pressable>
       </View>
 
-      <GestureDetector gesture={artworkSwipeGesture}>
-        <Animated.View
-          style={[
-            styles.playerCard,
-            {
-              opacity: playerCardOpacity,
-              transform: [{ translateX: playerCardTranslateX }, { scale: playerCardScale }],
-            },
-          ]}
-        >
+      <View style={styles.playerCard}>
           <ScrollView
             contentContainerStyle={styles.content}
             showsVerticalScrollIndicator={false}
             bounces={false}
           >
-        <View style={styles.artwork}>
-          {coverArt ? (
-            <Image
-              source={{ uri: coverArt }}
-              style={StyleSheet.absoluteFillObject}
-              contentFit="cover"
-              transition={200}
-            />
-          ) : (
-            <LinearGradient
-              colors={[palette.red, palette.blueDeep, palette.night]}
-              style={[StyleSheet.absoluteFillObject, styles.artworkFallback]}
-            >
-              <Play color="rgba(255,255,255,0.92)" fill="rgba(255,255,255,0.92)" size={54} />
-            </LinearGradient>
-          )}
-        </View>
+        <GestureDetector gesture={artworkSwipeGesture}>
+        <Animated.View style={[styles.artworkStack, { opacity: playerCardOpacity, transform: [{ translateX: playerCardTranslateX }, { scale: playerCardScale }] }]}>
+          <View style={[styles.artworkBack, styles.artworkBackFarLeft]}>
+            {coverArt ? <Image source={{ uri: playback.queue[playback.queueIndex - 1]?.coverArt || coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : null}
+          </View>
+          <View style={[styles.artworkBack, styles.artworkBackFarRight]}>
+            {coverArt ? <Image source={{ uri: playback.queue[playback.queueIndex + 1]?.coverArt || coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : null}
+          </View>
+          <View style={[styles.artworkBack, styles.artworkBackNearLeft]}>
+            {coverArt ? <Image source={{ uri: playback.queue[playback.queueIndex - 1]?.coverArt || coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : null}
+          </View>
+          <View style={[styles.artworkBack, styles.artworkBackNearRight]}>
+            {coverArt ? <Image source={{ uri: playback.queue[playback.queueIndex + 1]?.coverArt || coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : null}
+          </View>
+          <View style={styles.artwork}>
+            {coverArt ? (
+              <Image
+                source={{ uri: coverArt }}
+                style={StyleSheet.absoluteFillObject}
+                contentFit="cover"
+                transition={200}
+              />
+            ) : (
+              <LinearGradient
+                colors={[palette.red, palette.blueDeep, palette.night]}
+                style={[StyleSheet.absoluteFillObject, styles.artworkFallback]}
+              >
+                <Play color="rgba(255,255,255,0.92)" fill="rgba(255,255,255,0.92)" size={54} />
+              </LinearGradient>
+            )}
+          </View>
+        </Animated.View>
+        </GestureDetector>
 
         <View style={styles.metaRow}>
           <View style={styles.metaCopy}>
@@ -560,10 +592,10 @@ export default function AudioPlayerScreen() {
             accessibilityLabel={saved ? 'Remove from library' : 'Save to library'}
           >
             {saving ? (
-              <ActivityIndicator color={palette.ink} size="small" />
+              <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
               <Heart
-                color={saved ? palette.red : palette.ink}
+                color={saved ? palette.red : '#FFFFFF'}
                 fill={saved ? palette.red : 'transparent'}
                 size={25}
               />
@@ -571,32 +603,62 @@ export default function AudioPlayerScreen() {
           </Pressable>
         </View>
 
-        <Pressable
+        {playbackError ? (
+          <View style={styles.recoveryState}>
+            <View style={styles.recoveryNotice}>
+              <Text style={styles.recoveryNoticeIcon}>ⓘ</Text>
+              <Text style={styles.recoveryNoticeText}>Audio couldn’t be loaded. Your listening position is saved.</Text>
+            </View>
+            <Text style={styles.recoveryHint}>Check your connection and try again, or listen to your downloaded audio.</Text>
+            <Pressable
+              style={styles.retryButton}
+              onPress={() => { if (activeAudio) void playback.playAudio(activeAudio); }}
+              disabled={!activeAudio}
+            >
+              <Text style={styles.retryButtonText}>Retry now</Text>
+            </Pressable>
+            <Pressable
+              style={styles.downloadButton}
+              onPress={() => { void downloadTrack(); }}
+              disabled={downloading || !currentTrack}
+            >
+              <Text style={styles.downloadButtonText}>Go to download</Text>
+            </Pressable>
+          </View>
+        ) : <>
+        {actionError ? <ListenerToast message={actionError} tone={/saved|downloaded|removed|added|already/i.test(actionError) ? 'info' : 'error'} /> : null}
+        <View
           style={styles.progressTouch}
           onLayout={(event: LayoutChangeEvent) => setProgressWidth(event.nativeEvent.layout.width)}
-          onPress={(event) => seekToFraction(event.nativeEvent.locationX / progressWidth)}
+          onStartShouldSetResponder={() => canControl && duration > 0}
+          onMoveShouldSetResponder={() => canControl && duration > 0}
+          onResponderGrant={(event) => setSeekPreview(Math.max(0, Math.min(1, event.nativeEvent.locationX / progressWidth)))}
+          onResponderMove={(event) => setSeekPreview(Math.max(0, Math.min(1, event.nativeEvent.locationX / progressWidth)))}
+          onResponderRelease={(event) => { const fraction = Math.max(0, Math.min(1, event.nativeEvent.locationX / progressWidth)); setSeekPreview(fraction); void seekToFraction(fraction).catch(() => setActionError('Could not change playback position.')).finally(() => setSeekPreview(null)); }}
+          onResponderTerminate={() => setSeekPreview(null)}
           accessibilityRole="adjustable"
           accessibilityLabel="Playback position"
+          accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}
+          accessibilityActions={[{ name: 'increment', label: 'Forward ten seconds' }, { name: 'decrement', label: 'Back ten seconds' }]}
+          onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'increment') void playback.seekTo(Math.min(duration, position + 10000)).catch(() => undefined); if (event.nativeEvent.actionName === 'decrement') void playback.seekTo(Math.max(0, position - 10000)).catch(() => undefined); }}
         >
-          <View style={styles.progressTrack}>
+          <View pointerEvents="none" style={styles.progressTrack}>
             <View style={[styles.progressFill, { width: progressPercent }]} />
             <View style={[styles.progressThumb, { left: progressPercent }]} />
           </View>
-        </Pressable>
+        </View>
 
         <View style={styles.timeRow}>
-          <Text style={styles.timeText}>{formatTime(position)}</Text>
-          <Text style={styles.timeText}>-{formatRemaining(duration, position)}</Text>
+          <Text style={styles.timeText}>{formatTime(displayPosition)}</Text>
+          <Text style={styles.timeText}>-{formatRemaining(duration, displayPosition)}</Text>
         </View>
 
         {loading ? (
           <View style={styles.statusRow}>
-            <ActivityIndicator color={palette.ink} />
+            <ActivityIndicator color="#FFFFFF" />
             <Text style={styles.statusText}>Loading audio...</Text>
           </View>
         ) : null}
-
-        {error ? <ListenerToast message={error} tone={/saved|downloaded|removed|added|already/i.test(error) ? 'info' : 'error'} /> : null}
 
         <View style={styles.controls}>
           <Pressable
@@ -604,7 +666,7 @@ export default function AudioPlayerScreen() {
             disabled
             accessibilityLabel="Shuffle is unavailable for a single track"
           >
-            <Shuffle color={palette.faint} size={21} />
+            <Shuffle color="rgba(255,255,255,0.52)" size={21} />
           </Pressable>
           <Pressable
             style={styles.transportButton}
@@ -612,7 +674,7 @@ export default function AudioPlayerScreen() {
             disabled={!canControl}
             accessibilityLabel={hasQueue ? 'Previous track' : 'Back 15 seconds'}
           >
-            <SkipBack color={palette.ink} fill={palette.ink} size={29} />
+            <SkipBack color="#050505" fill="#050505" size={29} />
           </Pressable>
           <Pressable
             style={[styles.playButton, !canControl && styles.controlDisabled]}
@@ -621,9 +683,9 @@ export default function AudioPlayerScreen() {
             accessibilityLabel={playing ? 'Pause' : 'Play'}
           >
             {playing ? (
-              <Pause color={palette.background} fill={palette.background} size={31} />
+              <Pause color="#FFFFFF" fill="#FFFFFF" size={31} />
             ) : (
-              <Play color={palette.background} fill={palette.background} size={31} />
+              <Play color="#FFFFFF" fill="#FFFFFF" size={31} />
             )}
           </Pressable>
           <Pressable
@@ -632,53 +694,15 @@ export default function AudioPlayerScreen() {
             disabled={!canControl}
             accessibilityLabel={upNext.length ? 'Next track' : 'Forward 15 seconds'}
           >
-            <SkipForward color={palette.ink} fill={palette.ink} size={29} />
+            <SkipForward color="#050505" fill="#050505" size={29} />
           </Pressable>
           <Pressable
             style={styles.secondaryControl}
             onPress={() => playback.setRepeat(!repeatOn)}
             accessibilityLabel="Toggle repeat"
           >
-            <Repeat2 color={repeatOn ? palette.red : palette.muted} size={21} />
+            <Repeat2 color={repeatOn ? palette.red : '#050505'} size={21} />
             {repeatOn ? <View style={styles.activeDot} /> : null}
-          </Pressable>
-        </View>
-
-        <View style={styles.footerActions}>
-          <Pressable style={styles.footerAction} onPress={toggleSaved} disabled={saving}>
-            <Heart
-              color={saved ? palette.red : palette.muted}
-              fill={saved ? palette.red : 'transparent'}
-              size={20}
-            />
-            <Text style={[styles.footerLabel, saved ? styles.footerLabelActive : null]}>
-              {saved ? 'Saved' : 'Save'}
-            </Text>
-          </Pressable>
-          <Pressable style={styles.footerAction} onPress={downloadTrack} disabled={downloading || !currentTrack}>
-            {downloading ? (
-              <ActivityIndicator color={palette.blue} size="small" />
-            ) : downloaded ? (
-              <Check color={palette.blue} size={20} />
-            ) : (
-              <Download color={palette.muted} size={20} />
-            )}
-            <Text style={[styles.footerLabel, downloaded ? styles.footerLabelBlue : null]}>
-              {downloading ? `${downloadProgress}%` : downloaded ? 'Downloaded' : 'Download'}
-            </Text>
-            {downloading ? (
-              <View style={styles.footerProgressTrack}>
-                <View style={[styles.footerProgressFill, { width: `${Math.max(1, Math.min(100, downloadProgress))}%` }]} />
-              </View>
-            ) : null}
-          </Pressable>
-          <Pressable style={styles.footerAction} onPress={openPlaylistPicker}>
-            <ListMusic color={palette.muted} size={20} />
-            <Text style={styles.footerLabel}>Playlist</Text>
-          </Pressable>
-          <Pressable style={styles.footerAction} onPress={shareTrack}>
-            <Share2 color={palette.muted} size={20} />
-            <Text style={styles.footerLabel}>Share</Text>
           </Pressable>
         </View>
 
@@ -716,9 +740,9 @@ export default function AudioPlayerScreen() {
             )}
           </View>
         ) : null}
+        </>}
           </ScrollView>
-        </Animated.View>
-      </GestureDetector>
+      </View>
 
       <Modal
         visible={playlistModalOpen}
@@ -729,8 +753,29 @@ export default function AudioPlayerScreen() {
         <Pressable style={styles.modalBackdrop} onPress={() => setPlaylistModalOpen(false)}>
           <Pressable style={styles.playlistSheet}>
             <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>Add to playlist</Text>
-            <View style={styles.newPlaylistRow}>
+            <View style={[styles.sheetHeading, styles.playlistHeading]}>
+              <Text style={styles.sheetTitle}>{addedPlaylist ? 'Added to playlist' : 'Add to playlist'}</Text>
+              <Pressable onPress={() => setPlaylistModalOpen(false)} accessibilityLabel="Close playlist sheet"><X color="#858585" size={22} /></Pressable>
+            </View>
+            {addedPlaylist ? (
+              <>
+                <View style={styles.playlistSuccess}><CheckCircle2 color="#278065" size={21} /><Text style={styles.playlistSuccessText}>{title} was added to {addedPlaylist.name}.</Text></View>
+                <View style={styles.sheetTrackRow}>
+                  <View style={styles.sheetArtwork}>{addedPlaylist.coverArt ? <Image source={{ uri: addedPlaylist.coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : <ListMusic color="#2B5FC0" size={22} />}</View>
+                  <View style={styles.sheetTrackCopy}><Text style={styles.sheetTrackTitle} numberOfLines={1}>{addedPlaylist.name}</Text><Text style={styles.sheetTrackMeta}>By you · {addedPlaylist.trackCount || addedPlaylist.tracks.length} tracks</Text></View>
+                  <CheckCircle2 color="#858585" size={23} />
+                </View>
+                <Pressable style={styles.playlistViewButton} onPress={() => { setPlaylistModalOpen(false); push({ pathname: '/collection', params: { collectionId: addedPlaylist.id } }); }}><Text style={styles.playlistViewText}>View {addedPlaylist.name}</Text></Pressable>
+                <Pressable style={styles.playlistDoneButton} onPress={() => setPlaylistModalOpen(false)}><Text style={styles.playlistDoneText}>Done</Text></Pressable>
+              </>
+            ) : <>
+            <View style={styles.sheetTrackRow}>
+              <View style={styles.sheetArtwork}>{coverArt ? <Image source={{ uri: coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : <Music2 color="#2B5FC0" size={22} />}</View>
+              <View style={styles.sheetTrackCopy}><Text style={styles.sheetTrackTitle} numberOfLines={1}>{title}</Text><Text style={styles.sheetTrackMeta} numberOfLines={1}>{stationName}</Text></View>
+              <Music2 color="#858585" size={23} />
+            </View>
+            <Text style={styles.playlistPrompt}>Choose a playlist</Text>
+            {creatingPlaylist ? <View style={styles.newPlaylistRow}>
               <TextInput
                 value={newPlaylistName}
                 onChangeText={setNewPlaylistName}
@@ -749,7 +794,7 @@ export default function AudioPlayerScreen() {
                   <Plus color="#FFFFFF" size={20} />
                 )}
               </Pressable>
-            </View>
+            </View> : null}
 
             {playlistLoading ? (
               <View style={styles.sheetLoading}>
@@ -757,21 +802,25 @@ export default function AudioPlayerScreen() {
                 <Text style={styles.sheetMuted}>Loading playlists...</Text>
               </View>
             ) : playlists.length ? (
-              playlists.map((playlist) => (
+              <ScrollView style={styles.playlistChoices} showsVerticalScrollIndicator={false}>
+              {playlists.map((playlist) => (
                 <Pressable key={playlist.id} style={styles.playlistRow} onPress={() => addToPlaylist(playlist)}>
                   <View style={styles.playlistIcon}>
-                    <ListMusic color={palette.blue} size={19} />
+                    {playlist.coverArt ? <Image source={{ uri: playlist.coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : <ListMusic color={palette.blue} size={19} />}
                   </View>
                   <View style={styles.playlistCopy}>
                     <Text style={styles.playlistName} numberOfLines={1}>{playlist.name}</Text>
-                    <Text style={styles.playlistMeta}>{playlist.trackCount || 0} tracks</Text>
+                    <Text style={styles.playlistMeta}>By you · {playlist.trackCount || playlist.tracks.length} tracks</Text>
                   </View>
-                  {playlistBusyId === playlist.id ? <ActivityIndicator color={palette.blue} size="small" /> : null}
+                  {playlistBusyId === playlist.id ? <ActivityIndicator color={palette.blue} size="small" /> : <Plus color="#858585" size={23} />}
                 </Pressable>
-              ))
+              ))}
+              </ScrollView>
             ) : (
               <Text style={styles.sheetMuted}>Create your first playlist above.</Text>
             )}
+            <Pressable style={styles.createPlaylistOutline} onPress={() => setCreatingPlaylist(true)}><Text style={styles.createPlaylistOutlineText}>Create new playlist</Text></Pressable>
+            </>}
           </Pressable>
         </Pressable>
       </Modal>
@@ -824,12 +873,67 @@ export default function AudioPlayerScreen() {
               style={styles.optionRow}
               onPress={() => {
                 setMoreOptionsOpen(false);
-                void shareTrack();
+                setAudioInfoOpen(true);
+              }}
+            >
+              <Music2 color={palette.ink} size={20} />
+              <Text style={styles.optionText}>Audio information</Text>
+            </Pressable>
+            <Pressable
+              style={styles.optionRow}
+              onPress={() => {
+                setMoreOptionsOpen(false);
+                setShareCopied(false);
+                setShareAudioOpen(true);
               }}
             >
               <Share2 color={palette.ink} size={20} />
-              <Text style={styles.optionText}>Share</Text>
+              <Text style={styles.optionText}>Share audio</Text>
             </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={audioInfoOpen} transparent animationType="slide" onRequestClose={() => setAudioInfoOpen(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setAudioInfoOpen(false)}>
+          <Pressable style={styles.detailSheet}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeading}>
+              <Text style={styles.sheetTitle}>Audio Information</Text>
+              <Pressable onPress={() => setAudioInfoOpen(false)} accessibilityLabel="Close audio information"><Text style={styles.sheetClose}>×</Text></Pressable>
+            </View>
+            <View style={styles.sheetTrackRow}>
+              <View style={styles.sheetArtwork}>{coverArt ? <Image source={{ uri: coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : <Music2 color={palette.blue} size={22} />}</View>
+              <View style={styles.sheetTrackCopy}><Text style={styles.sheetTrackTitle} numberOfLines={1}>{title}</Text><Text style={styles.sheetTrackMeta} numberOfLines={1}>{stationName}</Text></View>
+              <Music2 color={palette.muted} size={24} />
+            </View>
+            <Text style={styles.infoDuration}>Duration · {formatTime(duration || 0)}</Text>
+            <Text style={styles.infoHeading}>About this audio</Text>
+            <Text style={styles.infoBody}>{genre ? `${genre} audio from ${stationName}.` : `Listen to this audio from ${stationName}.`}</Text>
+            <Text style={[styles.infoHeading, styles.infoStation]}>{stationName}</Text>
+            {stationId ? <Pressable onPress={() => { setAudioInfoOpen(false); openStation(); }}><Text style={styles.visitChannel}>Visit channel</Text></Pressable> : null}
+            <Pressable style={styles.outlineDone} onPress={() => setAudioInfoOpen(false)}><Text style={styles.outlineDoneText}>Done</Text></Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={shareAudioOpen} transparent animationType="slide" onRequestClose={() => setShareAudioOpen(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setShareAudioOpen(false)}>
+          <Pressable style={styles.detailSheet}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeading}>
+              <Text style={styles.sheetTitle}>Share audio</Text>
+              <Pressable onPress={() => setShareAudioOpen(false)} accessibilityLabel="Close share audio"><Text style={styles.sheetClose}>×</Text></Pressable>
+            </View>
+            <View style={styles.sheetTrackRow}>
+              <View style={styles.sheetArtwork}>{coverArt ? <Image source={{ uri: coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : <Music2 color={palette.blue} size={22} />}</View>
+              <View style={styles.sheetTrackCopy}><Text style={styles.sheetTrackTitle} numberOfLines={1}>{title}</Text><Text style={styles.sheetTrackMeta} numberOfLines={1}>{stationName} · {formatTime(duration || 0)}</Text></View>
+              <Share2 color={palette.muted} size={24} />
+            </View>
+            <Text style={styles.shareUrl} selectable numberOfLines={2}>{audioId ? `https://echoo.digi02.org/listen/audio/${encodeURIComponent(audioId)}` : ''}</Text>
+            <Pressable style={styles.copyLinkButton} onPress={() => { void shareTrack().then(() => setShareCopied(true)).catch(() => setActionError('Could not share this audio.')); }}><Text style={styles.copyLinkText}>Share link</Text></Pressable>
+            {shareCopied ? <View style={styles.copyNotice}><Check color="#278065" size={22} /><Text style={styles.copyNoticeText}>Share options opened</Text></View> : null}
+            <Pressable style={styles.primaryDone} onPress={() => setShareAudioOpen(false)}><Text style={styles.primaryDoneText}>Done</Text></Pressable>
           </Pressable>
         </Pressable>
       </Modal>
@@ -851,6 +955,11 @@ function formatRemaining(duration: number, position: number) {
 
 const createStyles = (palette: EchooColors) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background, overflow: 'hidden' },
+  backgroundArtwork: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.68,
+    transform: [{ scale: 1.18 }],
+  },
   playerCard: { flex: 1 },
   header: {
     height: 58,
@@ -863,19 +972,36 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: 'rgba(255,255,255,0.14)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerCopy: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
-  headerEyebrow: { color: 'rgba(255,255,255,0.72)', fontSize: 9, fontWeight: '900' },
-  headerTitle: { color: '#FFFFFF', fontSize: 12, fontWeight: '800', marginTop: 2, maxWidth: 220 },
-  content: { paddingHorizontal: 22, paddingTop: 8, paddingBottom: 22 },
-  artwork: {
+  headerTitle: { color: '#FFFFFF', fontFamily: 'DMSans_700Bold', fontSize: 18, maxWidth: 220 },
+  content: { paddingHorizontal: 22, paddingTop: 10, paddingBottom: 28 },
+  artworkStack: {
     width: '100%',
     maxWidth: 430,
-    aspectRatio: 1,
-    borderRadius: 8,
+    aspectRatio: 1.06,
+    alignSelf: 'center',
+    position: 'relative',
+  },
+  artworkBack: {
+    position: 'absolute',
+    width: '75%',
+    borderRadius: 15,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  artworkBackFarLeft: { left: '0.5%', top: '17%', aspectRatio: 269 / 225, opacity: 0.72 },
+  artworkBackFarRight: { left: '24.5%', top: '17%', aspectRatio: 269 / 225, opacity: 0.72 },
+  artworkBackNearLeft: { left: '6%', top: '10%', aspectRatio: 269 / 271, opacity: 0.85 },
+  artworkBackNearRight: { left: '19%', top: '10%', aspectRatio: 269 / 271, opacity: 0.85 },
+  artwork: {
+    position: 'absolute',
+    left: '12.5%',
+    top: '3%',
+    width: '75%',
+    aspectRatio: 269 / 319,
+    borderRadius: 15,
     overflow: 'hidden',
     alignSelf: 'center',
     backgroundColor: palette.surfaceRaised,
@@ -886,12 +1012,12 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     elevation: 12,
   },
   artworkFallback: { alignItems: 'center', justifyContent: 'center' },
-  metaRow: { marginTop: 24, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  metaRow: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 12 },
   metaCopy: { flex: 1, minWidth: 0 },
-  title: { color: palette.ink, fontSize: 20, lineHeight: 25, fontWeight: '900' },
-  subtitle: { color: palette.muted, fontSize: 13, marginTop: 5 },
-  linkText: { color: palette.blue, fontWeight: '900' },
-  collectionContext: { color: palette.muted, fontSize: 11.5, marginTop: 4, fontWeight: '700' },
+  title: { color: '#FFFFFF', fontFamily: 'DMSans_700Bold', fontSize: 16, lineHeight: 22 },
+  subtitle: { color: 'rgba(255,255,255,0.78)', fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 4 },
+  linkText: { color: '#FFFFFF', fontWeight: '900' },
+  collectionContext: { color: 'rgba(255,255,255,0.7)', fontSize: 11.5, marginTop: 4, fontWeight: '700' },
   actionButton: {
     width: 44,
     height: 44,
@@ -899,11 +1025,11 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  progressTouch: { height: 34, justifyContent: 'center', marginTop: 18 },
+  progressTouch: { height: 44, justifyContent: 'center', marginTop: 10 },
   progressTrack: {
     height: 6,
     borderRadius: 3,
-    backgroundColor: palette.lineStrong,
+    backgroundColor: 'rgba(255,255,255,0.72)',
     overflow: 'visible',
   },
   progressFill: { height: 6, borderRadius: 3, backgroundColor: palette.blue },
@@ -916,10 +1042,10 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     borderRadius: 8,
     backgroundColor: palette.blue,
     borderWidth: 3,
-    borderColor: palette.surfaceRaised,
+    borderColor: 'rgba(255,255,255,0.7)',
   },
   timeRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: -6 },
-  timeText: { color: palette.muted, fontSize: 10.5, fontWeight: '700' },
+  timeText: { color: 'rgba(255,255,255,0.7)', fontFamily: 'DMSans_400Regular', fontSize: 10 },
   statusRow: {
     minHeight: 34,
     flexDirection: 'row',
@@ -927,11 +1053,20 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     gap: 8,
     justifyContent: 'center',
   },
-  statusText: { color: palette.muted, fontSize: 11.5, fontWeight: '700' },
+  statusText: { color: 'rgba(255,255,255,0.78)', fontSize: 11.5, fontWeight: '700' },
   errorText: { color: palette.red, fontSize: 11.5, lineHeight: 16, textAlign: 'center', marginTop: 9 },
+  recoveryState: { alignItems: 'stretch', paddingTop: 38 },
+  recoveryNotice: { minHeight: 68, borderRadius: 12, backgroundColor: '#FCE8EC', paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  recoveryNoticeIcon: { color: palette.red, fontSize: 21, fontWeight: '800' },
+  recoveryNoticeText: { flex: 1, color: palette.red, fontSize: 12.5, lineHeight: 18, fontWeight: '700' },
+  recoveryHint: { color: 'rgba(255,255,255,0.72)', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 18, paddingHorizontal: 8 },
+  retryButton: { minHeight: 56, borderRadius: 28, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginTop: 34 },
+  retryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
+  downloadButton: { minHeight: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.96)', alignItems: 'center', justifyContent: 'center', marginTop: 14 },
+  downloadButtonText: { color: palette.blue, fontSize: 15, fontWeight: '900' },
   controls: {
     height: 86,
-    marginTop: 10,
+    marginTop: 66,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -953,7 +1088,7 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 34,
-    backgroundColor: palette.ink,
+    backgroundColor: '#050505',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -964,13 +1099,13 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: palette.red,
+    backgroundColor: '#FFFFFF',
   },
   footerActions: {
     marginTop: 10,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: palette.line,
+    borderTopColor: 'rgba(255,255,255,0.32)',
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 8,
@@ -995,33 +1130,32 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   footerProgressFill: { height: 3, borderRadius: 2, backgroundColor: palette.blue },
   upNextPanel: {
     marginTop: 24,
-    borderTopWidth: 1,
-    borderTopColor: palette.line,
-    paddingTop: 16,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.86)',
+    padding: 16,
   },
   upNextHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  upNextTitle: { color: palette.ink, fontSize: 16, fontWeight: '900' },
-  upNextCount: { color: palette.muted, fontSize: 11, fontWeight: '800' },
+  upNextTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 16 },
+  upNextCount: { color: '#666666', fontFamily: 'DMSans_500Medium', fontSize: 11 },
   upNextRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10 },
   upNextArt: { width: 44, height: 44, borderRadius: 7, overflow: 'hidden', backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   upNextCopy: { flex: 1, minWidth: 0 },
-  upNextTrack: { color: palette.ink, fontSize: 13, fontWeight: '900' },
-  upNextMeta: { color: palette.muted, fontSize: 11, marginTop: 2 },
-  upNextEmpty: { color: palette.muted, fontSize: 12, paddingVertical: 8 },
+  upNextTrack: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 13 },
+  upNextMeta: { color: '#666666', fontFamily: 'DMSans_400Regular', fontSize: 11, marginTop: 2 },
+  upNextEmpty: { color: '#666666', fontFamily: 'DMSans_400Regular', fontSize: 12, paddingVertical: 8 },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.52)',
     justifyContent: 'flex-end',
   },
   playlistSheet: {
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    backgroundColor: palette.surface,
-    borderTopWidth: 1,
-    borderColor: palette.line,
-    paddingHorizontal: 18,
+    height: '52.5%',
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    backgroundColor: '#F9FBFF',
+    paddingHorizontal: 24,
     paddingTop: 10,
-    paddingBottom: 28,
+    paddingBottom: 24,
   },
   optionsSheet: {
     borderTopLeftRadius: 22,
@@ -1033,6 +1167,14 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 24,
   },
+  detailSheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    backgroundColor: palette.surface,
+    paddingHorizontal: 22,
+    paddingTop: 10,
+    paddingBottom: 30,
+  },
   sheetHandle: {
     width: 42,
     height: 4,
@@ -1041,7 +1183,39 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 16,
   },
-  sheetTitle: { color: palette.ink, fontSize: 18, fontWeight: '900', marginBottom: 14 },
+  sheetTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 22, marginBottom: 0 },
+  sheetHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  playlistHeading: { minHeight: 34, marginBottom: 13 },
+  sheetClose: { color: palette.muted, fontSize: 34, lineHeight: 34, fontWeight: '400', marginTop: -12 },
+  sheetTrackRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
+  sheetArtwork: { width: 62, height: 58, borderRadius: 5, overflow: 'hidden', backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  sheetTrackCopy: { flex: 1, minWidth: 0 },
+  sheetTrackTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 15 },
+  sheetTrackMeta: { color: '#868686', fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 4 },
+  playlistPrompt: { color: '#868686', fontFamily: 'DMSans_400Regular', fontSize: 13, marginBottom: 12 },
+  playlistChoices: { maxHeight: 148, flexGrow: 0 },
+  createPlaylistOutline: { height: 56, borderRadius: 28, borderWidth: 1, borderColor: '#858585', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  createPlaylistOutlineText: { color: '#2B5FC0', fontFamily: 'DMSans_700Bold', fontSize: 15 },
+  playlistSuccess: { minHeight: 44, borderRadius: 10, paddingHorizontal: 12, marginBottom: 16, backgroundColor: '#E7F2EC', flexDirection: 'row', alignItems: 'center', gap: 9 },
+  playlistSuccessText: { flex: 1, color: '#278065', fontFamily: 'DMSans_400Regular', fontSize: 12.5 },
+  playlistViewButton: { height: 56, borderRadius: 28, backgroundColor: '#2B5FC0', alignItems: 'center', justifyContent: 'center' },
+  playlistViewText: { color: '#FFFFFF', fontFamily: 'DMSans_700Bold', fontSize: 15 },
+  playlistDoneButton: { height: 55, alignItems: 'center', justifyContent: 'center', marginTop: 14 },
+  playlistDoneText: { color: '#2B5FC0', fontFamily: 'DMSans_700Bold', fontSize: 15 },
+  infoDuration: { color: palette.muted, fontSize: 12.5, marginBottom: 24 },
+  infoHeading: { color: palette.ink, fontSize: 15, fontWeight: '900', marginBottom: 7 },
+  infoBody: { color: palette.muted, fontSize: 13.5, lineHeight: 20 },
+  infoStation: { marginTop: 26, marginBottom: 5 },
+  visitChannel: { color: palette.blue, fontSize: 14, fontWeight: '800' },
+  outlineDone: { minHeight: 56, borderRadius: 28, borderWidth: 1, borderColor: palette.muted, alignItems: 'center', justifyContent: 'center', marginTop: 28 },
+  outlineDoneText: { color: palette.blue, fontSize: 15, fontWeight: '900' },
+  copyLinkButton: { minHeight: 56, borderRadius: 28, backgroundColor: palette.surfaceRaised, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  shareUrl: { color: '#555555', fontFamily: 'DMSans_400Regular', fontSize: 12, marginTop: 12 },
+  copyLinkText: { color: palette.blue, fontSize: 15, fontWeight: '900' },
+  copyNotice: { minHeight: 58, borderRadius: 12, backgroundColor: '#E7F2EC', marginTop: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  copyNoticeText: { color: '#278065', fontSize: 14, fontWeight: '800' },
+  primaryDone: { minHeight: 56, borderRadius: 28, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginTop: 28 },
+  primaryDoneText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
   sheetSubtitle: { color: palette.muted, fontSize: 12, marginTop: -10, marginBottom: 14 },
   optionRow: {
     minHeight: 56,
@@ -1076,22 +1250,21 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   sheetLoading: { minHeight: 94, alignItems: 'center', justifyContent: 'center', gap: 8 },
   sheetMuted: { color: palette.muted, fontSize: 12.5, lineHeight: 18, paddingVertical: 14 },
   playlistRow: {
-    minHeight: 62,
+    height: 74,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 11,
-    borderTopWidth: 1,
-    borderTopColor: palette.line,
   },
   playlistIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 10,
+    width: 62,
+    height: 58,
+    borderRadius: 5,
     backgroundColor: palette.blueSoft,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   playlistCopy: { flex: 1, minWidth: 0 },
-  playlistName: { color: palette.ink, fontSize: 13.5, fontWeight: '900' },
-  playlistMeta: { color: palette.muted, fontSize: 11, marginTop: 3 },
+  playlistName: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 15 },
+  playlistMeta: { color: '#868686', fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 4 },
 });

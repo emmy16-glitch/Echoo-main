@@ -1,754 +1,89 @@
 import { useFocusEffect } from '@react-navigation/native';
-import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
-import {
-  Download,
-  Heart,
-  History,
-  ListMusic,
-  MoreHorizontal,
-  Radio,
-} from 'lucide-react-native';
-import { useCallback, useMemo, useRef, useState } from 'react';
-import {
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Image } from 'expo-image';
+import { ChevronRight, Mic } from 'lucide-react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-import {
-  AudioRowActions,
-} from '@/src/components/AudioRowActions';
-import {
-  ListenerAuthCard,
-  ListenerEmptyState,
-  ListenerListRow,
-  ListenerSectionHeader,
-  ListenerSkeletonRows,
-  ListenerToast,
-  ListenerTopBar,
-  friendlyErrorMessage,
-} from '@/src/components/ListenerV2';
-import {
-  EchooAudio,
-  EchooHistoryItem,
-  EchooLibraryStats,
-  EchooPlaylist,
-  EchooStation,
-  getCachedFollowedStationsSnapshot,
-  getCachedLibraryStatsSnapshot,
-  getCachedListeningHistorySnapshot,
-  getCachedMyPlaylistsSnapshot,
-  getCachedSavedAudioSnapshot,
-  getFollowedStations,
-  getLibraryStats,
-  getListeningHistory,
-  getMyPlaylists,
-  getPublicCollections,
-  getSavedCollections,
-  getSavedAudio,
-  hasEchooSession,
-} from '@/src/services/echooApi';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { LocalDownload, deleteLocalDownload, getLocalDownloads } from '@/src/services/localDownloads';
+import { ListenerAuthCard, ListenerSkeletonRows, ListenerToast, friendlyErrorMessage } from '@/src/components/ListenerV2';
+import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import { AudioPlaybackItem, usePlayback } from '@/src/playback/PlaybackProvider';
-import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
+import { EchooAudio, EchooHistoryItem, getCachedListeningHistorySnapshot, getListeningHistory, hasEchooSession } from '@/src/services/echooApi';
 
-const emptyStats: EchooLibraryStats = {
-  savedTracks: 0,
-  playlists: 0,
-  totalSaved: 0,
-  listeningHistory: 0,
-};
-
-type LibraryTab = 'saved' | 'downloads' | 'playlists' | 'collections' | 'stations' | 'history';
-type SortMode = 'recent' | 'title';
-
-const libraryTabs: { key: LibraryTab; label: string }[] = [
-  { key: 'saved', label: 'Saved' },
-  { key: 'downloads', label: 'Downloads' },
-  { key: 'playlists', label: 'Playlists' },
-  { key: 'collections', label: 'Collections' },
-  { key: 'stations', label: 'Stations' },
-  { key: 'history', label: 'History' },
-];
-
+const BLUE = '#2B5FC0';
+function uniqueTracks(history: EchooHistoryItem[]) {
+  const seen = new Set<string>();
+  return history.flatMap(({ track }) => {
+    if (!track?.id || seen.has(track.id)) return [];
+    seen.add(track.id); return [track];
+  });
+}
+function playbackItem(track: EchooAudio): AudioPlaybackItem {
+  return { kind: 'audio', id: track.id, title: track.title, subtitle: track.stationName || track.subtitle || track.artistName || 'Echoo Audio', coverArt: track.coverArt || '', fileUrl: track.fileUrl || '', genre: track.genre || '', stationId: track.stationId || '', stationName: track.stationName || '', collectionId: track.collectionId || '', collectionName: track.collectionName || '' };
+}
 export default function LibraryScreen() {
   const { push } = useGuardedRouter();
-  const scheme = useColorScheme();
-  const palette = getEchooColors(scheme);
-  const styles = useMemo(() => createStyles(palette), [palette]);
   const playback = usePlayback();
-
+  const { width } = useWindowDimensions();
+  const cardWidth = Math.min(151, Math.max(132, (width - 64) / 2));
+  const [history, setHistory] = useState<EchooHistoryItem[]>([]);
   const [signedIn, setSignedIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [stats, setStats] = useState<EchooLibraryStats>(emptyStats);
-  const [saved, setSaved] = useState<EchooAudio[]>([]);
-  const [stations, setStations] = useState<EchooStation[]>([]);
-  const [history, setHistory] = useState<EchooHistoryItem[]>([]);
-  const [playlists, setPlaylists] = useState<EchooPlaylist[]>([]);
-  const [savedCollections, setSavedCollections] = useState<EchooPlaylist[]>([]);
-  const [publicCollections, setPublicCollections] = useState<EchooPlaylist[]>([]);
-  const [collectionsError, setCollectionsError] = useState('');
-  const [downloads, setDownloads] = useState<LocalDownload[]>([]);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<LibraryTab>('saved');
-  const [offlineOnly, setOfflineOnly] = useState(false);
-  const [sortMode, setSortMode] = useState<SortMode>('recent');
-  const hasLoadedOnce = useRef(false);
-
-  const loadLibrary = useCallback(async (force = false, silent = false) => {
-    if (force && !silent) setRefreshing(true);
-    else if (!silent) setLoading(true);
-    setError('');
-    const activeSession = await hasEchooSession();
-    setSignedIn(activeSession);
-
-    if (!activeSession) {
-      setSaved([]);
-      setStations([]);
-      setHistory([]);
-      setPlaylists([]);
-      setSavedCollections([]);
-      setPublicCollections([]);
-      setCollectionsError('');
-      setDownloads([]);
-      setStats(emptyStats);
-      setLoading(false);
-      setRefreshing(false);
-      hasLoadedOnce.current = true;
-      return;
-    }
-
+  const load = useCallback(async (force = false) => {
+    if (force) setRefreshing(true);
     try {
-      const [nextStats, nextSaved, nextStations, nextHistory, nextPlaylists, nextDownloads, collections] = await Promise.all([
-        getLibraryStats({ force }),
-        getSavedAudio({ force }),
-        getFollowedStations({ force }),
-        getListeningHistory({ force }),
-        getMyPlaylists({ force }).catch(() => []),
-        getLocalDownloads().catch(() => []),
-        Promise.allSettled([getSavedCollections({ force }), getPublicCollections({ force })]),
-      ]);
-      setStats(nextStats);
-      setSaved(nextSaved);
-      setStations(nextStations);
-      setHistory(nextHistory);
-      setPlaylists(nextPlaylists);
-      setDownloads(nextDownloads);
-      setSavedCollections(collections[0].status === 'fulfilled' ? collections[0].value : []);
-      setPublicCollections(collections[1].status === 'fulfilled' ? collections[1].value : []);
-      setCollectionsError(collections.some((result) => result.status === 'rejected') ? 'Some Collections could not refresh. Pull down to try again.' : '');
-    } catch (loadError: any) {
-      if (loadError?.code === 'AUTH_REQUIRED' || loadError?.code === 'SESSION_EXPIRED') {
-        setSignedIn(false);
-      } else {
-        setError(friendlyErrorMessage(loadError, 'Could not load your Echoo library.'));
-      }
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-      hasLoadedOnce.current = true;
-    }
+      const session = await hasEchooSession();
+      setSignedIn(session);
+      setHistory(session ? await getListeningHistory({ force }) : []);
+      setError('');
+    } catch (cause) { setError(friendlyErrorMessage(cause, 'Could not load your listening history.')); }
+    finally { setLoading(false); setRefreshing(false); }
   }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
-
-      const hydrateThenRefresh = async () => {
-        let hydrated = false;
-
-        if (!hasLoadedOnce.current) {
-          const activeSession = await hasEchooSession();
-          if (!active) return;
-          setSignedIn(activeSession);
-
-          const nextDownloads = await getLocalDownloads().catch(() => []);
-          if (!active) return;
-          setDownloads(nextDownloads);
-          hydrated = nextDownloads.length > 0;
-
-          if (activeSession) {
-            const [nextStats, nextSaved, nextStations, nextHistory, nextPlaylists] = await Promise.all([
-              getCachedLibraryStatsSnapshot().catch(() => null),
-              getCachedSavedAudioSnapshot().catch(() => []),
-              getCachedFollowedStationsSnapshot().catch(() => []),
-              getCachedListeningHistorySnapshot().catch(() => []),
-              getCachedMyPlaylistsSnapshot().catch(() => []),
-            ]);
-            if (!active) return;
-            if (nextStats) setStats(nextStats);
-            setSaved(nextSaved);
-            setStations(nextStations);
-            setHistory(nextHistory);
-            setPlaylists(nextPlaylists);
-            hydrated = hydrated ||
-              Boolean(nextStats) ||
-              nextSaved.length > 0 ||
-              nextStations.length > 0 ||
-              nextHistory.length > 0 ||
-              nextPlaylists.length > 0;
-          }
-
-          if (hydrated || !activeSession) setLoading(false);
-        }
-
-        // Returning from a Channel or Collection refreshes server-backed lists,
-        // including saved audio, History, and Collections, instead of stale cache.
-        if (active) loadLibrary(hasLoadedOnce.current, hydrated || hasLoadedOnce.current);
-      };
-
-      hydrateThenRefresh();
-      return () => {
-        active = false;
-      };
-    }, [loadLibrary])
-  );
-
-  const toPlaybackItem = useCallback((track: EchooAudio, localUri = ''): AudioPlaybackItem => ({
-    kind: 'audio',
-    id: track.id,
-    title: track.title,
-    subtitle: track.stationName || track.subtitle || track.artistName || track.genre || 'Echoo Audio',
-    coverArt: track.coverArt || '',
-    fileUrl: localUri || track.fileUrl || '',
-    genre: track.genre || '',
-    stationId: track.stationId || '',
-    stationName: track.stationName || track.artistName || '',
-    collectionId: track.collectionId || '',
-    collectionName: track.collectionName || '',
-  }), []);
-
-  const openAudio = async (
-    track?: EchooAudio | null,
-    localUri = '',
-    queue: AudioPlaybackItem[] = []
-  ) => {
-    if (!track) return;
-    const fallback = toPlaybackItem(track, localUri);
-    const nextQueue = queue.length ? queue : [fallback];
-    const index = Math.max(0, nextQueue.findIndex((item) => item.id === track.id));
-    await playback.playAudioQueue(nextQueue, index);
-    push({
-      pathname: '/audio-player',
-      params: {
-        audioId: track.id,
-        title: track.title,
-        subtitle: track.stationName || track.subtitle || track.artistName || track.genre || 'Echoo Audio',
-        coverArt: track.coverArt || '',
-        fileUrl: localUri || track.fileUrl || '',
-        genre: track.genre || '',
-        stationId: track.stationId || '',
-        stationName: track.stationName || '',
-      },
-    });
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    void (async () => {
+      const session = await hasEchooSession();
+      if (!active) return;
+      setSignedIn(session);
+      if (session) {
+        const cached = await getCachedListeningHistorySnapshot().catch(() => []);
+        if (active && cached.length) { setHistory(cached); setLoading(false); }
+      }
+      if (active) void load();
+    })();
+    return () => { active = false; };
+  }, [load]));
+  const tracks = useMemo(() => uniqueTracks(history), [history]);
+  const queue = useMemo(() => tracks.map(playbackItem), [tracks]);
+  const openTrack = async (track: EchooAudio) => {
+    await playback.playAudioQueue(queue, Math.max(0, queue.findIndex((item) => item.id === track.id)));
+    push({ pathname: '/audio-player', params: { audioId: track.id, title: track.title, subtitle: track.stationName || track.subtitle || track.artistName || '', coverArt: track.coverArt || '', fileUrl: track.fileUrl || '' } });
   };
-
-  const openPlaylist = (playlist: EchooPlaylist) => {
-    push({
-      pathname: '/collection' as any,
-      params: {
-        collectionId: playlist.id,
-        stationId: playlist.stationId || '',
-        stationName: playlist.stationName || playlist.owner?.displayName || '',
-      },
-    });
-  };
-
-  const removeDownloadedAudio = async (download: LocalDownload) => {
-    await deleteLocalDownload(download);
-    setDownloads((current) => current.filter((item) => item.trackId !== download.trackId));
-  };
-
-  const downloadedTrackIds = useMemo(
-    () => new Set(downloads.map((download) => download.trackId).filter(Boolean)),
-    [downloads]
-  );
-
-  const sortAudio = useCallback((rows: EchooAudio[]) => {
-    if (sortMode === 'title') return [...rows].sort((a, b) => a.title.localeCompare(b.title));
-    return rows;
-  }, [sortMode]);
-
-  const visibleSaved = useMemo(() => {
-    const rows = offlineOnly ? saved.filter((track) => downloadedTrackIds.has(track.id)) : saved;
-    return sortAudio(rows);
-  }, [downloadedTrackIds, offlineOnly, saved, sortAudio]);
-
-  const visibleHistory = useMemo(() => {
-    const rows = offlineOnly
-      ? history.filter((item) => item.track?.id && downloadedTrackIds.has(item.track.id))
-      : history;
-    if (sortMode === 'title') {
-      return [...rows].sort((a, b) =>
-        String(a.track?.title || '').localeCompare(String(b.track?.title || ''))
-      );
-    }
-    return rows;
-  }, [downloadedTrackIds, history, offlineOnly, sortMode]);
-
-  const savedQueue = useMemo(
-    () => visibleSaved.map((track) => toPlaybackItem(track)),
-    [toPlaybackItem, visibleSaved]
-  );
-  const historyQueue = useMemo(
-    () => visibleHistory.flatMap((item) => item.track ? [toPlaybackItem(item.track)] : []),
-    [toPlaybackItem, visibleHistory]
-  );
-  const downloadQueue = useMemo(
-    () => downloads.flatMap((download) =>
-      download.track ? [toPlaybackItem(download.track, download.localUri)] : []
-    ),
-    [downloads, toPlaybackItem]
-  );
-
-  const tabCounts: Record<LibraryTab, number> = {
-    saved: saved.length,
-    downloads: downloads.length,
-    playlists: playlists.length || stats.playlists,
-    collections: publicCollections.length + savedCollections.filter((item) => !publicCollections.some((entry) => entry.id === item.id)).length,
-    stations: stations.length,
-    history: history.length,
-  };
-
-  return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <ListenerTopBar />
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => loadLibrary(true)}
-            tintColor={palette.blue}
-            colors={[palette.blue]}
-          />
-        }
-      >
-        <Text style={styles.pageTitle}>Your Library</Text>
-
-        {!signedIn && !loading ? (
-          <ListenerAuthCard onPress={() => push('/auth')} />
-        ) : null}
-
-        {loading ? (
-          <ListenerSkeletonRows count={5} />
-        ) : null}
-
-        {signedIn && !loading ? (
-          <>
-            <View style={styles.summaryCard}>
-              <View style={styles.summaryIcon}>
-                <LibraryGlyph activeTab={activeTab} />
-              </View>
-              <View style={styles.summaryCopy}>
-                <Text style={styles.summaryTitle}>{tabCounts[activeTab]}</Text>
-                <Text style={styles.summaryText}>
-                  {activeTab === 'downloads'
-                    ? 'offline items on this device'
-                    : activeTab === 'saved'
-                      ? 'saved audio synced to your account'
-                      : activeTab === 'playlists'
-                        ? 'playlists you created'
-                        : activeTab === 'collections'
-                          ? 'saved and published Collections'
-                        : activeTab === 'stations'
-                          ? 'followed stations'
-                          : 'recent plays'}
-                </Text>
-              </View>
-              <View style={styles.offlinePill}>
-                <Download color={downloads.length ? palette.blue : palette.faint} size={14} />
-                <Text style={styles.offlinePillText}>{downloads.length} offline</Text>
-              </View>
-            </View>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRail}>
-              {libraryTabs.map((tab) => (
-                <Pressable
-                  key={tab.key}
-                  style={[styles.tabButton, activeTab === tab.key && styles.tabButtonActive]}
-                  onPress={() => setActiveTab(tab.key)}
-                >
-                  <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
-                    {tab.label}
-                  </Text>
-                  <Text style={[styles.tabCount, activeTab === tab.key && styles.tabCountActive]}>
-                    {tabCounts[tab.key]}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-
-            <View style={styles.filterRow}>
-              <Pressable
-                style={[styles.filterChip, offlineOnly && styles.filterChipActive]}
-                onPress={() => setOfflineOnly((current) => !current)}
-              >
-                <Download color={offlineOnly ? '#FFFFFF' : palette.muted} size={14} />
-                <Text style={[styles.filterText, offlineOnly && styles.filterTextActive]}>Offline</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.filterChip, sortMode === 'recent' && styles.filterChipActive]}
-                onPress={() => setSortMode('recent')}
-              >
-                <History color={sortMode === 'recent' ? '#FFFFFF' : palette.muted} size={14} />
-                <Text style={[styles.filterText, sortMode === 'recent' && styles.filterTextActive]}>Recent</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.filterChip, sortMode === 'title' && styles.filterChipActive]}
-                onPress={() => setSortMode('title')}
-              >
-                <MoreHorizontal color={sortMode === 'title' ? '#FFFFFF' : palette.muted} size={14} />
-                <Text style={[styles.filterText, sortMode === 'title' && styles.filterTextActive]}>A-Z</Text>
-              </Pressable>
-            </View>
-
-            {error ? (
-              <ListenerToast message={error} />
-            ) : null}
-
-            {activeTab === 'saved' ? (
-              <>
-            <ListenerSectionHeader title={offlineOnly ? 'Saved offline' : 'Saved audio'} />
-            {visibleSaved.length ? (
-              visibleSaved.map((track) => (
-                <ListenerListRow
-                  key={track.id}
-                  title={track.title}
-                  subtitle={track.subtitle || track.artistName || track.genre || 'Echoo Audio'}
-                  meta={downloadedTrackIds.has(track.id) ? 'Offline' : track.genre || 'Saved'}
-                  image={track.coverArt}
-                  trailing={
-                    <AudioRowActions
-                      track={track}
-                      initialSaved
-                      downloaded={downloadedTrackIds.has(track.id)}
-                      onChanged={() => loadLibrary(true)}
-                    />
-                  }
-                  onPress={() => void openAudio(track, '', savedQueue)}
-                />
-              ))
-            ) : (
-              <ListenerEmptyState
-                title="No saved audio yet"
-                subtitle="Tap the heart on any track to keep it in your library."
-                action="Find audio"
-                onAction={() => push('/search')}
-              />
-            )}
-              </>
-            ) : null}
-
-            {activeTab === 'history' ? (
-              <>
-            <ListenerSectionHeader title={offlineOnly ? 'Recent offline plays' : 'Recently played'} />
-            {visibleHistory.length ? (
-              visibleHistory.map((item) => (
-                <ListenerListRow
-                  key={item.id}
-                  title={item.track?.title || 'Unavailable audio'}
-                  subtitle={item.track?.subtitle || item.track?.artistName || item.track?.genre || 'Echoo'}
-                  meta={item.track?.id && downloadedTrackIds.has(item.track.id) ? 'Offline' : item.playedAt ? new Date(item.playedAt).toLocaleDateString() : 'History'}
-                  image={item.track?.coverArt}
-                  trailing={
-                    item.track ? (
-                      <AudioRowActions
-                        track={item.track}
-                        initialSaved={saved.some((track) => track.id === item.track?.id)}
-                        downloaded={Boolean(item.track?.id && downloadedTrackIds.has(item.track.id))}
-                        onChanged={() => loadLibrary(true)}
-                      />
-                    ) : null
-                  }
-                  onPress={() => void openAudio(item.track, '', historyQueue)}
-                />
-              ))
-            ) : (
-              <View style={styles.inlineEmpty}>
-                <History color={palette.faint} size={20} />
-                <Text style={styles.inlineEmptyText}>Your recent plays will appear here.</Text>
-              </View>
-            )}
-              </>
-            ) : null}
-
-            {activeTab === 'playlists' ? (
-              <>
-            <ListenerSectionHeader title="Playlists" />
-            {playlists.length ? (
-              playlists.map((playlist) => (
-                <ListenerListRow
-                  key={playlist.id}
-                  title={playlist.name}
-                  subtitle={playlist.mode === 'series' ? 'Series' : 'Playlist'}
-                  meta={`${playlist.trackCount || playlist.tracks.length} tracks`}
-                  image={playlist.coverArt}
-                  fallback={<ListMusic color={palette.blue} size={21} />}
-                  onPress={() => openPlaylist(playlist)}
-                />
-              ))
-            ) : (
-              <View style={styles.inlineEmpty}>
-                <ListMusic color={palette.faint} size={20} />
-                <Text style={styles.inlineEmptyText}>Playlists you create from the player will appear here.</Text>
-              </View>
-            )}
-              </>
-            ) : null}
-
-            {activeTab === 'collections' ? (
-              <>
-                {collectionsError ? <ListenerToast message={collectionsError} /> : null}
-                <ListenerSectionHeader title="Saved Collections" />
-                {savedCollections.length ? (
-                  savedCollections.map((collection) => (
-                    <ListenerListRow
-                      key={`saved-${collection.id}`}
-                      title={collection.name}
-                      subtitle={collection.stationName || collection.owner?.displayName || 'Echoo Collection'}
-                      meta={`${collection.trackCount ?? collection.tracks.length} recordings`}
-                      image={collection.coverArt}
-                      fallback={<ListMusic color={palette.blue} size={21} />}
-                      onPress={() => openPlaylist(collection)}
-                    />
-                  ))
-                ) : (
-                  <Text style={styles.inlineEmptyText}>Collections you save will appear here on all your devices.</Text>
-                )}
-                <ListenerSectionHeader title="Explore published Collections" />
-                {publicCollections.length ? (
-                  publicCollections.filter((collection) => !savedCollections.some((savedItem) => savedItem.id === collection.id)).map((collection) => (
-                    <ListenerListRow
-                      key={`public-${collection.id}`}
-                      title={collection.name}
-                      subtitle={collection.stationName || collection.owner?.displayName || 'Echoo Collection'}
-                      meta={`${collection.trackCount ?? collection.tracks.length} recordings`}
-                      image={collection.coverArt}
-                      fallback={<ListMusic color={palette.blue} size={21} />}
-                      onPress={() => openPlaylist(collection)}
-                    />
-                  ))
-                ) : (
-                  <Text style={styles.inlineEmptyText}>Published Collections will appear here when available.</Text>
-                )}
-              </>
-            ) : null}
-
-            {activeTab === 'stations' ? (
-              <>
-            <ListenerSectionHeader title="Followed stations" />
-            {stations.length ? (
-              stations.map((station) => (
-                <ListenerListRow
-                  key={station.id}
-                  title={station.name}
-                  subtitle={station.category || 'Echoo Station'}
-                  meta={station.isLive ? 'LIVE' : `${station.followerCount || 0} followers`}
-                  image={station.coverArt}
-                  fallback={<Radio color={palette.blue} size={21} />}
-                  onPress={() => push({ pathname: '/station', params: { stationId: station.id } })}
-                />
-              ))
-            ) : (
-              <View style={styles.inlineEmpty}>
-                <Radio color={palette.faint} size={20} />
-                <Text style={styles.inlineEmptyText}>Stations you follow will appear here.</Text>
-              </View>
-            )}
-              </>
-            ) : null}
-
-            {activeTab === 'downloads' ? (
-              <>
-            <ListenerSectionHeader title="Downloads" />
-            {downloads.length ? (
-              downloads.map((download) => (
-                <ListenerListRow
-                  key={download.trackId}
-                  title={download.track?.title || 'Downloaded audio'}
-                  subtitle={download.track?.stationName || download.track?.subtitle || download.track?.artistName || 'Offline audio'}
-                  meta="Offline"
-                  image={download.track?.coverArt}
-                  fallback={<Download color={palette.blue} size={20} />}
-                  trailing={
-                    download.track ? (
-                      <AudioRowActions
-                        track={download.track}
-                        initialSaved={saved.some((track) => track.id === download.trackId)}
-                        downloaded
-                        onChanged={() => loadLibrary(true)}
-                      />
-                    ) : (
-                      <Pressable style={styles.removeButton} onPress={() => removeDownloadedAudio(download)}>
-                        <Text style={styles.removeButtonText}>Remove</Text>
-                      </Pressable>
-                    )
-                  }
-                  onPress={() => void openAudio(download.track, download.localUri, downloadQueue)}
-                />
-              ))
-            ) : (
-              <View style={styles.inlineEmpty}>
-                <Download color={palette.faint} size={20} />
-                <Text style={styles.inlineEmptyText}>Audio you download will appear here and play without internet.</Text>
-              </View>
-            )}
-              </>
-            ) : null}
-          </>
-        ) : null}
-      </ScrollView>
-    </SafeAreaView>
-  );
+  const openSection = (section: string) => push({ pathname: '/library-section', params: { section } } as never);
+  const rail = (title: string, items: EchooAudio[]) => <View style={styles.railSection}>
+    <View style={styles.railHeader}><Text style={styles.railTitle}>{title}</Text><Pressable onPress={() => push(title === 'Listening History' ? '/listening-history' : '/recently-played')} accessibilityRole="button" accessibilityLabel={`See all ${title}`}><Text style={styles.seeAll}>See All</Text></Pressable></View>
+    {items.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>{items.map((track) => <Pressable key={track.id} style={{ width: cardWidth }} onPress={() => void openTrack(track)} accessibilityRole="button" accessibilityLabel={`Play ${track.title}`}>
+      <View style={[styles.artwork, { width: cardWidth, height: cardWidth }]}>{track.coverArt ? <Image source={{ uri: track.coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : null}</View>
+      <Text style={styles.cardTitle} numberOfLines={1}>{track.title}</Text><Text style={styles.cardSubtitle} numberOfLines={1}>{track.stationName || track.artistName || 'Echoo Audio'}</Text>
+    </Pressable>)}</ScrollView> : <Text style={styles.emptyRail}>Your listening will appear here.</Text>}
+  </View>;
+  return <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={BLUE} colors={[BLUE]} />}>
+    <Pressable style={styles.search} onPress={() => push('/search')} accessibilityRole="search" accessibilityLabel="Search channels and audio"><Text style={styles.searchText}>Channels, title, artist, shows</Text><Mic color="#050505" size={25} strokeWidth={2.5} /></Pressable>
+    <Text style={styles.heading}>Library</Text>
+    <View style={styles.links}>{([['Liked Tracks', 'liked'], ['Downloads', 'downloads'], ['Following', 'following'], ['Playlist', 'playlists']] as const).map(([label, section]) => <Pressable key={section} style={styles.link} onPress={() => openSection(section)} accessibilityRole="button"><Text style={styles.linkText}>{label}</Text><ChevronRight color="#050505" size={24} strokeWidth={2.4} /></Pressable>)}</View>
+    {error ? <ListenerToast message={error} /> : null}
+    {loading ? <View style={{ marginHorizontal: 24 }}><ListenerSkeletonRows count={3} /></View> : null}
+    {!loading && !signedIn ? <ListenerAuthCard title="Keep your listening together" subtitle="Sign in to see your liked tracks, playlists, and history." onPress={() => push('/auth')} /> : null}
+    {!loading && signedIn ? <>{rail('Recently Played', tracks.slice(0, 8))}{rail('Listening History', tracks.slice(0, 12))}</> : null}
+  </ScrollView></SafeAreaView>;
 }
-
-function LibraryGlyph({ activeTab }: { activeTab: LibraryTab }) {
-  if (activeTab === 'downloads') return <Download color="#FFFFFF" size={23} />;
-  if (activeTab === 'playlists' || activeTab === 'collections') return <ListMusic color="#FFFFFF" size={23} />;
-  if (activeTab === 'stations') return <Radio color="#FFFFFF" size={23} />;
-  if (activeTab === 'history') return <History color="#FFFFFF" size={23} />;
-  return <Heart color="#FFFFFF" fill="#FFFFFF" size={23} />;
-}
-
-const createStyles = (palette: EchooColors) => StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: palette.background },
-  content: { paddingHorizontal: 18, paddingTop: 4, paddingBottom: 150 },
-  pageTitle: {
-    color: palette.ink,
-    fontSize: 31,
-    lineHeight: 36,
-    fontWeight: '900',
-    marginTop: 18,
-    marginBottom: 20,
-  },
-  loadingState: { minHeight: 170, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  loadingText: { color: palette.muted, fontSize: 12.5, fontWeight: '700' },
-  summaryCard: {
-    minHeight: 86,
-    borderRadius: 8,
-    backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.line,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  summaryIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 8,
-    backgroundColor: palette.blue,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  summaryCopy: { flex: 1, minWidth: 0 },
-  summaryTitle: { color: palette.ink, fontSize: 24, fontWeight: '900' },
-  summaryText: { color: palette.muted, fontSize: 11.5, lineHeight: 16, marginTop: 2 },
-  offlinePill: {
-    minHeight: 30,
-    borderRadius: 15,
-    backgroundColor: palette.surfaceRaised,
-    borderWidth: 1,
-    borderColor: palette.line,
-    paddingHorizontal: 9,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  offlinePillText: { color: palette.muted, fontSize: 10.5, fontWeight: '900' },
-  tabRail: { gap: 8, paddingTop: 14, paddingBottom: 8 },
-  tabButton: {
-    minHeight: 36,
-    borderRadius: 18,
-    backgroundColor: palette.surfaceRaised,
-    borderWidth: 1,
-    borderColor: palette.line,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-  },
-  tabButtonActive: { backgroundColor: palette.blue, borderColor: palette.blue },
-  tabText: { color: palette.ink2, fontSize: 12, fontWeight: '900' },
-  tabTextActive: { color: '#FFFFFF' },
-  tabCount: { color: palette.muted, fontSize: 10.5, fontWeight: '900' },
-  tabCountActive: { color: 'rgba(255,255,255,0.8)' },
-  filterRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  filterChip: {
-    minHeight: 31,
-    borderRadius: 16,
-    backgroundColor: palette.surfaceRaised,
-    borderWidth: 1,
-    borderColor: palette.line,
-    paddingHorizontal: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  filterChipActive: { backgroundColor: palette.blue, borderColor: palette.blue },
-  filterText: { color: palette.muted, fontSize: 11, fontWeight: '900' },
-  filterTextActive: { color: '#FFFFFF' },
-  quickList: { gap: 4 },
-  shortcutRow: { minHeight: 66, flexDirection: 'row', alignItems: 'center', paddingVertical: 5 },
-  shortcutArt: {
-    width: 56,
-    height: 56,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  shortcutCopy: { flex: 1, paddingHorizontal: 12 },
-  shortcutTitle: { color: palette.ink, fontSize: 14, fontWeight: '900' },
-  shortcutSubtitle: { color: palette.muted, fontSize: 11.5, marginTop: 4 },
-  inlineEmpty: {
-    minHeight: 58,
-    borderRadius: 8,
-    backgroundColor: palette.surfaceRaised,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 11,
-  },
-  inlineEmptyText: { color: palette.muted, fontSize: 12 },
-  downloadRow: {
-    minHeight: 70,
-    marginTop: 26,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: palette.line,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  downloadIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    backgroundColor: palette.surfaceRaised,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  downloadCopy: { flex: 1, paddingHorizontal: 12 },
-  downloadTitle: { color: palette.ink, fontSize: 14, fontWeight: '900' },
-  downloadText: { color: palette.muted, fontSize: 11.5, marginTop: 4 },
-  downloadCount: { color: palette.muted, fontSize: 12, fontWeight: '800' },
-  removeButton: {
-    minHeight: 34,
-    borderRadius: 10,
-    backgroundColor: palette.surfaceRaised,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: palette.line,
-  },
-  removeButtonText: { color: palette.muted, fontSize: 10.5, fontWeight: '900' },
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: '#F9FBFF' }, content: { paddingTop: 22, paddingBottom: 150 },
+  search: { height: 48, borderRadius: 25, backgroundColor: '#F2F3F5', marginHorizontal: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 31 },
+  searchText: { color: '#848484', fontFamily: 'DMSans_400Regular', fontSize: 16, flexShrink: 1 },
+  heading: { marginTop: 16, marginHorizontal: 24, color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 24, letterSpacing: -0.5 },
+  links: { marginTop: 20, marginHorizontal: 24 }, link: { height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, linkText: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 16 },
+  railSection: { marginTop: 29 }, railHeader: { marginHorizontal: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }, railTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 24, letterSpacing: -0.5 }, seeAll: { color: BLUE, fontFamily: 'DMSans_700Bold', fontSize: 14 },
+  rail: { paddingHorizontal: 24, gap: 16 }, artwork: { borderRadius: 20, overflow: 'hidden', backgroundColor: '#E7EAF0' }, cardTitle: { marginTop: 8, color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 16 }, cardSubtitle: { marginTop: 1, color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 13 }, emptyRail: { marginHorizontal: 24, color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 13 },
 });

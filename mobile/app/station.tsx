@@ -4,10 +4,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import {
-  Bell,
-  BookOpen,
-  ChevronDown,
-  Clock3,
+  ChevronLeft,
   Headphones,
   Info,
   ListMusic,
@@ -15,7 +12,6 @@ import {
   Music2,
   Play,
   Radio,
-  Search,
 } from 'lucide-react-native';
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -33,6 +29,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AudioRowActions } from '@/src/components/AudioRowActions';
 import { ListenerEmptyState, ListenerSkeletonRows, ListenerToast, friendlyErrorMessage } from '@/src/components/ListenerV2';
+import { StationSkeleton } from '@/src/components/DiscoverySkeletons';
 import { AudioPlaybackItem, usePlayback } from '@/src/playback/PlaybackProvider';
 import {
   EchooAudio,
@@ -50,7 +47,7 @@ import {
 } from '@/src/services/echooApi';
 import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 
-type StationTab = 'home' | 'audio' | 'live' | 'collections' | 'about';
+type StationTab = 'all' | 'live' | 'audio' | 'collections' | 'podcast';
 type StationScreenSnapshot = {
   station: EchooStation | null;
   live: EchooBroadcast | null;
@@ -65,37 +62,21 @@ const STATION_LIVE_REFRESH_MS = 30_000;
 const STATION_LIVE_RETURN_DEBOUNCE_MS = 10_000;
 
 const tabs: { key: StationTab; label: string }[] = [
-  { key: 'home', label: 'Home' },
+  { key: 'all', label: 'All' },
+  { key: 'live', label: 'Live now' },
   { key: 'audio', label: 'Audio' },
-  { key: 'live', label: 'Live' },
   { key: 'collections', label: 'Collections' },
-  { key: 'about', label: 'About' },
+  { key: 'podcast', label: 'Podcast' },
 ];
 
 function getInitialTab(value?: string): StationTab {
-  return tabs.some((tab) => tab.key === value) ? (value as StationTab) : 'home';
-}
-
-function formatDuration(seconds = 0) {
-  const safe = Math.max(0, Math.round(Number(seconds) || 0));
-  const hours = Math.floor(safe / 3600);
-  const minutes = Math.floor((safe % 3600) / 60);
-  const remaining = safe % 60;
-  if (hours) return `${hours}:${String(minutes).padStart(2, '0')}:${String(remaining).padStart(2, '0')}`;
-  return `${minutes}:${String(remaining).padStart(2, '0')}`;
+  return tabs.some((tab) => tab.key === value) ? (value as StationTab) : 'all';
 }
 
 function compactNumber(value = 0) {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)}M`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)}K`;
   return String(value || 0);
-}
-
-function formatDate(value?: string) {
-  if (!value) return 'Recently';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Recently';
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 export default function StationScreen() {
@@ -287,6 +268,7 @@ export default function StationScreen() {
         broadcastId: live.id,
         title: live.title,
         stationName: station?.name || live.stationName || 'Echoo Station',
+        stationId: live.stationId || station?.id || '',
         coverArt: live.coverArt || station?.coverArt || '',
       },
     });
@@ -336,9 +318,6 @@ export default function StationScreen() {
     });
   };
 
-  const featuredAudio = publishedAudio[0] || null;
-  const featuredCollection = collections[0] || null;
-
   const renderContent = () => {
     if (contentLoading) {
       return (
@@ -358,21 +337,21 @@ export default function StationScreen() {
       );
     }
 
-    if (activeTab === 'home') {
+    if (activeTab === 'all') {
       return (
         <View style={styles.tabPanel}>
           {live ? <LiveFeature live={live} onPress={openLive} palette={palette} /> : null}
-          {featuredAudio ? (
-            <Section title="Latest audio" action="View all" onAction={() => setActiveTab('audio')} palette={palette}>
-              <AudioRow track={featuredAudio} station={station} onPress={() => void openAudio(featuredAudio)} palette={palette} />
+          {collections.length ? (
+            <Section title="Latest audio" action="" onAction={() => setActiveTab('collections')} palette={palette}>
+              {collections.slice(0, 3).map((collection) => <CollectionRow key={collection.id} collection={collection} onPress={() => openCollection(collection)} palette={palette} />)}
             </Section>
           ) : null}
-          {featuredCollection ? (
-            <Section title="Collections" action="View all" onAction={() => setActiveTab('collections')} palette={palette}>
-              <CollectionRow collection={featuredCollection} onPress={() => openCollection(featuredCollection)} palette={palette} />
+          {publishedAudio.length ? (
+            <Section title="Audio" action="" onAction={() => setActiveTab('audio')} palette={palette}>
+              {publishedAudio.slice(0, 5).map((track) => <AudioRow key={track.id} track={track} station={station} onPress={() => void openAudio(track)} palette={palette} />)}
             </Section>
           ) : null}
-          {!live && !featuredAudio && !featuredCollection ? (
+          {!live && !publishedAudio.length && !collections.length ? (
             <CompactEmpty
               icon={<Headphones color={palette.blue} size={24} />}
               title="This station is getting ready"
@@ -415,34 +394,12 @@ export default function StationScreen() {
         <CompactEmpty icon={<ListMusic color={palette.blue} size={24} />} title="No collections yet" text="Series and playlists will appear here." palette={palette} />
       );
     }
-
-    return (
-      <View style={styles.aboutCard}>
-        <Text style={styles.description}>
-          {station?.description || 'This station has not added a public description yet.'}
-        </Text>
-        {station?.owner ? (
-          <View style={styles.ownerRow}>
-            <View style={styles.ownerAvatar}>
-              {station.owner.avatar ? (
-                <Image source={{ uri: station.owner.avatar }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
-              ) : (
-                <Text style={styles.ownerInitial}>{station.owner.displayName.charAt(0).toUpperCase()}</Text>
-              )}
-            </View>
-            <View style={styles.ownerCopy}>
-              <Text style={styles.ownerLabel}>CREATOR</Text>
-              <Text style={styles.ownerName}>{station.owner.displayName}</Text>
-              <Text style={styles.ownerHandle}>@{station.owner.username}</Text>
-            </View>
-          </View>
-        ) : null}
-      </View>
-    );
+    const podcasts = publishedAudio.filter((track) => /podcast/i.test(`${track.genre || ''} ${track.title}`));
+    return podcasts.length ? <View style={styles.listStack}>{podcasts.map((track) => <AudioRow key={track.id} track={track} station={station} onPress={() => void openAudio(track)} palette={palette} />)}</View> : <CompactEmpty icon={<Headphones color={palette.blue} size={24} />} title="No podcasts yet" text="Podcasts from this channel will appear here." palette={palette} />;
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'right', 'bottom', 'left']}>
+    <SafeAreaView style={styles.safeArea} edges={['right', 'bottom', 'left']}>
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -455,23 +412,7 @@ export default function StationScreen() {
           />
         }
       >
-        <View style={styles.nav}>
-          <Pressable style={styles.iconButton} onPress={() => router.back()} accessibilityLabel="Go back">
-            <ChevronDown color={palette.ink} size={26} style={styles.backIcon} />
-          </Pressable>
-          <View style={styles.navActions}>
-            <Pressable style={styles.iconButton} onPress={() => push('/search')} accessibilityLabel="Search">
-              <Search color={palette.ink} size={23} />
-            </Pressable>
-            <Pressable style={styles.iconButton} accessibilityLabel="More options">
-              <MoreVertical color={palette.ink} size={22} />
-            </Pressable>
-          </View>
-        </View>
-
-        {loading ? (
-          <ListenerSkeletonRows count={5} />
-        ) : null}
+        {loading && !station ? <><Pressable style={styles.fallbackBack} onPress={() => router.back()} accessibilityLabel="Go back"><ChevronLeft color="#050505" size={26} /></Pressable><View style={styles.skeletonInset}><StationSkeleton /></View></> : null}
 
         {!loading && error && !station ? (
           <ListenerEmptyState
@@ -485,58 +426,19 @@ export default function StationScreen() {
 
         {!loading && station ? (
           <>
-            <View style={styles.banner}>
+            <View style={styles.hero}>
               {station.coverArt ? (
                 <Image source={{ uri: station.coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
               ) : (
                 <LinearGradient colors={[palette.blue, palette.night2]} style={StyleSheet.absoluteFillObject} />
               )}
-            </View>
-
-            <View style={styles.profileRow}>
-              <View style={styles.avatar}>
-                {station.coverArt ? (
-                  <Image source={{ uri: station.coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
-                ) : (
-                  <Radio color="#FFFFFF" size={28} />
-                )}
+              <LinearGradient colors={['rgba(0,0,0,0.03)', 'rgba(0,0,0,0.02)', 'rgba(255,255,255,0.2)', '#F9FBFF']} locations={[0, 0.44, 0.8, 1]} style={StyleSheet.absoluteFillObject} />
+              <Pressable style={styles.heroBack} onPress={() => router.back()} accessibilityLabel="Go back"><ChevronLeft color="#050505" size={25} strokeWidth={2.5} /></Pressable>
+              <View style={styles.heroInfo}>
+                <Text style={styles.heroName}>{station.name} <Text style={styles.heroHandle}>@{station.slug || station.name.toLowerCase().replace(/\s+/g, '')}</Text></Text>
+                <Text style={styles.heroStats}>{compactNumber(station.followerCount)} followers  ·  {publishedAudio.length} audios</Text>
+                <View style={styles.bioRow}><Text style={styles.heroBio} numberOfLines={3}>{station.description || station.category || 'Live audio, teachings, conversations and collections.'}</Text><Pressable style={styles.followButton} onPress={toggleFollow} disabled={followBusy} accessibilityRole="button" accessibilityLabel={following ? 'Unfollow channel' : 'Follow channel'}>{followBusy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.followText}>{following ? 'Following' : 'Follow'}</Text>}</Pressable></View>
               </View>
-              <View style={styles.profileCopy}>
-                <Text style={styles.stationName} numberOfLines={2}>{station.name}</Text>
-                <Text style={styles.handle} numberOfLines={1}>
-                  @{station.owner?.username || station.name.toLowerCase().replace(/\s+/g, '')}
-                </Text>
-                <Text style={styles.statsLine} numberOfLines={1}>
-                  {compactNumber(station.followerCount)} followers - {publishedAudio.length} audio - {collections.length} collections
-                </Text>
-              </View>
-            </View>
-
-            <Text style={styles.bio} numberOfLines={2}>
-              {station.description || station.category || 'Live audio, teachings, conversations and station collections.'}
-            </Text>
-
-            <View style={styles.actionRow}>
-              <Pressable
-                style={[styles.followButton, following && styles.followButtonActive]}
-                onPress={toggleFollow}
-                disabled={followBusy}
-              >
-                {followBusy ? (
-                  <ActivityIndicator color={following ? '#FFFFFF' : palette.blue} />
-                ) : (
-                  <Bell color={following ? '#FFFFFF' : palette.blue} size={19} />
-                )}
-                <Text style={[styles.followText, following && styles.followTextActive]}>
-                  {following ? 'Following' : 'Follow'}
-                </Text>
-              </Pressable>
-              {live ? (
-                <Pressable style={styles.liveButton} onPress={openLive}>
-                  <Headphones color="#FFFFFF" size={18} />
-                  <Text style={styles.liveButtonText}>Live now</Text>
-                </Pressable>
-              ) : null}
             </View>
 
             {error ? <ListenerToast message={error} /> : null}
@@ -572,9 +474,7 @@ function Section({ title, action, onAction, children, palette }: {
     <View style={styles.section}>
       <View style={styles.sectionHead}>
         <Text style={styles.sectionTitle}>{title}</Text>
-        <Pressable onPress={onAction} hitSlop={8}>
-          <Text style={styles.sectionAction}>{action}</Text>
-        </Pressable>
+        {action ? <Pressable onPress={onAction} hitSlop={8}><Text style={styles.sectionAction}>{action}</Text></Pressable> : null}
       </View>
       {children}
     </View>
@@ -603,17 +503,11 @@ function AudioRow({ track, station, onPress, palette }: {
         )}
       </View>
       <View style={styles.audioCopy}>
-        <Text style={styles.audioTitle} numberOfLines={2}>{track.title}</Text>
-        <Text style={styles.audioSubtitle} numberOfLines={1}>
-          {station?.name || track.artistName || 'Echoo'} - {compactNumber(track.playCount)} plays
-        </Text>
-        <View style={styles.durationLine}>
-          <Clock3 color={palette.faint} size={12} />
-          <Text style={styles.durationText}>{formatDuration(track.duration)}</Text>
-        </View>
+        <Text style={styles.audioTitle} numberOfLines={1}>{track.title}</Text>
+        <Text style={styles.audioSubtitle} numberOfLines={1}>{station?.name || track.artistName || 'Echoo'}</Text>
       </View>
       <View style={styles.rowAction}>
-        <Play color={palette.ink} fill={palette.ink} size={15} />
+        <Play color="#FFFFFF" fill="#FFFFFF" size={13} />
       </View>
       <AudioRowActions track={actionTrack} />
     </Pressable>
@@ -626,7 +520,6 @@ function CollectionRow({ collection, onPress, palette }: {
   palette: EchooColors;
 }) {
   const styles = useMemo(() => createStyles(palette), [palette]);
-  const isSeries = collection.mode === 'series';
   return (
     <Pressable style={styles.collectionRow} onPress={onPress}>
       <View style={styles.collectionArt}>
@@ -635,18 +528,9 @@ function CollectionRow({ collection, onPress, palette }: {
         ) : (
           <LinearGradient colors={[palette.blueDeep, palette.blue]} style={StyleSheet.absoluteFillObject} />
         )}
-        <View style={styles.collectionBadge}>
-          {isSeries ? <BookOpen color="#FFFFFF" size={13} /> : <ListMusic color="#FFFFFF" size={13} />}
-          <Text style={styles.collectionBadgeText}>{collection.trackCount ?? collection.tracks.length}</Text>
-        </View>
       </View>
-      <View style={styles.collectionCopy}>
-        <Text style={styles.collectionTitle} numberOfLines={2}>{collection.name}</Text>
-        <Text style={styles.collectionMeta} numberOfLines={1}>
-          {isSeries ? 'Series' : 'Playlist'} - Updated {formatDate(collection.updatedAt || collection.createdAt)}
-        </Text>
-      </View>
-      <MoreVertical color={palette.muted} size={18} />
+      <View style={styles.collectionCopy}><Text style={styles.collectionTitle} numberOfLines={1}>{collection.name}</Text><Text style={styles.collectionMeta} numberOfLines={1}>{collection.trackCount ?? collection.tracks.length} audios</Text></View>
+      <MoreVertical color="#050505" size={21} />
     </Pressable>
   );
 }
@@ -697,58 +581,65 @@ function CompactEmpty({ icon, title, text, palette }: {
 }
 
 const createStyles = (palette: EchooColors) => StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: palette.background },
-  content: { paddingHorizontal: 18, paddingTop: 8, paddingBottom: 88 },
+  safeArea: { flex: 1, backgroundColor: '#F9FBFF' },
+  content: { paddingBottom: 140 },
+  fallbackBack: { marginTop: 48, marginLeft: 24, width: 42, height: 42, justifyContent: 'center' },
+  skeletonInset: { marginHorizontal: 24 },
+  hero: { height: 400, backgroundColor: palette.surfaceMuted, overflow: 'hidden' },
+  heroBack: { position: 'absolute', top: 50, left: 24, width: 30, height: 30, borderRadius: 15, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  heroInfo: { position: 'absolute', left: 24, right: 24, bottom: 6 },
+  heroName: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 23, letterSpacing: -0.6 },
+  heroHandle: { color: '#050505', fontFamily: 'DMSans_500Medium', fontSize: 13 },
+  heroStats: { color: '#555555', fontFamily: 'DMSans_400Regular', fontSize: 12, marginTop: 4 },
+  bioRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginTop: 6 },
+  heroBio: { color: '#5F5F5F', fontFamily: 'DMSans_400Regular', fontSize: 13, lineHeight: 17, flex: 1 },
+  followButton: { width: 78, minHeight: 38, borderRadius: 20, backgroundColor: '#050505', alignItems: 'center', justifyContent: 'center' },
+  followText: { color: '#FFFFFF', fontFamily: 'DMSans_500Medium', fontSize: 13 },
   nav: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   navActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   iconButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
-  backIcon: { transform: [{ rotate: '90deg' }] },
   loadingState: { minHeight: 420, alignItems: 'center', justifyContent: 'center', gap: 10 },
   loadingBlock: { minHeight: 180, alignItems: 'center', justifyContent: 'center', gap: 10 },
   loadingText: { color: palette.muted, fontSize: 12, fontWeight: '700' },
-  banner: { height: 122, borderRadius: 8, overflow: 'hidden', backgroundColor: palette.surfaceMuted },
+  banner: { height: 122, borderRadius: 20, overflow: 'hidden', backgroundColor: palette.surfaceMuted },
   profileRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 18 },
   avatar: { width: 86, height: 86, borderRadius: 43, overflow: 'hidden', backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   profileCopy: { flex: 1, minWidth: 0 },
-  stationName: { color: palette.ink, fontSize: 27, lineHeight: 31, fontWeight: '900', letterSpacing: 0 },
-  handle: { color: palette.ink2, fontSize: 13, fontWeight: '700', marginTop: 3 },
-  statsLine: { color: palette.muted, fontSize: 12, marginTop: 5 },
-  bio: { color: palette.ink2, fontSize: 12.5, lineHeight: 18, marginTop: 14 },
+  stationName: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 24, lineHeight: 29, letterSpacing: -0.6 },
+  handle: { color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 14, marginTop: 3 },
+  statsLine: { color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 12, marginTop: 5 },
+  bio: { color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 13, lineHeight: 19, marginTop: 14 },
   actionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16 },
-  followButton: { flex: 1, minHeight: 48, borderRadius: 24, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  followButtonActive: { backgroundColor: palette.blue, borderColor: palette.blue },
-  followText: { color: palette.blue, fontSize: 13, fontWeight: '900' },
-  followTextActive: { color: '#FFFFFF' },
   liveButton: { flex: 1, minHeight: 48, borderRadius: 24, backgroundColor: palette.blue, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   liveButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
   inlineError: { color: palette.red, fontSize: 11.5, lineHeight: 16, textAlign: 'center', marginTop: 9 },
-  tabRail: { gap: 22, paddingTop: 24, borderBottomWidth: 1, borderBottomColor: palette.line },
+  tabRail: { gap: 20, paddingTop: 14, paddingHorizontal: 24 },
   tabButton: { minHeight: 42, alignItems: 'center', justifyContent: 'flex-start' },
-  tabText: { color: palette.muted, fontSize: 14, fontWeight: '800' },
-  tabTextActive: { color: palette.ink },
-  tabIndicator: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, borderRadius: 1, backgroundColor: palette.ink },
-  tabPanel: { paddingTop: 18, gap: 22 },
-  section: { gap: 10 },
+  tabText: { color: '#999999', fontFamily: 'DMSans_700Bold', fontSize: 14 },
+  tabTextActive: { color: '#2B5FC0' },
+  tabIndicator: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, borderRadius: 1, backgroundColor: '#2B5FC0' },
+  tabPanel: { paddingTop: 18, gap: 22, paddingHorizontal: 24 },
+  section: { gap: 4 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { color: palette.ink, fontSize: 17, fontWeight: '900' },
-  sectionAction: { color: palette.blue, fontSize: 12, fontWeight: '900' },
-  listStack: { paddingTop: 16, gap: 11 },
-  audioRow: { minHeight: 86, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 7 },
-  audioArt: { width: 72, height: 72, borderRadius: 7, overflow: 'hidden', backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
+  sectionTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 20 },
+  sectionAction: { color: '#2B5FC0', fontFamily: 'DMSans_700Bold', fontSize: 13 },
+  listStack: { paddingTop: 16, gap: 11, paddingHorizontal: 24 },
+  audioRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5 },
+  audioArt: { width: 66, height: 58, borderRadius: 5, overflow: 'hidden', backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   audioCopy: { flex: 1, minWidth: 0 },
-  audioTitle: { color: palette.ink, fontSize: 14.5, lineHeight: 18, fontWeight: '900' },
-  audioSubtitle: { color: palette.muted, fontSize: 11.5, marginTop: 4 },
+  audioTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 15 },
+  audioSubtitle: { color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 4 },
   durationLine: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   durationText: { color: palette.faint, fontSize: 10.5, fontWeight: '700' },
-  rowAction: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  collectionRow: { minHeight: 94, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
-  collectionArt: { width: 112, height: 68, borderRadius: 8, overflow: 'hidden', backgroundColor: palette.blueSoft },
-  collectionBadge: { position: 'absolute', right: 6, bottom: 6, minHeight: 22, borderRadius: 4, backgroundColor: 'rgba(2,4,8,0.74)', paddingHorizontal: 7, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  rowAction: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#2B5FC0', alignItems: 'center', justifyContent: 'center' },
+  collectionRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5 },
+  collectionArt: { width: 66, height: 58, borderRadius: 5, overflow: 'hidden', backgroundColor: palette.blueSoft },
+  collectionBadge: { display: 'none' },
   collectionBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900' },
   collectionCopy: { flex: 1, minWidth: 0 },
-  collectionTitle: { color: palette.ink, fontSize: 14.5, lineHeight: 18, fontWeight: '900' },
-  collectionMeta: { color: palette.muted, fontSize: 11.5, marginTop: 5 },
-  liveFeature: { minHeight: 92, borderRadius: 8, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.line, flexDirection: 'row', alignItems: 'center', padding: 13, gap: 12 },
+  collectionTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 15 },
+  collectionMeta: { color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 5 },
+  liveFeature: { minHeight: 92, borderRadius: 18, backgroundColor: '#E7EFFC', flexDirection: 'row', alignItems: 'center', padding: 13, gap: 12 },
   liveFeatureIcon: { width: 50, height: 50, borderRadius: 8, backgroundColor: `${palette.red}16`, alignItems: 'center', justifyContent: 'center' },
   liveFeatureCopy: { flex: 1, minWidth: 0 },
   livePill: { alignSelf: 'flex-start', minHeight: 20, borderRadius: 4, backgroundColor: `${palette.red}20`, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 7 },

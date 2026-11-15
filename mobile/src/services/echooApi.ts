@@ -42,6 +42,7 @@ export type EchooCreator = {
 export type EchooStation = {
   id: string;
   name: string;
+  slug?: string;
   category?: string;
   description?: string;
   coverArt?: string | null;
@@ -656,6 +657,15 @@ const normalizeLibraryStats = (payload: any): EchooLibraryStats => ({
   listeningHistory: Number(payload?.data?.listeningHistory) || 0,
 });
 
+function uniqueItems<T extends { id: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (!item.id || seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
+
 export async function getMobileDiscovery(options: CacheControlOptions = {}) {
   const [stationsPayload, livePayload, scheduledPayload, audioPayload] = await Promise.all([
     cachedPublicRequest('/stations?page=1&limit=20', CACHE.discovery, CACHE.stale, options),
@@ -665,10 +675,10 @@ export async function getMobileDiscovery(options: CacheControlOptions = {}) {
   ]);
 
   return {
-    stations: unwrapList(stationsPayload).map(normalizeStation).filter((item: EchooStation) => item.id),
-    live: unwrapList(livePayload).map(normalizeBroadcast).filter((item: EchooBroadcast) => item.id),
-    scheduled: unwrapList(scheduledPayload).map(normalizeBroadcast).filter((item: EchooBroadcast) => item.id),
-    audio: unwrapList(audioPayload).map(normalizeAudio).filter((item: EchooAudio) => item.id),
+    stations: uniqueItems<EchooStation>(unwrapList(stationsPayload).map(normalizeStation)),
+    live: uniqueItems<EchooBroadcast>(unwrapList(livePayload).map(normalizeBroadcast)),
+    scheduled: uniqueItems<EchooBroadcast>(unwrapList(scheduledPayload).map(normalizeBroadcast)),
+    audio: uniqueItems<EchooAudio>(unwrapList(audioPayload).map(normalizeAudio)),
   };
 }
 
@@ -683,10 +693,10 @@ export async function getCachedMobileDiscoverySnapshot() {
   if (!stationsPayload && !livePayload && !scheduledPayload && !audioPayload) return null;
 
   return {
-    stations: unwrapList(stationsPayload).map(normalizeStation).filter((item: EchooStation) => item.id),
-    live: unwrapList(livePayload).map(normalizeBroadcast).filter((item: EchooBroadcast) => item.id),
-    scheduled: unwrapList(scheduledPayload).map(normalizeBroadcast).filter((item: EchooBroadcast) => item.id),
-    audio: unwrapList(audioPayload).map(normalizeAudio).filter((item: EchooAudio) => item.id),
+    stations: uniqueItems<EchooStation>(unwrapList(stationsPayload).map(normalizeStation)),
+    live: uniqueItems<EchooBroadcast>(unwrapList(livePayload).map(normalizeBroadcast)),
+    scheduled: uniqueItems<EchooBroadcast>(unwrapList(scheduledPayload).map(normalizeBroadcast)),
+    audio: uniqueItems<EchooAudio>(unwrapList(audioPayload).map(normalizeAudio)),
   };
 }
 
@@ -701,9 +711,9 @@ export async function searchEchoo(query: string, options: CacheControlOptions = 
   ]);
 
   return {
-    audio: unwrapList(audioPayload).map(normalizeAudio).filter((item: EchooAudio) => item.id),
-    stations: unwrapList(stationsPayload).map(normalizeStation).filter((item: EchooStation) => item.id),
-    live: unwrapList(livePayload).map(normalizeBroadcast).filter((item: EchooBroadcast) => item.id),
+    audio: uniqueItems<EchooAudio>(unwrapList(audioPayload).map(normalizeAudio)),
+    stations: uniqueItems<EchooStation>(unwrapList(stationsPayload).map(normalizeStation)),
+    live: uniqueItems<EchooBroadcast>(unwrapList(livePayload).map(normalizeBroadcast)),
   };
 }
 
@@ -716,6 +726,11 @@ export async function getPublicAudioByCreator(creatorId: string, options: CacheC
     options
   );
   return unwrapList(payload).map(normalizeAudio).filter((item: EchooAudio) => item.id);
+}
+
+export async function getAudioById(audioId: string): Promise<EchooAudio> {
+  const payload = await apiRequest(`/audio/${encodeURIComponent(audioId)}`, { auth: 'optional' });
+  return normalizeAudio(payload?.data);
 }
 
 const normalizeStudioAudio = (track: any): EchooAudio => normalizeAudio({
@@ -1054,6 +1069,48 @@ export async function getCachedCurrentUserSnapshot() {
   return payload?.data?.user ? normalizeUser(payload.data.user) : null;
 }
 
+export async function updateListenerProfile(displayName: string) {
+  await apiRequest('/settings/profile', { method: 'PATCH', auth: 'required', body: JSON.stringify({ displayName: displayName.trim() }) });
+  await invalidateAccountCache(['/auth/me']);
+  return getCurrentUser({ force: true });
+}
+
+export async function uploadListenerAvatar(input: { uri: string; name?: string; mimeType?: string }) {
+  const token = await getAccessToken();
+  if (!token) throw new Error('Sign in to change your profile photo.');
+  const body = new FormData();
+  body.append('avatar', { uri: input.uri, name: input.name || 'echoo-avatar.jpg', type: input.mimeType || 'image/jpeg' } as any);
+  const response = await fetch(`${API_URL}/onboarding/upload-avatar`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body });
+  const payload = await parseResponse(response);
+  if (!response.ok) throw makeApiError(payload, response.status);
+  await invalidateAccountCache(['/auth/me']);
+  return getCurrentUser({ force: true });
+}
+
+export async function updateListenerPassword(currentPassword: string, newPassword: string) {
+  await apiRequest('/settings/password', { method: 'PATCH', auth: 'required', body: JSON.stringify({ currentPassword, newPassword, confirmPassword: newPassword }) });
+}
+
+export async function updateListenerEmail(email: string, password: string) {
+  await apiRequest('/settings/email', { method: 'PATCH', auth: 'required', body: JSON.stringify({ email: email.trim(), password }) });
+  await invalidateAccountCache(['/auth/me']);
+  return getCurrentUser({ force: true });
+}
+
+export async function requestListenerPasswordReset(email: string) {
+  await apiRequest('/auth/forgot-password', { method: 'POST', auth: 'none', body: JSON.stringify({ email: email.trim() }) });
+}
+
+export async function getListenerSettings(): Promise<{ notifications: { email: boolean; push: boolean; newFollowers: boolean; newReleases: boolean } }> {
+  const payload = await apiRequest('/settings', { auth: 'required' });
+  const values = payload?.data?.preferences?.notifications || {};
+  return { notifications: { email: values.email !== false, push: values.push !== false, newFollowers: values.newFollowers !== false, newReleases: values.newReleases !== false } };
+}
+
+export async function updateListenerNotifications(input: Partial<{ email: boolean; push: boolean; newFollowers: boolean; newReleases: boolean }>) {
+  await apiRequest('/settings/notifications', { method: 'PATCH', auth: 'required', body: JSON.stringify(input) });
+}
+
 export async function logoutEchoo() {
   try {
     await apiRequest('/auth/logout', { method: 'POST', auth: 'required', retry: false });
@@ -1192,6 +1249,11 @@ export async function getListeningHistory(options: CacheControlOptions = {}) {
     progress: Number(item?.progress) || 0,
     completed: Boolean(item?.completed),
   }));
+}
+
+export async function clearListeningHistory() {
+  await apiRequest('/history/clear', { method: 'DELETE', auth: 'required' });
+  await invalidateAccountCache(['/history?page=1&limit=50', '/library/stats']);
 }
 
 export async function getCachedListeningHistorySnapshot() {
@@ -1374,6 +1436,17 @@ export async function sendLiveChatMessage(broadcastId: string, content: string) 
     body: JSON.stringify({ content: text }),
   });
   return normalizeChatMessage(payload?.data);
+}
+
+export async function reportLiveChatMessage(messageId: string, reason: string) {
+  const id = encodeURIComponent(String(messageId || '').trim());
+  if (!id) throw new Error('Comment ID is missing.');
+  const payload = await apiRequest(`/chat/messages/${id}/report`, {
+    method: 'POST',
+    auth: 'required',
+    body: JSON.stringify({ reason }),
+  });
+  return Boolean(payload?.data?.submitted);
 }
 
 export async function getAudioStreamUrl(audioId: string) {

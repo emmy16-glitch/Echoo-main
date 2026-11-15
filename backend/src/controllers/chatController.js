@@ -1,11 +1,13 @@
 import mongoose from 'mongoose';
 import ChatMessage from '../models/ChatMessage.js';
+import ChatReport from '../models/ChatReport.js';
 import Broadcast from '../models/Broadcast.js';
 import User from '../models/User.js';
 
 const ALLOWED_CHAT_REACTIONS = new Set(['👍', '❤️', '🔥', '👏', '😂', '🎉']);
 const OPEN_CHAT_STATUSES = new Set(['live', 'scheduled']);
 const MAX_CHAT_PAGE_SIZE = 100;
+const REPORT_REASONS = new Set(['Spam or misleading content', 'Harassment or hate', 'Inappropriate content', 'Something else']);
 
 const chatError = (status, code, message) => {
   const error = new Error(message);
@@ -361,6 +363,25 @@ export async function addReaction(req, res, next) {
       },
       timestamp: new Date().toISOString(),
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function reportMessage(req, res, next) {
+  try {
+    const reason = String(req.body?.reason || '').trim();
+    if (!REPORT_REASONS.has(reason)) throw chatError(400, 'VALIDATION_ERROR', 'Choose a report reason');
+    const { message } = await loadMessageWithAccess(req.params.messageId, req.userId);
+    if (String(message.userId) === String(req.userId)) {
+      throw chatError(400, 'INVALID_TARGET', 'You cannot report your own comment');
+    }
+    await ChatReport.findOneAndUpdate(
+      { messageId: message._id, reporterId: req.userId },
+      { $set: { reason, status: 'pending' }, $setOnInsert: { broadcastId: message.broadcastId, authorId: message.userId } },
+      { upsert: true, new: true }
+    );
+    return res.status(200).json({ data: { submitted: true }, timestamp: new Date().toISOString() });
   } catch (error) {
     next(error);
   }
