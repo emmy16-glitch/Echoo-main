@@ -1,8 +1,12 @@
 import { useFocusEffect } from '@react-navigation/native';
+import { useLatestRequest } from '@/src/navigation/useLatestRequest';
+import { subscribeSessionChanges } from '@/src/services/sessionLifecycle';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import {
+  Compass,
+  Library,
   Headphones,
   Music2,
   Play,
@@ -91,6 +95,7 @@ function collapseCollectionReleases(tracks: EchooAudio[], limit = 8) {
 }
 
 export default function HomeScreen() {
+  const viewerRequests = useLatestRequest();
   const { push } = useGuardedRouter();
   const playback = usePlayback();
   const scheme = useColorScheme();
@@ -131,8 +136,17 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    void hasEchooSession().then((session) => session ? getCurrentUser().then(setViewer) : setViewer(null)).catch(() => setViewer(null));
-  }, []);
+    const loadViewer = () => {
+      const active = viewerRequests.begin();
+      setViewer(null);
+      void hasEchooSession().then(async (session) => {
+        const next = session ? await getCurrentUser() : null;
+        if (active()) setViewer(next);
+      }).catch(() => { if (active()) setViewer(null); });
+    };
+    loadViewer();
+    return subscribeSessionChanges(loadViewer);
+  }, [viewerRequests]);
 
   useEffect(() => {
     let active = true;
@@ -243,7 +257,7 @@ export default function HomeScreen() {
 
   const openFreshRelease = async (track: EchooAudio) => {
     const index = freshReleaseQueue.findIndex((item) => item.id === track.id);
-    await playback.playAudioQueue(freshReleaseQueue, Math.max(0, index));
+    void playback.playAudioQueue(freshReleaseQueue, Math.max(0, index)).catch(() => undefined);
     openAudio(track);
   };
 
@@ -279,7 +293,7 @@ export default function HomeScreen() {
         </Pressable>
 
         {loading && !topStations.length && !published.length && !featuredLive ? <HomeSkeleton /> : <>
-        <HomeHeroCarousel live={featuredLive} onLivePress={() => featuredLive ? openLiveRoom(featuredLive) : push('/live')} onBrowsePress={() => push('/search')} palette={palette} />
+        <HomeHeroCarousel live={featuredLive} onLivePress={() => featuredLive ? openLiveRoom(featuredLive) : push('/live')} onBrowsePress={() => push('/search')} onLibraryPress={() => push('/library')} palette={palette} />
 
         {!loading && error ? <ListenerToast message={error} /> : null}
 
@@ -357,19 +371,20 @@ export default function HomeScreen() {
   );
 }
 
-function HomeHeroCarousel({ live, onLivePress, onBrowsePress, palette }: { live?: EchooBroadcast; onLivePress: () => void; onBrowsePress: () => void; palette: EchooColors }) {
+function HomeHeroCarousel({ live, onLivePress, onBrowsePress, onLibraryPress, palette }: { live?: EchooBroadcast; onLivePress: () => void; onBrowsePress: () => void; onLibraryPress: () => void; palette: EchooColors }) {
   const { width } = useWindowDimensions();
   const cardWidth = width - 48;
   const [page, setPage] = useState(0);
   const heroStyles = useMemo(() => createStyles(palette), [palette]);
   const cards = [
-    { key: 'live', label: live ? 'Live Now' : 'Live on Echoo', title: live?.title || 'Find a voice to listen to live', button: live ? 'Listen' : 'Explore live', onPress: onLivePress, live: Boolean(live) },
-    { key: 'discover', label: 'Discover more', title: 'Good audio stays with you, wherever you go.', button: 'Explore audio', onPress: onBrowsePress, live: false },
-    { key: 'premium', label: 'Coming soon', title: 'A richer way to listen is on its way.', button: 'Browse Echoo', onPress: onBrowsePress, live: false },
+    { key: 'live', label: live ? 'Live Now' : 'Live on Echoo', title: live?.title || 'Find a voice to listen to live', button: live ? 'Listen' : 'Explore live', onPress: onLivePress, live: Boolean(live), icon: <Radio color={palette.blue} size={42} strokeWidth={1.65} /> },
+    { key: 'discover', label: 'Discover more', title: 'Good audio stays with you, wherever you go.', button: 'Explore audio', onPress: onBrowsePress, live: false, icon: <Compass color={palette.blue} size={42} strokeWidth={1.65} /> },
+    { key: 'library', label: 'Your listening space', title: 'Keep your favourite audio close.', button: 'Open library', onPress: onLibraryPress, live: false, icon: <Library color={palette.blue} size={42} strokeWidth={1.65} /> },
   ];
   return <View style={heroStyles.carouselWrap}>
     <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} decelerationRate="fast" onMomentumScrollEnd={(event) => setPage(Math.min(2, Math.max(0, Math.round(event.nativeEvent.contentOffset.x / cardWidth))))}>
       {cards.map((card) => <View key={card.key} style={{ width: cardWidth, paddingVertical: 7, paddingHorizontal: 3 }}><View style={heroStyles.carouselCard}>
+        <View pointerEvents="none" style={heroStyles.carouselIcon}>{card.icon}</View>
         <View style={heroStyles.liveHeroStatus}>{card.live ? <View style={heroStyles.liveHeroDot} /> : null}<Text style={heroStyles.liveHeroStatusText}>{card.label}</Text></View>
         <Text style={heroStyles.carouselTitle} numberOfLines={2}>{card.title}</Text>
         <Pressable style={heroStyles.listenButton} onPress={card.onPress} accessibilityRole="button" accessibilityLabel={card.button}><Play color="#FFFFFF" fill="#FFFFFF" size={16} /><Text style={heroStyles.listenButtonText}>{card.button}</Text></Pressable>
@@ -389,13 +404,13 @@ function Artwork({
   palette: EchooColors;
 }) {
   return (
-    <View style={[style, stylesForArtwork.frame]}>
+    <View style={[style, { overflow: 'hidden', backgroundColor: palette.surfaceMuted }]}>
       {uri ? (
         <Image source={{ uri }} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={180} />
       ) : (
         <LinearGradient
           colors={[palette.blueDeep, palette.surfaceMuted]}
-          style={[StyleSheet.absoluteFillObject, stylesForArtwork.fallback]}
+          style={[StyleSheet.absoluteFillObject, { alignItems: 'center', justifyContent: 'center' }]}
         >
           <Music2 color="rgba(255,255,255,0.9)" size={28} />
         </LinearGradient>
@@ -461,30 +476,40 @@ function EmptyRow({
   );
 }
 
-const stylesForArtwork = StyleSheet.create({
-  frame: { overflow: 'hidden', backgroundColor: '#181320' },
-  fallback: { alignItems: 'center', justifyContent: 'center' },
-});
-
 const createStyles = (palette: EchooColors) => StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F9FBFF' },
+  safeArea: { flex: 1, backgroundColor: palette.background },
   content: { paddingHorizontal: 24, paddingTop: 15, paddingBottom: 150 },
-  avatarButton: { width: 49, height: 49, borderRadius: 25, overflow: 'hidden', backgroundColor: '#A7BED0', alignItems: 'center', justifyContent: 'center', marginBottom: 36 },
+  avatarButton: { width: 49, height: 49, borderRadius: 25, overflow: 'hidden', backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 36 },
   avatarInitial: { color: '#FFFFFF', fontFamily: 'DMSans_700Bold', fontSize: 23 },
   carouselWrap: {},
-  carouselCard: { minHeight: 138, borderRadius: 18, backgroundColor: '#FFFFFF', paddingHorizontal: 17, paddingVertical: 11, justifyContent: 'center', shadowColor: '#58708C', shadowOpacity: 0.13, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
-  carouselTitle: { color: '#050505', fontFamily: 'DMSans_500Medium', fontSize: 20, lineHeight: 24, letterSpacing: -0.7, marginTop: 5 },
+  carouselCard: {
+    minHeight: 138,
+    borderRadius: 18,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.line,
+    paddingHorizontal: 17,
+    paddingVertical: 11,
+    justifyContent: 'center',
+    shadowColor: palette.ink,
+    shadowOpacity: 0.05,
+    shadowRadius: 7,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  carouselIcon: { position: 'absolute', right: 18, top: 18, width: 58, height: 58, borderRadius: 18, backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center', opacity: 0.9 },
+  carouselTitle: { color: palette.ink, fontFamily: 'DMSans_500Medium', fontSize: 20, lineHeight: 24, letterSpacing: -0.7, marginTop: 5, paddingRight: 62 },
   carouselDots: { flexDirection: 'row', alignSelf: 'center', alignItems: 'center', gap: 7, marginTop: 7 },
-  carouselDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#C9D0D9' },
-  carouselDotActive: { width: 17, borderRadius: 4, backgroundColor: '#2B5FC0' },
+  carouselDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: palette.lineStrong },
+  carouselDotActive: { width: 17, borderRadius: 4, backgroundColor: palette.blue },
   liveHero: { paddingTop: 0, paddingBottom: 16, minHeight: 175 },
   emptyLiveHero: { minHeight: 130 },
   liveHeroStatus: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  liveHeroDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FC4C53' },
-  liveHeroStatusText: { color: '#808080', fontFamily: 'DMSans_400Regular', fontSize: 14 },
-  liveHeroTitle: { color: '#050505', fontFamily: 'DMSans_500Medium', fontSize: 32, lineHeight: 40, letterSpacing: -1.6, marginTop: 7 },
+  liveHeroDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.red },
+  liveHeroStatusText: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 14 },
+  liveHeroTitle: { color: palette.ink, fontFamily: 'DMSans_500Medium', fontSize: 32, lineHeight: 40, letterSpacing: -1.6, marginTop: 7 },
   emptyLiveHeroTitle: { fontFamily: 'DMSans_500Medium', fontSize: 20, lineHeight: 27, letterSpacing: -0.5 },
-  listenButton: { alignSelf: 'flex-start', height: 34, minWidth: 96, borderRadius: 18, backgroundColor: '#2B5FC0', paddingHorizontal: 14, marginTop: 7, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  listenButton: { alignSelf: 'flex-start', height: 34, minWidth: 96, borderRadius: 18, backgroundColor: palette.blue, paddingHorizontal: 14, marginTop: 7, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
   listenButtonText: { color: '#FFFFFF', fontFamily: 'DMSans_700Bold', fontSize: 14 },
   loadingState: { minHeight: 92, alignItems: 'center', justifyContent: 'center', gap: 9 },
   loadingText: { color: palette.muted, fontSize: 12, fontWeight: '700' },
@@ -499,18 +524,18 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     justifyContent: 'space-between',
   },
   sectionHeaderSpaced: { marginTop: 42 },
-  sectionTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 20, letterSpacing: -0.6 },
-  sectionAction: { color: '#2B5FC0', fontFamily: 'DMSans_700Bold', fontSize: 14 },
+  sectionTitle: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 20, letterSpacing: -0.6 },
+  sectionAction: { color: palette.blue, fontFamily: 'DMSans_700Bold', fontSize: 14 },
   channelRail: { gap: 16, paddingRight: 18 },
   channelCard: { width: 151 },
   channelArt: { width: 151, height: 153, borderRadius: 20 },
-  channelTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 17, marginTop: 12 },
-  channelMeta: { color: '#868686', fontFamily: 'DMSans_400Regular', fontSize: 13.5, marginTop: 3 },
+  channelTitle: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 17, marginTop: 12 },
+  channelMeta: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 13.5, marginTop: 3 },
   releaseRail: { gap: 16, paddingRight: 18 },
   releaseCard: { width: 151 },
   releaseArt: { width: 151, height: 153, borderRadius: 20 },
-  releaseTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 13.5, marginTop: 9 },
-  releaseSubtitle: { color: '#868686', fontFamily: 'DMSans_400Regular', fontSize: 11.5, marginTop: 3 },
+  releaseTitle: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 13.5, marginTop: 9 },
+  releaseSubtitle: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 11.5, marginTop: 3 },
   liveRail: { gap: 14, paddingRight: 18 },
   liveCard: {
     width: 246,

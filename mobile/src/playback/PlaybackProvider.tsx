@@ -32,6 +32,8 @@ import {
   ensureLiveAudioNotificationPermission,
   startLiveAudioService,
   stopLiveAudioService,
+  subscribeLiveMediaCommands,
+  updateLiveMediaPlaying,
 } from 'echoo-live-audio-service';
 
 type LiveKitNativeModule = typeof import('@livekit/react-native');
@@ -292,7 +294,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
       let playbackUrl = existingUrl;
       let expiresIn = 0;
 
-      if (!localUrl && item.id) {
+      if (item.id) {
         const localDownload = await getLocalDownloadForTrack(item.id).catch(() => null);
         if (!isLatestRequest()) return;
         if (localDownload?.status === 'completed' && localDownload.localUri) {
@@ -491,6 +493,10 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     else await resume();
   }, [isPlaying, pause, resume]);
 
+  useEffect(() => {
+    if (current?.kind === 'live') updateLiveMediaPlaying(isPlaying);
+  }, [current, isPlaying]);
+
   const seekTo = useCallback(async (positionMs: number) => {
     if (currentRef.current?.kind !== 'audio' || !playerRef.current) return;
     const nextSeconds = Math.max(0, Math.min(duration || Number.MAX_SAFE_INTEGER, positionMs) / 1000);
@@ -519,6 +525,20 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     setPosition(0);
     setDuration(0);
   }, [clearLiveConnection, releaseAudio, setCurrent, setQueue]);
+
+  useEffect(() => {
+    const subscription = subscribeLiveMediaCommands(({ action, broadcastId }) => {
+      if (currentRef.current?.kind !== 'live' || currentRef.current.id !== broadcastId) return;
+      if (action === 'play') void resume().catch(() => setError('Could not resume live audio. Try again.'));
+      else if (action === 'toggle') {
+        if (isPlayingRef.current) pause();
+        else void resume().catch(() => setError('Could not resume live audio. Try again.'));
+      }
+      else if (action === 'pause') pause();
+      else if (action === 'stop') stop();
+    });
+    return () => subscription.remove();
+  }, [pause, resume, stop]);
 
   const clearError = useCallback(() => setError(''), []);
 
@@ -630,7 +650,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
   // PersistentLiveConnection starts system media integration after LiveKit has
   // connected. This effect only tears it down after playback really ends.
   useEffect(() => {
-    if (current?.kind !== 'live' || (!isPlaying && !isLoading)) {
+    if (current?.kind !== 'live') {
       void stopLiveAudioService();
     }
   }, [current, isLoading, isPlaying]);

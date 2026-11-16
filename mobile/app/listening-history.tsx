@@ -1,16 +1,20 @@
+import { useMemo as useThemeMemo } from 'react';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
-import { ArrowLeft, Play } from 'lucide-react-native';
-import { useCallback, useMemo, useState } from 'react';
+import { ArrowLeft, Play, MoreVertical } from 'lucide-react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { subscribeSessionChanges } from '@/src/services/sessionLifecycle';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ListenerAuthCard, ListenerEmptyState, ListenerSkeletonRows, ListenerToast, friendlyErrorMessage } from '@/src/components/ListenerV2';
 import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
+import { useLatestRequest } from '@/src/navigation/useLatestRequest';
 import { AudioPlaybackItem, usePlayback } from '@/src/playback/PlaybackProvider';
-import { EchooAudio, EchooHistoryItem, clearListeningHistory, getCachedListeningHistorySnapshot, getListeningHistory, hasEchooSession } from '@/src/services/echooApi';
+import { EchooAudio, EchooHistoryItem, clearListeningHistory, removeListeningHistoryItem, getCachedListeningHistorySnapshot, getListeningHistory, hasEchooSession } from '@/src/services/echooApi';
 
-const BLUE = '#2B5FC0';
 
 function dayKey(value?: string) {
   const date = value ? new Date(value) : new Date();
@@ -49,7 +53,11 @@ function historyStatus(item: EchooHistoryItem) {
 }
 
 export default function ListeningHistoryScreen() {
+  const palette = getEchooColors(useColorScheme());
+  const styles = useThemeMemo(() => createThemeStyles(palette), [palette]);
+
   const { router, push } = useGuardedRouter();
+  const { begin, invalidate } = useLatestRequest();
   const playback = usePlayback();
   const [history, setHistory] = useState<EchooHistoryItem[]>([]);
   const [signedIn, setSignedIn] = useState(false);
@@ -57,24 +65,29 @@ export default function ListeningHistoryScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [error, setError] = useState('');
+  useEffect(() => subscribeSessionChanges(() => { invalidate(); setHistory([]); setSignedIn(false); setLoading(false); setClearing(false); }), [invalidate]);
 
   const load = useCallback(async (force = false) => {
+    const active = begin();
     if (force) setRefreshing(true);
     try {
       const session = await hasEchooSession();
+      if (!active()) return;
       setSignedIn(session);
-      setHistory(session ? await getListeningHistory({ force }) : []);
+      const rows = session ? await getListeningHistory({ force, all: true }) : [];
+      if (!active()) return;
+      setHistory(rows);
       setError('');
     } catch (cause) {
-      setError(friendlyErrorMessage(cause, 'Could not load your listening history.'));
+      if (active()) setError(friendlyErrorMessage(cause, 'Could not load your listening history.'));
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (active()) { setLoading(false); setRefreshing(false); }
     }
-  }, []);
+  }, [begin]);
 
   useFocusEffect(useCallback(() => {
     let active = true;
+    const unsubscribe = subscribeSessionChanges(() => { if (active) void load(); });
     void (async () => {
       const session = await hasEchooSession();
       if (!active) return;
@@ -85,8 +98,8 @@ export default function ListeningHistoryScreen() {
       }
       if (active) void load();
     })();
-    return () => { active = false; };
-  }, [load]));
+    return () => { active = false; unsubscribe(); invalidate(); };
+  }, [load, invalidate]));
 
   const groups = useMemo(() => {
     const sorted = history.filter((item) => item.track?.id).sort((a, b) => new Date(b.playedAt || 0).getTime() - new Date(a.playedAt || 0).getTime());
@@ -110,24 +123,35 @@ export default function ListeningHistoryScreen() {
   }, [history]);
 
   const playTrack = async (track: EchooAudio) => {
-    await playback.playAudioQueue(queue, Math.max(0, queue.findIndex((item) => item.id === track.id)));
+    void playback.playAudioQueue(queue, Math.max(0, queue.findIndex((item) => item.id === track.id))).catch(() => undefined);
     push({ pathname: '/audio-player', params: { audioId: track.id, title: track.title, subtitle: track.stationName || track.artistName || track.subtitle || '', coverArt: track.coverArt || '', fileUrl: track.fileUrl || '' } });
   };
 
   const confirmClear = () => Alert.alert('Clear listening history?', 'This removes your listening history from your account.', [
     { text: 'Cancel', style: 'cancel' },
     { text: 'Clear', style: 'destructive', onPress: () => { void (async () => {
+      const active = begin();
       setClearing(true);
-      try { await clearListeningHistory(); setHistory([]); setError(''); }
-      catch (cause) { setError(friendlyErrorMessage(cause, 'Could not clear listening history.')); }
-      finally { setClearing(false); }
+      try { await clearListeningHistory(); if (active()) { setHistory([]); setError(''); } }
+      catch (cause) { if (active()) setError(friendlyErrorMessage(cause, 'Could not clear listening history.')); }
+      finally { if (active()) { setClearing(false); setLoading(false); setRefreshing(false); } }
     })(); } },
   ]);
 
+  const removeEntry = (item: EchooHistoryItem) => Alert.alert('Remove from history?', item.track?.title || 'Remove this listening entry.', [
+    { text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: () => {
+      const active = begin();
+      setClearing(true);
+      void removeListeningHistoryItem(item.id).then(() => { if (active()) setHistory((rows) => rows.filter((row) => row.id !== item.id)); })
+        .catch((cause) => { if (active()) setError(friendlyErrorMessage(cause, 'Could not remove this history entry.')); })
+        .finally(() => { if (active()) { setClearing(false); setLoading(false); setRefreshing(false); } });
+    } },
+  ]);
+
   return <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={BLUE} colors={[BLUE]} />}>
+    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={palette.blue} colors={[palette.blue]} />}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={styles.back}><ArrowLeft color="#050505" size={23} /></Pressable>
+        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back" style={styles.back}><ArrowLeft color={palette.ink} size={23} /></Pressable>
         <Text style={styles.title}>Listening History</Text>
         {signedIn && history.length ? <Pressable onPress={confirmClear} disabled={clearing} accessibilityRole="button" accessibilityLabel="Clear listening history"><Text style={styles.clear}>{clearing ? 'Clearing' : 'Clear'}</Text></Pressable> : null}
       </View>
@@ -146,6 +170,7 @@ export default function ListeningHistoryScreen() {
               <Text style={styles.rowSubtitle} numberOfLines={1}>{track.stationName || track.artistName || track.subtitle || 'Echoo Audio'} · {historyStatus(item)}</Text>
             </View>
             <View style={styles.play}><Play color="#FFFFFF" fill="#FFFFFF" size={13} /></View>
+            <Pressable disabled={clearing || !item.id} accessibilityLabel={`Remove ${track.title} from history`} onPress={(event) => { event.stopPropagation(); removeEntry(item); }} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}><MoreVertical color={palette.muted} size={22} /></Pressable>
           </Pressable>;
         })}
       </View>)}
@@ -154,21 +179,21 @@ export default function ListeningHistoryScreen() {
   </SafeAreaView>;
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F9FBFF' },
+const createThemeStyles = (palette: EchooColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: palette.background },
   content: { paddingBottom: 120 },
   header: { marginTop: 20, marginHorizontal: 24, flexDirection: 'row', alignItems: 'center', minHeight: 42 },
   back: { marginRight: 8, paddingVertical: 8 },
-  title: { flex: 1, color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 23, letterSpacing: -0.5 },
-  clear: { color: BLUE, fontFamily: 'DMSans_500Medium', fontSize: 15 },
+  title: { flex: 1, color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 23, letterSpacing: -0.5 },
+  clear: { color: palette.blue, fontFamily: 'DMSans_500Medium', fontSize: 15 },
   skeleton: { marginHorizontal: 24, marginTop: 30 }, message: { marginHorizontal: 24, marginTop: 16 },
   group: { marginTop: 28, marginHorizontal: 24 },
-  groupTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 20, letterSpacing: -0.4, marginBottom: 11 },
+  groupTitle: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 20, letterSpacing: -0.4, marginBottom: 11 },
   row: { flexDirection: 'row', alignItems: 'center', minHeight: 70, marginBottom: 1 },
-  artwork: { width: 62, height: 58, borderRadius: 6, overflow: 'hidden', backgroundColor: '#E7EAF0' },
+  artwork: { width: 62, height: 58, borderRadius: 6, overflow: 'hidden', backgroundColor: palette.surfaceMuted },
   rowCopy: { flex: 1, marginLeft: 12, marginRight: 12 },
-  rowTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 16, letterSpacing: -0.25 },
-  rowSubtitle: { color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 2 },
-  play: { width: 23, height: 23, borderRadius: 12, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' },
-  footer: { marginTop: 12, marginHorizontal: 24, color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 12 },
+  rowTitle: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 16, letterSpacing: -0.25 },
+  rowSubtitle: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 2 },
+  play: { width: 23, height: 23, borderRadius: 12, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
+  footer: { marginTop: 12, marginHorizontal: 24, color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 12 },
 });

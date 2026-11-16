@@ -68,7 +68,7 @@ export default function MadeForYouScreen() {
           getFollowedStations({ force }).catch(() => []),
         ]);
         setProfileName(account?.displayName || account?.username || '');
-        setHistory(listeningHistory.map((item: EchooHistoryItem) => item.track).filter((track: EchooAudio | undefined): track is EchooAudio => Boolean(track?.id)).filter((track: EchooAudio, index: number, rows: EchooAudio[]) => rows.findIndex((item) => item.id === track.id) === index));
+        setHistory(listeningHistory.map((item: EchooHistoryItem) => item.track).filter((track: EchooAudio | null | undefined): track is EchooAudio => Boolean(track?.id)).filter((track: EchooAudio, index: number, rows: EchooAudio[]) => rows.findIndex((item) => item.id === track.id) === index));
         setFollowedIds(new Set(followed.map((station: EchooStation) => station.id)));
       } else {
         setProfileName('');
@@ -105,7 +105,7 @@ export default function MadeForYouScreen() {
 
   const playTrack = async (track: EchooAudio) => {
     const index = queue.findIndex((item) => item.id === track.id);
-    await playback.playAudioQueue(queue, Math.max(0, index));
+    void playback.playAudioQueue(queue, Math.max(0, index)).catch(() => undefined);
     push({ pathname: '/audio-player', params: { audioId: track.id, title: track.title, subtitle: track.subtitle || track.artistName || track.stationName || 'Echoo Audio', coverArt: track.coverArt || '', fileUrl: track.fileUrl || '' } });
   };
 
@@ -133,7 +133,7 @@ export default function MadeForYouScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={palette.blue} colors={[palette.blue]} />}
       >
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backButton} accessibilityLabel="Go back"><ChevronLeft color="#050505" size={24} strokeWidth={2.4} /></Pressable>
+          <Pressable onPress={() => router.back()} style={styles.backButton} accessibilityLabel="Go back"><ChevronLeft color={palette.ink} size={24} strokeWidth={2.4} /></Pressable>
           <Text style={styles.title}>Made for you</Text>
         </View>
         <Text style={styles.subtitle}>{profileName ? `A little more of what you enjoy, ${profileName.split(' ')[0]}.` : 'A little more of what you enjoy.'}</Text>
@@ -208,32 +208,32 @@ export default function MadeForYouScreen() {
 }
 
 const createStyles = (palette: EchooColors) => StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F9FBFF' },
+  safeArea: { flex: 1, backgroundColor: palette.background },
   content: { paddingHorizontal: 24, paddingTop: 15, paddingBottom: 140 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   backButton: { width: 28, height: 42, alignItems: 'center', justifyContent: 'center', marginLeft: -4 },
-  title: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 24, letterSpacing: -0.6 },
-  subtitle: { color: '#868686', fontFamily: 'DMSans_400Regular', fontSize: 14, lineHeight: 18, marginTop: 8, marginBottom: 10 },
+  title: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 24, letterSpacing: -0.6 },
+  subtitle: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 14, lineHeight: 18, marginTop: 8, marginBottom: 10 },
   collectionRail: { flexDirection: 'row', gap: 26 },
   collectionCard: { flex: 1, minWidth: 0 },
   collectionArt: { width: '100%', height: 153, borderRadius: 20, overflow: 'hidden', backgroundColor: palette.surfaceMuted },
-  collectionTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 16, marginTop: 11 },
-  collectionSubtitle: { color: '#868686', fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 4 },
-  sectionTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 20, letterSpacing: -0.5, marginTop: 38, marginBottom: 14 },
+  collectionTitle: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 16, marginTop: 11 },
+  collectionSubtitle: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 4 },
+  sectionTitle: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 20, letterSpacing: -0.5, marginTop: 38, marginBottom: 14 },
   trackStack: { gap: 12 },
   trackRow: { height: 58, flexDirection: 'row', alignItems: 'center', gap: 12 },
   trackArt: { width: 62, height: 58, borderRadius: 5, overflow: 'hidden', backgroundColor: palette.surfaceMuted },
   trackCopy: { flex: 1, minWidth: 0 },
-  trackTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 16 },
-  trackSubtitle: { color: '#868686', fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 4 },
-  playButton: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#2B5FC0', alignItems: 'center', justifyContent: 'center' },
+  trackTitle: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 16 },
+  trackSubtitle: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 4 },
+  playButton: { width: 24, height: 24, borderRadius: 12, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   channelRow: { height: 70, flexDirection: 'row', alignItems: 'center', gap: 12 },
   channelOpen: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 },
   channelArt: { width: 62, height: 58, borderRadius: 10, overflow: 'hidden', backgroundColor: palette.surfaceMuted },
   channelCopy: { flex: 1, minWidth: 0 },
-  channelName: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 16 },
-  channelDetail: { color: '#868686', fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 4 },
-  followButton: { width: 130, height: 40, borderRadius: 20, backgroundColor: '#2B5FC0', alignItems: 'center', justifyContent: 'center' },
+  channelName: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 16 },
+  channelDetail: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 4 },
+  followButton: { width: 130, height: 40, borderRadius: 20, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   disabledButton: { opacity: 0.6 },
   followText: { color: '#FFFFFF', fontFamily: 'DMSans_700Bold', fontSize: 14 },
 });

@@ -1,10 +1,15 @@
+import { useMemo as useThemeMemo } from 'react';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { EchooColors, getEchooColors } from '@/src/theme/echooTheme';
 import { useFocusEffect } from '@react-navigation/native';
+import { useLatestRequest } from '@/src/navigation/useLatestRequest';
+import { subscribeSessionChanges } from '@/src/services/sessionLifecycle';
 import { Image } from 'expo-image';
 import { useLocalSearchParams } from 'expo-router';
-import { ChevronLeft, ChevronRight, Mic, Play, X } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Search, Play, X } from 'lucide-react-native';
 import * as SecureStore from 'expo-secure-store';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Keyboard, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Keyboard, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ListenerEmptyState, ListenerToast, friendlyErrorMessage } from '@/src/components/ListenerV2';
@@ -25,8 +30,6 @@ type BrowseItem =
   | { kind: 'series'; id: string; title: string; subtitle: string; artwork?: string | null; series: EchooPlaylist };
 
 const CATEGORIES: Category[] = ['All', 'Live now', 'Channels', 'Audio', 'Podcast', 'Series'];
-const BG = '#F9FBFF';
-const BLUE = '#2B5FC0';
 const RECENT_SEARCHES_KEY = 'echoo:recent-searches:v1';
 type RecentSearch = { id: string; kind: BrowseItem['kind']; title: string; subtitle: string; artwork?: string | null };
 
@@ -41,6 +44,10 @@ function toPlaybackItem(track: EchooAudio): AudioPlaybackItem {
 }
 
 export default function SearchScreen() {
+  const requests = useLatestRequest();
+  const palette = getEchooColors(useColorScheme());
+  const styles = useThemeMemo(() => createThemeStyles(palette), [palette]);
+
   const { push } = useGuardedRouter();
   const params = useLocalSearchParams<{ q?: string }>();
   const playback = usePlayback();
@@ -83,31 +90,45 @@ export default function SearchScreen() {
   };
 
   const loadBrowse = useCallback(async (force = false) => {
+    const active = requests.begin();
     if (force) setRefreshing(true);
     else setLoadingBrowse(true);
     try {
       if (!force) {
         const cached = await getCachedMobileDiscoverySnapshot();
+        if (!active()) return;
         if (cached) { setBrowse(cached); setLoadingBrowse(false); }
         const cachedHistory = await getCachedListeningHistorySnapshot().catch(() => []);
+        if (!active()) return;
         if (cachedHistory.length) setHistory(cachedHistory);
       }
       const [discovery, publicSeries, session] = await Promise.all([
         getMobileDiscovery({ force }), getPublicCollections({ force }).catch(() => []), hasEchooSession(),
       ]);
+      if (!active()) return;
       setBrowse(discovery);
       setSeries(publicSeries);
-      setHistory(session ? await getListeningHistory({ force }).catch(() => []) : []);
+      const nextHistory = session ? await getListeningHistory({ force }).catch(() => []) : [];
+      if (!active()) return;
+      setHistory(nextHistory);
       setError('');
     } catch (loadError: any) {
+      if (!active()) return;
       setError(friendlyErrorMessage(loadError, 'Could not load Browse right now.'));
     } finally {
+      if (active()) {
       setLoadingBrowse(false);
       setRefreshing(false);
+      }
     }
-  }, []);
+  }, [requests]);
 
-  useFocusEffect(useCallback(() => { void loadBrowse(); }, [loadBrowse]));
+  useEffect(() => subscribeSessionChanges(() => setHistory([])), []);
+  useFocusEffect(useCallback(() => {
+    void loadBrowse();
+    const unsubscribe = subscribeSessionChanges(() => { void loadBrowse(); });
+    return () => { requests.invalidate(); unsubscribe(); };
+  }, [loadBrowse, requests]));
 
   useEffect(() => {
     const value = query.trim();
@@ -130,7 +151,7 @@ export default function SearchScreen() {
   }, [query]);
 
   const openAudio = async (track: EchooAudio, source: EchooAudio[]) => {
-    await playback.playAudioQueue(source.map(toPlaybackItem), Math.max(0, source.findIndex((item) => item.id === track.id)));
+    void playback.playAudioQueue(source.map(toPlaybackItem), Math.max(0, source.findIndex((item) => item.id === track.id))).catch(() => undefined);
     push({ pathname: '/audio-player', params: {
       audioId: track.id, title: track.title, subtitle: track.subtitle || track.artistName || track.stationName || 'Echoo Audio',
       coverArt: track.coverArt || '', fileUrl: track.fileUrl || '', stationId: track.stationId || '',
@@ -175,16 +196,16 @@ export default function SearchScreen() {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadBrowse(true)} tintColor={BLUE} colors={[BLUE]} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void loadBrowse(true)} tintColor={palette.blue} colors={[palette.blue]} />}
     >
       <View style={styles.searchRow}>
-        {focused || searching ? <Pressable onPress={() => { Keyboard.dismiss(); setFocused(false); setQuery(''); }} style={styles.backButton} accessibilityLabel="Leave search"><ChevronLeft color="#050505" size={26} /></Pressable> : null}
+        {focused || searching ? <Pressable onPress={() => { Keyboard.dismiss(); setFocused(false); setQuery(''); }} style={styles.backButton} accessibilityLabel="Leave search"><ChevronLeft color={palette.ink} size={26} /></Pressable> : null}
       <View style={[styles.searchField, (focused || searching) && styles.searchFieldFocused]}>
         <TextInput ref={inputRef} value={query} onChangeText={setQuery} placeholder="Channels, title, artist, shows"
-          placeholderTextColor="#858585" style={styles.searchInput} returnKeyType="search"
+          placeholderTextColor={palette.muted} style={styles.searchInput} returnKeyType="search"
           accessibilityLabel="Search channels, titles, artists and shows" onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} />
-        {query ? <Pressable onPress={() => setQuery('')} accessibilityLabel="Clear search"><X color="#050505" size={22} /></Pressable> :
-          <Pressable onPress={() => { inputRef.current?.focus(); Alert.alert('Voice search', 'Voice search is not available yet. Type your search above.'); }} accessibilityLabel="Voice search"><Mic color="#050505" size={25} strokeWidth={2.3} /></Pressable>}
+        {query ? <Pressable onPress={() => setQuery('')} accessibilityLabel="Clear search"><X color={palette.ink} size={22} /></Pressable> :
+          <Pressable onPress={() => inputRef.current?.focus()} accessibilityLabel="Enter a search"><Search color={palette.ink} size={25} strokeWidth={2.3} /></Pressable>}
       </View>
       </View>
       <View style={styles.headingRow}>
@@ -208,7 +229,7 @@ export default function SearchScreen() {
             {section.map((item) => <Pressable key={item.id} style={styles.resultRow} onPress={() => openItem(item, audio)}>
               <View style={styles.resultArtwork}>{item.artwork ? <Image source={{ uri: item.artwork }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : null}</View>
               <View style={styles.resultCopy}><Text style={styles.resultTitle} numberOfLines={1}>{item.title}</Text><Text style={styles.resultSubtitle} numberOfLines={1}>{item.kind === 'station' ? '@' + (item.station.owner?.username || item.station.name) : item.kind === 'series' ? `${item.subtitle} · ${item.series.trackCount || item.series.tracks.length} episodes` : item.subtitle}</Text></View>
-              {item.kind === 'audio' ? <View style={styles.playButton}><Play color="#FFFFFF" fill="#FFFFFF" size={12} /></View> : <ChevronRight color="#050505" size={25} />}
+              {item.kind === 'audio' ? <View style={styles.playButton}><Play color="#FFFFFF" fill="#FFFFFF" size={12} /></View> : <ChevronRight color={palette.ink} size={25} />}
             </Pressable>)}
           </View>;
         })}
@@ -219,7 +240,7 @@ export default function SearchScreen() {
             <View style={styles.recentSearchArt}>{entry.artwork ? <Image source={{ uri: entry.artwork }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : null}</View>
             <View style={styles.resultCopy}><Text style={styles.resultTitle} numberOfLines={1}>{entry.title}</Text><Text style={styles.resultSubtitle} numberOfLines={1}>{entry.subtitle}</Text></View>
           </Pressable>
-          <Pressable onPress={() => removeRecentSearch(entry.id, entry.kind)} accessibilityLabel={`Remove ${entry.title} from recent searches`}><X color="#050505" size={23} /></Pressable>
+          <Pressable onPress={() => removeRecentSearch(entry.id, entry.kind)} accessibilityLabel={`Remove ${entry.title} from recent searches`}><X color={palette.ink} size={23} /></Pressable>
         </View>)}
       </View> : null}
       {!searching && focused ? <Text style={styles.suggestionHeading}>Suggestion</Text> : null}
@@ -250,6 +271,9 @@ export default function SearchScreen() {
 }
 
 function BrowseCard({ item, width, stacked, onPress }: { item: BrowseItem; width: number; stacked?: boolean; onPress: () => void }) {
+  const palette = getEchooColors(useColorScheme());
+  const styles = useThemeMemo(() => createThemeStyles(palette), [palette]);
+
   return <Pressable style={[styles.card, { width }]} onPress={onPress}>
     <View style={[styles.artworkFrame, { width, height: width }, stacked && styles.stackedFrame]}>
       {stacked ? <View style={styles.artworkBack} /> : null}
@@ -263,53 +287,53 @@ function BrowseCard({ item, width, stacked, onPress }: { item: BrowseItem; width
   </Pressable>;
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: BG },
+const createThemeStyles = (palette: EchooColors) => StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: palette.background },
   content: { paddingTop: 18, paddingBottom: 145 },
   searchRow: { marginHorizontal: 24, flexDirection: 'row', alignItems: 'center', gap: 14 },
   backButton: { width: 28, height: 48, alignItems: 'center', justifyContent: 'center' },
-  searchField: { flex: 1, height: 48, borderRadius: 26, backgroundColor: '#F2F3F5', flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 30 },
-  searchFieldFocused: { backgroundColor: '#DCE7FA', borderWidth: 1, borderColor: BLUE },
-  searchInput: { flex: 1, minWidth: 0, height: '100%', color: '#050505', fontFamily: 'DMSans_400Regular', fontSize: 16, padding: 0 },
+  searchField: { flex: 1, height: 48, borderRadius: 26, backgroundColor: palette.surface, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 30 },
+  searchFieldFocused: { backgroundColor: palette.blueSoft, borderWidth: 1, borderColor: palette.blue },
+  searchInput: { flex: 1, minWidth: 0, height: '100%', color: palette.ink, fontFamily: 'DMSans_400Regular', fontSize: 16, padding: 0 },
   headingRow: { marginHorizontal: 24, marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 32 },
-  heading: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 24, letterSpacing: -0.7 },
-  clearAll: { color: BLUE, fontFamily: 'DMSans_700Bold', fontSize: 14 },
+  heading: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 24, letterSpacing: -0.7 },
+  clearAll: { color: palette.blue, fontFamily: 'DMSans_700Bold', fontSize: 14 },
   categoryScroll: { marginTop: 10, flexGrow: 0 },
   categories: { paddingHorizontal: 24, alignItems: 'center', gap: 22 },
   categoryButton: { paddingVertical: 3 },
-  categoryText: { color: '#999999', fontFamily: 'DMSans_700Bold', fontSize: 14 },
-  categoryActive: { color: BLUE },
+  categoryText: { color: palette.faint, fontFamily: 'DMSans_700Bold', fontSize: 14 },
+  categoryActive: { color: palette.blue },
   rail: { marginTop: 27, flexGrow: 0 },
   railContent: { paddingHorizontal: 24, gap: 18, paddingRight: 30 },
   card: { flexShrink: 0 },
   artworkFrame: { position: 'relative' },
   stackedFrame: { marginBottom: 5 },
-  artworkBack: { position: 'absolute', left: 8, right: -8, top: 7, bottom: -7, borderRadius: 21, backgroundColor: '#657892' },
-  artwork: { width: '100%', height: '100%', borderRadius: 20, overflow: 'hidden', backgroundColor: '#E1E8F2' },
+  artworkBack: { position: 'absolute', left: 8, right: -8, top: 7, bottom: -7, borderRadius: 21, backgroundColor: palette.surfaceMuted },
+  artwork: { width: '100%', height: '100%', borderRadius: 20, overflow: 'hidden', backgroundColor: palette.surfaceMuted },
   artworkFallback: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  artworkInitial: { color: BLUE, fontFamily: 'DMSans_700Bold', fontSize: 48 },
-  cardTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 16, marginTop: 12, letterSpacing: -0.35 },
-  cardSubtitle: { color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 2 },
+  artworkInitial: { color: palette.blue, fontFamily: 'DMSans_700Bold', fontSize: 48 },
+  cardTitle: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 16, marginTop: 12, letterSpacing: -0.35 },
+  cardSubtitle: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 2 },
   recentHeader: { marginTop: 56, marginHorizontal: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  recentTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 24, letterSpacing: -0.7 },
-  seeAll: { color: BLUE, fontFamily: 'DMSans_700Bold', fontSize: 14 },
-  emptyRecent: { color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 13, marginHorizontal: 24, marginTop: 16 },
+  recentTitle: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 24, letterSpacing: -0.7 },
+  seeAll: { color: palette.blue, fontFamily: 'DMSans_700Bold', fontSize: 14 },
+  emptyRecent: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 13, marginHorizontal: 24, marginTop: 16 },
   noResults: { marginHorizontal: 24, minHeight: 530, paddingTop: 125 },
-  noResultsTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 24, textAlign: 'center' },
-  noResultsCopy: { color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 14, lineHeight: 19, textAlign: 'center', marginTop: 7, maxWidth: 285, alignSelf: 'center' },
-  browseNewHeading: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 20, marginTop: 180, marginBottom: 13 },
+  noResultsTitle: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 24, textAlign: 'center' },
+  noResultsCopy: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 14, lineHeight: 19, textAlign: 'center', marginTop: 7, maxWidth: 285, alignSelf: 'center' },
+  browseNewHeading: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 20, marginTop: 180, marginBottom: 13 },
   recentSearchList: { marginHorizontal: 24, marginTop: 16, gap: 15 },
   recentSearchRow: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 14 },
   recentSearchOpen: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
-  recentSearchArt: { width: 66, height: 58, borderRadius: 5, overflow: 'hidden', backgroundColor: '#E1E8F2' },
-  suggestionHeading: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 24, marginHorizontal: 24, marginTop: 22 },
+  recentSearchArt: { width: 66, height: 58, borderRadius: 5, overflow: 'hidden', backgroundColor: palette.surfaceMuted },
+  suggestionHeading: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 24, marginHorizontal: 24, marginTop: 22 },
   resultSections: { marginHorizontal: 24, marginTop: 12, gap: 22 },
   resultSection: { gap: 12 },
-  resultHeading: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 20, marginBottom: 2 },
+  resultHeading: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 20, marginBottom: 2 },
   resultRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  resultArtwork: { width: 62, height: 58, borderRadius: 5, overflow: 'hidden', backgroundColor: '#E1E8F2' },
+  resultArtwork: { width: 62, height: 58, borderRadius: 5, overflow: 'hidden', backgroundColor: palette.surfaceMuted },
   resultCopy: { flex: 1, minWidth: 0 },
-  resultTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 16 },
-  resultSubtitle: { color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 4 },
-  playButton: { width: 24, height: 24, borderRadius: 12, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center' },
+  resultTitle: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 16 },
+  resultSubtitle: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 4 },
+  playButton: { width: 24, height: 24, borderRadius: 12, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
 });

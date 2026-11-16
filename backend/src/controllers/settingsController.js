@@ -312,7 +312,7 @@ export async function updateEmail(req, res, next) {
 export async function updateNotificationSettings(req, res, next) {
   try {
     const userId = req.userId;
-    const { email, push, newFollowers, newReleases } = req.body;
+    const { email, push, newFollowers, newReleases, liveBroadcasts } = req.body;
 
     const user = await User.findById(userId);
     if (!user) {
@@ -332,6 +332,7 @@ export async function updateNotificationSettings(req, res, next) {
     if (push !== undefined) user.preferences.notifications.push = push;
     if (newFollowers !== undefined) user.preferences.notifications.newFollowers = newFollowers;
     if (newReleases !== undefined) user.preferences.notifications.newReleases = newReleases;
+    if (typeof liveBroadcasts === 'boolean') user.preferences.notifications.liveBroadcasts = liveBroadcasts;
 
     await user.save();
 

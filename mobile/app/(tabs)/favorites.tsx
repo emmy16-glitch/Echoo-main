@@ -116,7 +116,7 @@ export default function FavoritesScreen() {
 
   const openAudio = async (track: EchooAudio) => {
     const index = Math.max(0, savedAudioQueue.findIndex((item) => item.id === track.id));
-    await playback.playAudioQueue(savedAudioQueue, index);
+    void playback.playAudioQueue(savedAudioQueue, index).catch(() => undefined);
     push({
       pathname: '/audio-player',
       params: {

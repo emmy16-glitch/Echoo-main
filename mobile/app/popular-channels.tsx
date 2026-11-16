@@ -100,7 +100,7 @@ export default function PopularChannelsScreen() {
       >
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={styles.backButton} accessibilityLabel="Go back">
-            <ChevronLeft color="#050505" size={24} strokeWidth={2.4} />
+            <ChevronLeft color={palette.ink} size={24} strokeWidth={2.4} />
           </Pressable>
           <Text style={styles.title}>Popular channels</Text>
         </View>
@@ -152,26 +152,26 @@ export default function PopularChannelsScreen() {
 }
 
 const createStyles = (palette: EchooColors) => StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F9FBFF' },
+  safeArea: { flex: 1, backgroundColor: palette.background },
   content: { paddingHorizontal: 24, paddingTop: 15, paddingBottom: 140 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   backButton: { width: 28, height: 42, alignItems: 'center', justifyContent: 'center', marginLeft: -4 },
-  title: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 24, letterSpacing: -0.6 },
-  subtitle: { color: '#868686', fontFamily: 'DMSans_400Regular', fontSize: 14, lineHeight: 18, marginTop: 8, marginBottom: 17 },
+  title: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 24, letterSpacing: -0.6 },
+  subtitle: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 14, lineHeight: 18, marginTop: 8, marginBottom: 17 },
   row: { height: 70, flexDirection: 'row', alignItems: 'center', gap: 12 },
   stationOpen: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 12 },
   artwork: { width: 62, height: 58, borderRadius: 10, overflow: 'hidden', backgroundColor: palette.surfaceMuted },
   copy: { flex: 1, minWidth: 0 },
-  stationName: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 16 },
-  stationDetail: { color: '#868686', fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 4 },
-  followButton: { width: 130, height: 40, borderRadius: 20, backgroundColor: '#2B5FC0', alignItems: 'center', justifyContent: 'center' },
-  followingButton: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#2B5FC0' },
+  stationName: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 16 },
+  stationDetail: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 4 },
+  followButton: { width: 130, height: 40, borderRadius: 20, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
+  followingButton: { backgroundColor: 'transparent', borderWidth: 1, borderColor: palette.blue },
   disabledButton: { opacity: 0.6 },
   followText: { color: '#FFFFFF', fontFamily: 'DMSans_700Bold', fontSize: 14 },
-  followingText: { color: '#2B5FC0' },
+  followingText: { color: palette.blue },
   discoveryNote: { marginTop: 36 },
-  noteTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 20, letterSpacing: -0.5 },
-  noteText: { color: '#868686', fontFamily: 'DMSans_400Regular', fontSize: 14, lineHeight: 18, marginTop: 18 },
-  alertNote: { marginTop: 18, minHeight: 60, borderRadius: 10, backgroundColor: '#E7EEFB', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  alertText: { flex: 1, color: '#2B5FC0', fontFamily: 'DMSans_400Regular', fontSize: 13, lineHeight: 17 },
+  noteTitle: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 20, letterSpacing: -0.5 },
+  noteText: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 14, lineHeight: 18, marginTop: 18 },
+  alertNote: { marginTop: 18, minHeight: 60, borderRadius: 10, backgroundColor: palette.blueSoft, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  alertText: { flex: 1, color: palette.blue, fontFamily: 'DMSans_400Regular', fontSize: 13, lineHeight: 17 },
 });

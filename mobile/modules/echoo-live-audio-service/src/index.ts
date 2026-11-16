@@ -8,11 +8,23 @@ export type LiveAudioServiceInfo = {
 };
 
 type NativeLiveAudioService = {
+  addListener?: (event: string, listener: (event: { action: string; broadcastId: string }) => void) => { remove: () => void };
+  setPlaying?: (playing: boolean) => void;
   start: (title: string, artist: string, broadcastId: string, kind: string) => boolean;
   stop: () => boolean;
 };
 
 let nativeModule: NativeLiveAudioService | null = null;
+
+export function subscribeLiveMediaCommands(listener: (event: { action: string; broadcastId: string }) => void) {
+  if (Platform.OS === 'web') return { remove: () => undefined };
+  return nativeModule?.addListener?.('onMediaCommand', listener) || { remove: () => undefined };
+}
+
+export function updateLiveMediaPlaying(playing: boolean) {
+  if (Platform.OS === 'web') return;
+  nativeModule?.setPlaying?.(playing);
+}
 
 try {
   // Lazy require keeps Expo Go and web working without the native bridge.

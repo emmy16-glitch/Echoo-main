@@ -1,4 +1,7 @@
 export const lightColors = {
+  dangerSoft: '#FDECEF',
+  success: '#278065',
+  successSoft: '#E7F2EC',
   blue: '#4F7EC3',
   blueHover: '#5F8DD1',
   blueDeep: '#244A86',
@@ -27,6 +30,9 @@ export const lightColors = {
 };
 
 export const darkColors = {
+  dangerSoft: '#351921',
+  success: '#70CFA9',
+  successSoft: '#133128',
   blue: '#4F7EC3',
   blueHover: '#78A3DF',
   blueDeep: '#244A86',

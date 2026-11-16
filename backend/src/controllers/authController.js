@@ -1,4 +1,5 @@
 import User from '../models/User.js';
+import DevicePushToken from '../models/DevicePushToken.js';
 import { registrationPrivacyAcknowledgement } from '../config/privacyPolicy.js';
 import crypto from 'node:crypto';
 import { verifyRefreshToken } from '../config/jwt.js';
@@ -467,6 +468,9 @@ export async function refreshToken(req, res, next) {
 
 export async function logout(req, res, next) {
   try {
+    if (typeof req.body?.pushToken === 'string') {
+      await DevicePushToken.updateOne({ token: req.body.pushToken, userId: req.userId }, { $set: { active: false } });
+    }
     // The browser clearing localStorage is not enough to invalidate a copied or
     // still-open refresh token. Rotate the account token version so every
     // refresh token issued before logout becomes unusable immediately.

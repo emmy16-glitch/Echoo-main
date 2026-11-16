@@ -24,6 +24,7 @@ import {
 } from '../../services/liveRecoveryPolicy';
 import { resolveLiveKitUrl } from '../../services/livekitUrl';
 import { createVisiblePlaybackReconciler } from '../../services/listenerVisibleResume';
+import { resetListenerReceiverSamples, requestListenerPlaybackSession } from '../../services/listenerBackgroundPlayback';
 import './LiveKitListenerPlayer.css';
 
 const createLiveKitReconnectPolicy = () =>
@@ -157,6 +158,8 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     let creatorConnectionLost = false;
     let programStreamPaused = false;
     let smoothedAudioLevel = 0;
+    let backgroundResumeAttempted = false;
+    requestListenerPlaybackSession();
 
     const withDeadline = async (promise, timeoutMs, message) => {
       let timer = null;
@@ -326,7 +329,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
     const startProgramLevelTelemetry = () => {
       if (audioLevelTimer) window.clearInterval(audioLevelTimer);
       audioLevelTimer = window.setInterval(() => {
-        if (disposed) return;
+        if (disposed || document.visibilityState === 'hidden') return;
         const participant = programParticipantRef.current;
         const raw = Math.max(0, Math.min(1, Number(participant?.audioLevel) || 0));
         const target = raw < 0.012 ? 0 : Math.min(1, raw * 1.18);
@@ -402,6 +405,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
 
       console.log(`[Echoo LiveKit] Attaching track: ${id}`);
       const element = track.attach();
+      requestListenerPlaybackSession();
       element.autoplay = true;
       element.controls = false;
       element.muted = mutedRef.current;
@@ -451,6 +455,15 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
 
       const syncElementPlayback = () => {
         if (disposed || roomRef.current !== room) return;
+        // Recover one unexpected browser pause per background transition.
+        // Explicit Pause/Stop changes playbackIntent before pausing elements.
+        if (document.visibilityState === 'hidden' && element.paused &&
+          playbackIntentRef.current === 'play' && !backgroundResumeAttempted && !element.ended) {
+          backgroundResumeAttempted = true;
+          void element.play().then(markPlaybackState).catch(() => {
+            // Foreground reconciliation exposes any browser permission block.
+          });
+        }
         const elements = Array.from(audioHostRef.current?.querySelectorAll('audio') || []);
         const playing = elements.some((candidate) => !candidate.paused && !candidate.ended);
         setIsPlaying(playing);
@@ -589,6 +602,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       }
 
       const room = new Room({
+        webAudioMix: false,
         adaptiveStream: false,
         dynacast: false,
         reconnectPolicy: createLiveKitReconnectPolicy(),
@@ -905,9 +919,20 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
       },
     });
     const onVisibilityChange = () => {
+      backgroundResumeAttempted = false;
+      watchdogMissStreakRef.current = 0;
+      resetListenerReceiverSamples(attachedRef.current.values());
+      // The optional waveform analyser must not compete with media playback
+      // for a background audio context. Remote audio plays directly via <audio>.
+      if (document.visibilityState === 'hidden') {
+        void audioCtxRef.current?.suspend?.().catch(() => {});
+      }
       if (document.visibilityState === 'visible') void resumeVisiblePlayback();
     };
-    const onPageShow = () => { void resumeVisiblePlayback(); };
+    const onPageShow = () => {
+      resetListenerReceiverSamples(attachedRef.current.values());
+      void resumeVisiblePlayback();
+    };
 
     window.addEventListener('offline', onOffline);
     window.addEventListener('online', onOnline);
@@ -916,6 +941,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
 
     playbackWatchdogTimer = window.setInterval(async () => {
       if (disposed || receiverCheckRunning) return;
+      if (document.visibilityState === 'hidden') return;
       const room = roomRef.current;
       if (!roomCanCarryMedia(room)) return;
       // LiveKit's own transport recovery owns the outage — hold the shared
@@ -955,7 +981,7 @@ const LiveKitListenerPlayer = ({ broadcastId, isLive, track = null, onStateChang
           ) continue;
 
           const stats = await entry.track.getReceiverStats();
-          if (!stats || disposed || roomRef.current !== room) continue;
+          if (!stats || disposed || roomRef.current !== room || document.visibilityState === 'hidden') continue;
           const sample = {
             bytes: Number(stats.bytesReceived) || 0,
             packets: Number(stats.packetsReceived) || 0,

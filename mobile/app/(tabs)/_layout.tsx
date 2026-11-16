@@ -34,7 +34,7 @@ export default function TabLayout() {
       borderTopWidth: 0,
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
-      backgroundColor: '#F7F9FC',
+      backgroundColor: palette.tab,
       elevation: 12,
     }),
     [palette, tabMetrics.bottomPadding, tabMetrics.height]
@@ -44,8 +44,8 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#050505',
-        tabBarInactiveTintColor: '#050505',
+        tabBarActiveTintColor: palette.ink,
+        tabBarInactiveTintColor: palette.tabInactive,
         tabBarStyle: tabStyle,
         tabBarLabelStyle: {
           fontSize: 12,

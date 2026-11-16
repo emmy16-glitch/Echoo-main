@@ -24,6 +24,9 @@ import android.os.IBinder
  */
 class EchooLiveAudioService : Service() {
   companion object {
+    var onMediaCommand: ((String, String) -> Unit)? = null
+    private var activeService: EchooLiveAudioService? = null
+    fun setPlaying(playing: Boolean) { activeService?.updatePlaybackState(playing) }
     private const val CHANNEL_ID = "echoo_audio_playback"
     private const val NOTIFICATION_ID = 0xE000
     private const val EXTRA_TITLE = "extra_title"
@@ -50,16 +53,27 @@ class EchooLiveAudioService : Service() {
   }
 
   private var mediaSession: MediaSession? = null
+  private var activeBroadcastId = ""
+  private var listenerSession = false
+
+  private fun updatePlaybackState(playing: Boolean) {
+    mediaSession?.setPlaybackState(PlaybackState.Builder()
+      .setActions(PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE or PlaybackState.ACTION_PLAY_PAUSE or PlaybackState.ACTION_STOP)
+      .setState(if (playing) PlaybackState.STATE_PLAYING else PlaybackState.STATE_PAUSED, PlaybackState.PLAYBACK_POSITION_UNKNOWN, if (playing) 1f else 0f).build())
+  }
 
   override fun onBind(intent: Intent?): IBinder? = null
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    activeService = this
     val kind = intent?.getStringExtra(EXTRA_KIND).orEmpty().ifEmpty { "live" }
     val title = intent?.getStringExtra(EXTRA_TITLE).orEmpty().ifEmpty {
       if (kind == "audio") "Playing on Echoo" else "Live on Echoo"
     }
     val artist = intent?.getStringExtra(EXTRA_ARTIST).orEmpty()
     val broadcastId = intent?.getStringExtra(EXTRA_BROADCAST_ID).orEmpty()
+    activeBroadcastId = broadcastId
+    listenerSession = kind == "live"
 
     startForegroundWithNotification(title, artist, broadcastId, kind)
     // A media listener may stay active for hours. Re-deliver the latest
@@ -73,6 +87,7 @@ class EchooLiveAudioService : Service() {
   }
 
   override fun onDestroy() {
+    if (activeService === this) activeService = null
     mediaSession?.isActive = false
     mediaSession?.release()
     mediaSession = null
@@ -122,6 +137,7 @@ class EchooLiveAudioService : Service() {
     )
     session.setPlaybackState(
       PlaybackState.Builder()
+        .setActions(PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE or PlaybackState.ACTION_PLAY_PAUSE or PlaybackState.ACTION_STOP)
         .setState(PlaybackState.STATE_PLAYING, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1f)
         .build()
     )
@@ -169,7 +185,11 @@ class EchooLiveAudioService : Service() {
 
   private fun ensureMediaSession(): MediaSession {
     return mediaSession ?: MediaSession(this, "EchooLiveListener").also { session ->
-      session.setCallback(object : MediaSession.Callback() {})
+      session.setCallback(object : MediaSession.Callback() {
+        override fun onPlay() { if (listenerSession) onMediaCommand?.invoke("play", activeBroadcastId) }
+        override fun onPause() { if (listenerSession) onMediaCommand?.invoke("pause", activeBroadcastId) }
+        override fun onStop() { if (listenerSession) onMediaCommand?.invoke("stop", activeBroadcastId) }
+      })
       mediaSession = session
     }
   }

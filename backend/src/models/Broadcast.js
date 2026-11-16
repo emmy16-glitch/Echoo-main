@@ -460,7 +460,7 @@ broadcastSchema.post('save', async function persistBroadcastSideEffects(doc) {
         const recipients = await User.find({
           _id: { $in: [...recipientIds] },
           isActive: true,
-          'preferences.notifications.newReleases': { $ne: false },
+          'preferences.notifications.liveBroadcasts': { $ne: false },
           'preferences.notifications.push': { $ne: false },
         }).select('_id');
 
@@ -482,7 +482,7 @@ broadcastSchema.post('save', async function persistBroadcastSideEffects(doc) {
           ).catch((error) => {
             console.warn('Broadcast live notification warning:', error?.message || error);
           });
-          void sendBroadcastLivePush({ recipients, broadcast: doc }).catch((error) => {
+          await sendBroadcastLivePush({ recipients, broadcast: doc }).catch((error) => {
             console.warn('Broadcast live push warning:', error?.message || error);
           });
         }

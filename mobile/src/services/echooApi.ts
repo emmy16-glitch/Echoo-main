@@ -1,5 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import { collectLibraryPages } from '@/src/services/libraryPagination';
+import { getSessionRevision, sessionChanged } from '@/src/services/sessionLifecycle';
 
 import { deleteCachedJson, getCachedJson, peekCachedJson } from '@/src/services/localCache';
 
@@ -18,6 +20,7 @@ const TOKEN_KEYS = {
 
 let webAccessToken = '';
 let webRefreshToken = '';
+let webAccountScope = '';
 let refreshPromise: Promise<string> | null = null;
 
 export type EchooUser = {
@@ -118,6 +121,7 @@ export type EchooPlaylistTrack = {
 };
 
 export type EchooPlaylist = {
+  isPublic?: boolean;
   id: string;
   name: string;
   description?: string;
@@ -281,17 +285,39 @@ const deleteSecureToken = async (key: string) => {
 };
 
 export async function saveSession(accessToken?: string, refreshToken?: string) {
+  const previousAccount = Platform.OS !== 'web' ? await SecureStore.getItemAsync('echoo.accountScope') : webAccountScope;
+  if (accessToken) {
+    try {
+      const encoded = accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      const payload = JSON.parse(globalThis.atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, '=')));
+      const id = payload.userId || payload.sub || payload.id || payload._id;
+      if (Platform.OS === 'web') webAccountScope = id ? String(id) : '';
+      if (Platform.OS !== 'web') {
+        if (id) await SecureStore.setItemAsync('echoo.accountScope', String(id));
+        else await SecureStore.deleteItemAsync('echoo.accountScope');
+      }
+    } catch {
+      // Never keep another account's scope after an unidentifiable new token.
+      if (Platform.OS !== 'web') await SecureStore.deleteItemAsync('echoo.accountScope');
+      else webAccountScope = '';
+    }
+  }
   const writes: Promise<void>[] = [];
   if (accessToken) writes.push(writeSecureToken(TOKEN_KEYS.access, accessToken));
   if (refreshToken) writes.push(writeSecureToken(TOKEN_KEYS.refresh, refreshToken));
   await Promise.all(writes);
+  const nextAccount = Platform.OS !== 'web' ? await SecureStore.getItemAsync('echoo.accountScope') : webAccountScope;
+  if (previousAccount !== nextAccount) sessionChanged();
 }
 
 export async function clearSession() {
+  webAccountScope = '';
   await Promise.all([
     deleteSecureToken(TOKEN_KEYS.access),
     deleteSecureToken(TOKEN_KEYS.refresh),
+    Platform.OS !== 'web' ? SecureStore.deleteItemAsync('echoo.accountScope') : Promise.resolve(),
   ]);
+  sessionChanged();
 }
 
 export async function hasEchooSession() {
@@ -376,6 +402,10 @@ async function refreshAccessToken() {
 }
 
 async function apiRequest(path: string, options: RequestOptions = {}) {
+  const sessionRevision = getSessionRevision();
+  const checkSession = () => {
+    if (options.auth !== 'none' && sessionRevision !== getSessionRevision()) throw new Error('Your account changed. Please try again.');
+  };
   const auth = options.auth || 'optional';
   let accessToken = auth === 'none' ? '' : (await readSecureToken(TOKEN_KEYS.access)) || '';
 
@@ -396,6 +426,7 @@ async function apiRequest(path: string, options: RequestOptions = {}) {
     ...(options.headers || {}),
   };
 
+  checkSession();
   let response = await fetchWithTimeout(`${API_URL}${path}`, {
     method: options.method || 'GET',
     headers,
@@ -404,10 +435,12 @@ async function apiRequest(path: string, options: RequestOptions = {}) {
   let payload = await parseResponse(response);
 
   if (response.status === 401 && auth !== 'none' && options.retry !== false) {
+    checkSession();
     const refreshToken = await readSecureToken(TOKEN_KEYS.refresh);
     if (refreshToken) {
       try {
         const nextAccessToken = await refreshAccessToken();
+        checkSession();
         response = await fetchWithTimeout(`${API_URL}${path}`, {
           method: options.method || 'GET',
           headers: {
@@ -432,6 +465,7 @@ async function apiRequest(path: string, options: RequestOptions = {}) {
   }
 
   if (!response.ok) throw makeApiError(payload, response.status);
+  checkSession();
   return payload;
 }
 
@@ -457,6 +491,7 @@ async function cachedAccountRequest(
   maxAgeMs = CACHE.account,
   options: CacheControlOptions = {}
 ) {
+  const sessionRevision = getSessionRevision();
   let accessToken = await readSecureToken(TOKEN_KEYS.access);
   if (!accessToken) {
     try {
@@ -469,11 +504,13 @@ async function cachedAccountRequest(
     }
   }
 
-  return getCachedJson(
+  const result = await getCachedJson(
     `account:${API_URL}:${accessToken}:${path}`,
     { maxAgeMs, staleAgeMs: CACHE.accountStale, forceRefresh: options.force },
     () => apiRequest(path, { auth: 'required' })
   );
+  if (sessionRevision !== getSessionRevision()) throw new Error('Your account changed. Please try again.');
+  return result;
 }
 
 async function accountCacheKey(path: string) {
@@ -482,8 +519,10 @@ async function accountCacheKey(path: string) {
 }
 
 async function peekAccountRequest(path: string) {
+  const revision = getSessionRevision();
   const key = await accountCacheKey(path);
-  return key ? peekCachedJson<any>(key) : null;
+  const cached = key ? await peekCachedJson<any>(key) : null;
+  return revision === getSessionRevision() ? cached : null;
 }
 
 async function invalidateAccountCache(paths: string[]) {
@@ -1061,7 +1100,8 @@ export async function registerEchoo(input: {
 
 export async function getCurrentUser(options: CacheControlOptions = {}) {
   const payload = await cachedAccountRequest('/auth/me', CACHE.account, options);
-  return normalizeUser(payload?.data?.user);
+  const user = normalizeUser(payload?.data?.user);
+  return user;
 }
 
 export async function getCachedCurrentUserSnapshot() {
@@ -1101,22 +1141,24 @@ export async function requestListenerPasswordReset(email: string) {
   await apiRequest('/auth/forgot-password', { method: 'POST', auth: 'none', body: JSON.stringify({ email: email.trim() }) });
 }
 
-export async function getListenerSettings(): Promise<{ notifications: { email: boolean; push: boolean; newFollowers: boolean; newReleases: boolean } }> {
+export async function getListenerSettings(): Promise<{ notifications: { email: boolean; push: boolean; newFollowers: boolean; newReleases: boolean; liveBroadcasts: boolean } }> {
   const payload = await apiRequest('/settings', { auth: 'required' });
   const values = payload?.data?.preferences?.notifications || {};
-  return { notifications: { email: values.email !== false, push: values.push !== false, newFollowers: values.newFollowers !== false, newReleases: values.newReleases !== false } };
+  return { notifications: { email: values.email !== false, push: values.push !== false, newFollowers: values.newFollowers !== false, newReleases: values.newReleases !== false, liveBroadcasts: values.liveBroadcasts !== false } };
 }
 
-export async function updateListenerNotifications(input: Partial<{ email: boolean; push: boolean; newFollowers: boolean; newReleases: boolean }>) {
+export async function updateListenerNotifications(input: Partial<{ email: boolean; push: boolean; newFollowers: boolean; newReleases: boolean; liveBroadcasts: boolean }>) {
   await apiRequest('/settings/notifications', { method: 'PATCH', auth: 'required', body: JSON.stringify(input) });
 }
 
 export async function logoutEchoo() {
-  try {
-    await apiRequest('/auth/logout', { method: 'POST', auth: 'required', retry: false });
-  } finally {
-    await clearSession();
-  }
+  const pushToken = Platform.OS !== 'web' ? await SecureStore.getItemAsync('echoo.devicePushToken') : null;
+  // Revoke this device before dropping the credentials needed to revoke it.
+  // A failed request leaves the session intact so the user can retry explicitly.
+  await apiRequest('/auth/logout', { method: 'POST', auth: 'required', retry: false,
+    body: JSON.stringify({ pushToken }) });
+  await clearSession();
+  if (Platform.OS !== 'web') await SecureStore.deleteItemAsync('echoo.devicePushToken');
 }
 
 export async function registerPushToken(input: { token: string; platform: 'ios' | 'android' }) {
@@ -1140,7 +1182,8 @@ export async function deleteEchooAccount(password: string) {
 
 export async function getSavedAudio(options: CacheControlOptions = {}) {
   const payload = await cachedAccountRequest('/library/tracks?page=1&limit=100', CACHE.account, options);
-  return (payload?.data?.tracks || []).map(normalizeAudio).filter((item: EchooAudio) => item.id);
+  const rows = await collectLibraryPages(payload, 'tracks', (page) => apiRequest(`/library/tracks?page=${page}&limit=100`, { auth: 'required' }));
+  return uniqueItems<EchooAudio>(rows.map(normalizeAudio).filter((item: EchooAudio) => item.id));
 }
 
 export async function getCachedSavedAudioSnapshot() {
@@ -1162,7 +1205,7 @@ export async function unsaveAudio(trackId: string) {
 
 export async function getDownloads() {
   const payload = await apiRequest('/downloads?page=1&limit=100', { auth: 'required' });
-  const rows = Array.isArray(payload?.data?.downloads) ? payload.data.downloads : [];
+  const rows = await collectLibraryPages(payload, 'downloads', (page) => apiRequest(`/downloads?page=${page}&limit=100`, { auth: 'required' }));
   return rows.map(normalizeDownload).filter((item: EchooDownload) => item.id);
 }
 
@@ -1240,9 +1283,12 @@ export async function syncListeningProgress({
   await invalidateAccountCache(['/history?page=1&limit=50', '/library/stats']);
 }
 
-export async function getListeningHistory(options: CacheControlOptions = {}) {
+export async function getListeningHistory(options: CacheControlOptions & { all?: boolean } = {}) {
   const payload = await cachedAccountRequest('/history?page=1&limit=50', CACHE.account, options);
-  return (payload?.data?.history || []).map((item: any): EchooHistoryItem => ({
+  const rows = options.all
+    ? await collectLibraryPages(payload, 'history', (page) => apiRequest(`/history?page=${page}&limit=50`, { auth: 'required' }))
+    : (payload?.data?.history || []);
+  return rows.map((item: any): EchooHistoryItem => ({
     id: item?.id || item?._id || '',
     track: item?.track ? normalizeAudio(item.track) : null,
     playedAt: item?.playedAt,
@@ -1253,6 +1299,11 @@ export async function getListeningHistory(options: CacheControlOptions = {}) {
 
 export async function clearListeningHistory() {
   await apiRequest('/history/clear', { method: 'DELETE', auth: 'required' });
+  await invalidateAccountCache(['/history?page=1&limit=50', '/library/stats']);
+}
+
+export async function removeListeningHistoryItem(historyId: string) {
+  await apiRequest(`/history/${encodeURIComponent(historyId)}`, { method: 'DELETE', auth: 'required' });
   await invalidateAccountCache(['/history?page=1&limit=50', '/library/stats']);
 }
 
@@ -1389,6 +1440,30 @@ export async function addTrackToPlaylist(playlistId: string, trackId: string) {
   await invalidateAccountCache(['/playlists/mine/all', '/library/stats']);
   await deleteCachedJson(`playlist:${API_URL}:${playlistId}`);
   return normalizePlaylist(payload?.data);
+}
+
+async function mutatePlaylist(playlistId: string, suffix: string, method: 'PATCH' | 'DELETE', body?: object) {
+  const payload = await apiRequest(`/playlists/${encodeURIComponent(playlistId)}${suffix}`, {
+    method, auth: 'required', ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  await invalidateAccountCache(['/playlists/mine/all', '/library/stats']);
+  await deleteCachedJson(`playlist:${API_URL}:${playlistId}`);
+  return payload;
+}
+export async function updatePersonalPlaylist(id: string, input: { name: string; description: string; isPublic: boolean }) {
+  const payload = await mutatePlaylist(id, '', 'PATCH', input);
+  return normalizePlaylist(payload.data);
+}
+export async function removePlaylistTrack(id: string, trackId: string) {
+  const payload = await mutatePlaylist(id, '/tracks', 'DELETE', { trackId });
+  return normalizePlaylist(payload.data);
+}
+export async function reorderPlaylistTracks(id: string, trackIds: string[]) {
+  const payload = await mutatePlaylist(id, '/reorder', 'PATCH', { trackIds });
+  return normalizePlaylist(payload.data);
+}
+export async function deletePersonalPlaylist(id: string) {
+  await mutatePlaylist(id, '', 'DELETE');
 }
 
 export async function getLiveBroadcastForStation(stationId: string, options: CacheControlOptions = {}) {

@@ -1,8 +1,10 @@
 import { Link } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, radius } from '@/src/theme/echooTheme';
+import { EchooColors, getEchooColors, radius } from '@/src/theme/echooTheme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function ModalScreen() {
+  const styles = createStyles(getEchooColors(useColorScheme()));
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Echoo</Text>
@@ -16,7 +18,7 @@ export default function ModalScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: EchooColors) => StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',

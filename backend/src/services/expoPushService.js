@@ -1,17 +1,17 @@
 import DevicePushToken from '../models/DevicePushToken.js';
+import PushDelivery from '../models/PushDelivery.js';
 
-const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
-const MAX_MESSAGES_PER_BATCH = 100;
 
 export async function sendBroadcastLivePush({ recipients, broadcast }) {
   const userIds = [...new Set(recipients.map((recipient) => String(recipient._id || recipient)))];
   if (!userIds.length) return;
 
-  const tokens = await DevicePushToken.find({ userId: { $in: userIds }, active: true }).select('token');
+  const tokens = await DevicePushToken.find({ userId: { $in: userIds }, active: true }).select('token userId');
   const messages = tokens.map(({ token }) => ({
     to: token,
     sound: 'default',
     priority: 'high',
+    ttl: 1800,
     channelId: 'live-alerts',
     title: 'A station you follow is live',
     body: `${broadcast.title} is live now on Echoo.`,
@@ -24,22 +24,11 @@ export async function sendBroadcastLivePush({ recipients, broadcast }) {
     },
   }));
 
-  for (let offset = 0; offset < messages.length; offset += MAX_MESSAGES_PER_BATCH) {
-    const batch = messages.slice(offset, offset + MAX_MESSAGES_PER_BATCH);
-    try {
-      const response = await fetch(EXPO_PUSH_URL, {
-        method: 'POST',
-        headers: { Accept: 'application/json', 'Accept-Encoding': 'gzip, deflate', 'Content-Type': 'application/json' },
-        body: JSON.stringify(batch),
-      });
-      const payload = await response.json().catch(() => null);
-      const invalidTokens = (payload?.data || []).flatMap((ticket, index) =>
-        ticket?.details?.error === 'DeviceNotRegistered' ? [batch[index]?.to] : []
-      ).filter(Boolean);
-      if (invalidTokens.length) await DevicePushToken.updateMany({ token: { $in: invalidTokens } }, { $set: { active: false } });
-      if (!response.ok) console.warn('Expo push delivery warning:', response.status);
-    } catch (error) {
-      console.warn('Expo push delivery warning:', error?.message || error);
-    }
-  }
+  if (!messages.length) return;
+  await PushDelivery.bulkWrite(messages.map((message, index) => ({ updateOne: {
+    filter: { broadcastId: broadcast._id, userId: tokens[index].userId, token: message.to },
+    update: { $setOnInsert: { broadcastId: broadcast._id, userId: tokens[index].userId, token: message.to,
+      message, state: 'queued', attempts: 0, receiptAttempts: 0, nextAt: new Date(), lockedUntil: new Date(0),
+      expiresAt: new Date(Date.now() + 30 * 60_000), purgeAt: new Date(Date.now() + 7 * 86400_000) } }, upsert: true,
+  } })), { ordered: false });
 }

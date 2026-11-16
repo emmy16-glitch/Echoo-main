@@ -21,6 +21,15 @@ type FileSystemModule = {
 
 const memoryCache = new Map<string, CacheRecord<unknown>>();
 const refreshes = new Map<string, Promise<unknown>>();
+const revisions = new Map<string, number>();
+const diskMutations = new Map<string, Promise<void>>();
+async function mutateDisk(key: string, action: () => Promise<void>) {
+  const previous = diskMutations.get(key) || Promise.resolve();
+  const next = previous.catch(() => undefined).then(action);
+  diskMutations.set(key, next);
+  try { await next; }
+  finally { if (diskMutations.get(key) === next) diskMutations.delete(key); }
+}
 const webStore = new Map<string, string>();
 const CACHE_DIR_NAME = 'echoo-api-cache';
 
@@ -88,16 +97,20 @@ function isStaleButUsable(record: CacheRecord<unknown>, staleAgeMs: number) {
 
 async function refreshCache<T>(key: string, loader: () => Promise<T>) {
   if (refreshes.has(key)) return refreshes.get(key) as Promise<T>;
+  const revision = revisions.get(key) || 0;
 
   const refresh = loader()
     .then(async (value) => {
       const record = { savedAt: Date.now(), value };
-      memoryCache.set(key, record);
-      await writeDiskRecord(key, record);
+      await mutateDisk(key, async () => {
+        if ((revisions.get(key) || 0) !== revision) return;
+        memoryCache.set(key, record);
+        await writeDiskRecord(key, record);
+      });
       return value;
     })
     .finally(() => {
-      refreshes.delete(key);
+      if (refreshes.get(key) === refresh) refreshes.delete(key);
     });
 
   refreshes.set(key, refresh);
@@ -109,6 +122,7 @@ export async function getCachedJson<T>(
   options: CacheOptions,
   loader: () => Promise<T>
 ): Promise<T> {
+  const revision = revisions.get(key) || 0;
   const staleAgeMs = Math.max(options.maxAgeMs, options.staleAgeMs || options.maxAgeMs);
   const memory = memoryCache.get(key) as CacheRecord<T> | undefined;
 
@@ -117,6 +131,7 @@ export async function getCachedJson<T>(
       return await refreshCache(key, loader);
     } catch (error) {
       const disk = await readDiskRecord<T>(key);
+      if ((revisions.get(key) || 0) !== revision) throw error;
       if (disk) return disk.value;
       if (memory) return memory.value;
       throw error;
@@ -130,6 +145,7 @@ export async function getCachedJson<T>(
   }
 
   const disk = await readDiskRecord<T>(key);
+  if ((revisions.get(key) || 0) !== revision) return getCachedJson(key, { ...options, forceRefresh: true }, loader);
   if (disk) {
     memoryCache.set(key, disk);
     if (isUsable(disk, options.maxAgeMs)) return disk.value;
@@ -142,6 +158,7 @@ export async function getCachedJson<T>(
   try {
     return await refreshCache(key, loader);
   } catch (error) {
+    if ((revisions.get(key) || 0) !== revision) throw error;
     if (disk) return disk.value;
     if (memory) return memory.value;
     throw error;
@@ -149,20 +166,23 @@ export async function getCachedJson<T>(
 }
 
 export async function peekCachedJson<T>(key: string): Promise<T | null> {
+  const revision = revisions.get(key) || 0;
   const memory = memoryCache.get(key) as CacheRecord<T> | undefined;
   if (memory) return memory.value;
 
   const disk = await readDiskRecord<T>(key);
+  if ((revisions.get(key) || 0) !== revision) return null;
   if (!disk) return null;
   memoryCache.set(key, disk);
   return disk.value;
 }
 
 export async function deleteCachedJson(key: string) {
+  revisions.set(key, (revisions.get(key) || 0) + 1);
   memoryCache.delete(key);
   refreshes.delete(key);
 
-  try {
+  await mutateDisk(key, async () => { try {
     if (Platform.OS === 'web') {
       webStore.delete(key);
       return;
@@ -173,5 +193,5 @@ export async function deleteCachedJson(key: string) {
     if (FileSystem && path) await FileSystem.deleteAsync(path, { idempotent: true });
   } catch {
     // Cache deletes are best-effort.
-  }
+  } });
 }

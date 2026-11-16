@@ -15,13 +15,13 @@ import {
   X,
 } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { EchooBrand } from '@/src/components/EchooBrand';
 import {
-  clearSession,
+  logoutEchoo,
   getCurrentUser,
   hasEchooSession,
   type EchooUser,
@@ -83,8 +83,8 @@ export default function MenuScreen() {
       return;
     }
 
-    await clearSession();
-    navigate('/');
+    try { await logoutEchoo(); navigate('/'); }
+    catch { Alert.alert('Could not sign out', 'Check your connection and try again. You are still signed in.'); }
   };
 
   const renderItem = ({ label, path, icon: Icon }: MenuItem) => (
@@ -148,8 +148,7 @@ export default function MenuScreen() {
               {renderItem({ label: 'Creator Studio', path: '/creator', icon: Mic })}
             </View>
           ) : null}
-          <View style={styles.divider} />
-          <View style={styles.menuGroup}>{accountItems.map(renderItem)}</View>
+          {signedIn ? <><View style={styles.divider} /><View style={styles.menuGroup}>{accountItems.map(renderItem)}</View></> : null}
 
           <View style={styles.footer}>
             <Pressable

@@ -13,7 +13,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ListenerMiniPlayer } from '@/src/components/ListenerV2';
 import { ListenerDetailTabBar } from '@/src/components/ListenerDetailTabBar';
 import { PlaybackProvider } from '@/src/playback/PlaybackProvider';
-import { registerEchooPushNotifications } from '@/src/services/pushNotifications';
+import { startPushRegistrationRecovery } from '@/src/services/pushNotifications';
+import { createNotificationResponseHandler } from '@/src/services/notificationResponses';
 import { EchooThemeProvider } from '@/src/theme/ThemePreference';
 import { getEchooColors } from '@/src/theme/echooTheme';
 
@@ -57,11 +58,8 @@ function RootLayoutContent() {
   }, [colorScheme, palette]);
 
   useEffect(() => {
-    void registerEchooPushNotifications().catch(() => undefined);
-    const openLiveNotification = (response: Notifications.NotificationResponse | null) => {
-      if (!response) return;
-      const data = response.notification.request.content.data as { broadcastId?: string; title?: string; stationName?: string; coverArt?: string };
-      if (!data?.broadcastId) return;
+    const stopRecovery = startPushRegistrationRecovery();
+    const openLiveNotification = createNotificationResponseHandler((data) => {
       router.navigate({
         pathname: '/live-room',
         params: {
@@ -71,10 +69,10 @@ function RootLayoutContent() {
           ...(data.coverArt ? { coverArt: String(data.coverArt) } : {}),
         },
       });
-    };
+    }, Notifications.clearLastNotificationResponseAsync);
     void Notifications.getLastNotificationResponseAsync().then(openLiveNotification).catch(() => undefined);
     const subscription = Notifications.addNotificationResponseReceivedListener(openLiveNotification);
-    return () => subscription.remove();
+    return () => { subscription.remove(); stopRecovery(); };
   }, [router]);
 
   return (

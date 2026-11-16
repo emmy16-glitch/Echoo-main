@@ -202,6 +202,7 @@ const userSchema = new mongoose.Schema(
         push: { type: Boolean, default: true },
         newFollowers: { type: Boolean, default: true },
         newReleases: { type: Boolean, default: true },
+        liveBroadcasts: { type: Boolean, default: true },
       },
       categories: [{
         type: String,

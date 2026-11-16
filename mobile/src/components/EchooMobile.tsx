@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ReactNode } from 'react';
@@ -22,13 +24,16 @@ import {
 } from 'lucide-react-native';
 
 import { EchooBrand } from '@/src/components/EchooBrand';
-import { colors, shadow } from '@/src/theme/echooTheme';
+import { EchooColors, getEchooColors, shadow } from '@/src/theme/echooTheme';
 
 export function Screen({ children }: { children: ReactNode }) {
+  const colors = getEchooColors(useColorScheme());
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={styles.root}>
       <LinearGradient
-        colors={['#f2f5ff', '#f8f9fb', '#f8f9fb']}
+        colors={[colors.surface, colors.background, colors.background]}
         style={styles.appWash}
       />
       <ScrollView
@@ -48,6 +53,9 @@ export function AppTopBar({
   title?: string;
   subtitle?: string;
 }) {
+  const colors = getEchooColors(useColorScheme());
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={styles.topBar}>
       <EchooBrand markSize={50} showText={false} />
@@ -63,6 +71,9 @@ export function AppTopBar({
 }
 
 export function SearchPill({ placeholder = 'Search music, stations, creators' }: { placeholder?: string }) {
+  const colors = getEchooColors(useColorScheme());
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <Pressable style={styles.searchPill}>
       <Search color={colors.muted} size={19} />
@@ -80,6 +91,9 @@ export function Header({
   title: string;
   subtitle?: string;
 }) {
+  const colors = getEchooColors(useColorScheme());
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={styles.header}>
       {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
@@ -100,6 +114,9 @@ export function FeaturedPlayer({
   badge?: string;
   image?: string | ImageSourcePropType | null;
 }) {
+  const colors = getEchooColors(useColorScheme());
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const source = typeof image === 'string' ? { uri: image } : image;
 
   return (
@@ -123,7 +140,7 @@ export function FeaturedPlayer({
 export function QuickCard({
   title,
   subtitle,
-  tone = colors.blue,
+  tone: customTone,
   icon = 'music',
 }: {
   title: string;
@@ -131,13 +148,16 @@ export function QuickCard({
   tone?: string;
   icon?: 'music' | 'headphones';
 }) {
+  const colors = getEchooColors(useColorScheme());
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   const Icon = icon === 'headphones' ? Headphones : Music2;
 
   return (
     <Pressable style={styles.quickCard}>
-      <View style={[styles.quickTone, { backgroundColor: tone }]} />
-      <View style={[styles.quickIcon, { backgroundColor: `${tone}18` }]}>
-        <Icon color={tone} size={21} />
+      <View style={[styles.quickTone, { backgroundColor: customTone || colors.blue }]} />
+      <View style={[styles.quickIcon, { backgroundColor: customTone ? `${customTone}18` : colors.blueSoft }]}>
+        <Icon color={customTone || colors.blue} size={21} />
       </View>
       <Text style={styles.quickTitle} numberOfLines={1}>{title}</Text>
       <Text style={styles.quickSubtitle} numberOfLines={2}>{subtitle}</Text>
@@ -154,6 +174,9 @@ export function Section({
   action?: string;
   children: ReactNode;
 }) {
+  const colors = getEchooColors(useColorScheme());
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={styles.section}>
       <View style={styles.sectionHead}>
@@ -171,6 +194,9 @@ export function Section({
 }
 
 export function HorizontalRail({ children }: { children: ReactNode }) {
+  const colors = getEchooColors(useColorScheme());
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
       {children}
@@ -191,6 +217,9 @@ export function MediaCard({
   live?: boolean;
   wide?: boolean;
 }) {
+  const colors = getEchooColors(useColorScheme());
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <Pressable style={[styles.mediaCard, wide && styles.mediaCardWide]}>
       <View style={[styles.mediaArt, wide && styles.mediaArtWide]}>
@@ -205,13 +234,16 @@ export function MediaCard({
 
 export function PlaylistChip({
   title,
-  tone = colors.blue,
+  tone: customTone,
 }: {
   title: string;
   tone?: string;
 }) {
+  const colors = getEchooColors(useColorScheme());
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
-    <Pressable style={[styles.playlistChip, { backgroundColor: tone }]}>
+    <Pressable style={[styles.playlistChip, { backgroundColor: customTone || colors.blue }]}>
       <Text style={styles.playlistChipText}>{title}</Text>
     </Pressable>
   );
@@ -228,6 +260,9 @@ export function ListRow({
   meta?: string;
   image?: string | null;
 }) {
+  const colors = getEchooColors(useColorScheme());
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <Pressable style={styles.row}>
       <View style={styles.rowArt}>
@@ -243,6 +278,9 @@ export function ListRow({
 }
 
 export function EmptyState({ title, subtitle }: { title: string; subtitle: string }) {
+  const colors = getEchooColors(useColorScheme());
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={styles.empty}>
       <Text style={styles.emptyTitle}>{title}</Text>
@@ -260,6 +298,9 @@ export function MiniPlayer({
   subtitle?: string;
   image?: string | null;
 }) {
+  const colors = getEchooColors(useColorScheme());
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   return (
     <View style={styles.miniPlayer}>
       <View style={styles.miniArt}>
@@ -342,7 +383,7 @@ type EchooMobileStyles = {
   quickSubtitle: TextStyle;
 };
 
-export const styles = StyleSheet.create<EchooMobileStyles>({
+const createStyles = (colors: EchooColors) => StyleSheet.create<EchooMobileStyles>({
   root: { flex: 1, backgroundColor: colors.paper },
   appWash: { position: 'absolute', top: 0, left: 0, right: 0, height: 260 },
   screen: { flex: 1 },
@@ -375,7 +416,7 @@ export const styles = StyleSheet.create<EchooMobileStyles>({
   rail: { gap: 14, paddingRight: 18 },
   mediaCard: { width: 136, gap: 8 },
   mediaCardWide: { width: 214 },
-  mediaArt: { width: 136, height: 136, backgroundColor: '#edf4ff', borderRadius: 16, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(38,93,255,0.08)' },
+  mediaArt: { width: 136, height: 136, backgroundColor: colors.surfaceMuted, borderRadius: 16, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(38,93,255,0.08)' },
   mediaArtWide: { width: 210, height: 124 },
   imageFill: { width: '100%', height: '100%' },
   mediaInitial: { color: colors.blue, fontSize: 38, fontWeight: '900' },

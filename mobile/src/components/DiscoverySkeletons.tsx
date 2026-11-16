@@ -1,5 +1,7 @@
 import { ReactNode, useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { getEchooColors } from '@/src/theme/echooTheme';
 
 function Pulse({ children }: { children: ReactNode }) {
   const opacity = useRef(new Animated.Value(0.55)).current;
@@ -15,7 +17,8 @@ function Pulse({ children }: { children: ReactNode }) {
 }
 
 function Block({ width, height, radius = 8 }: { width: number | `${number}%`; height: number; radius?: number }) {
-  return <View style={[styles.block, { width, height, borderRadius: radius }]} />;
+  const palette = getEchooColors(useColorScheme());
+  return <View style={{ width, height, borderRadius: radius, backgroundColor: palette.surfaceMuted }} />;
 }
 
 function Cards({ count = 2 }: { count?: number }) {
@@ -75,7 +78,6 @@ export function StationSkeleton() {
 }
 
 const styles = StyleSheet.create({
-  block: { backgroundColor: '#E3EAF4' },
   hero: { gap: 10, marginTop: 15, marginBottom: 22 },
   heading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   headingSpaced: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 44, marginBottom: 14 },

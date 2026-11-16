@@ -505,7 +505,7 @@ export default function AudioPlayerScreen() {
       ) : null}
       <LinearGradient
         colors={coverArt
-          ? ['rgba(32,20,16,0.36)', 'rgba(35,23,20,0.58)', 'rgba(247,249,253,0.96)', palette.background]
+          ? ['rgba(32,20,16,0.36)', 'rgba(35,23,20,0.58)', palette.background, palette.background]
           : [palette.night2, palette.night, palette.background, palette.background]}
         locations={[0, 0.34, 0.72, 1]}
         style={StyleSheet.absoluteFillObject}
@@ -674,7 +674,7 @@ export default function AudioPlayerScreen() {
             disabled={!canControl}
             accessibilityLabel={hasQueue ? 'Previous track' : 'Back 15 seconds'}
           >
-            <SkipBack color="#050505" fill="#050505" size={29} />
+            <SkipBack color={palette.ink} fill={palette.ink} size={29} />
           </Pressable>
           <Pressable
             style={[styles.playButton, !canControl && styles.controlDisabled]}
@@ -694,14 +694,14 @@ export default function AudioPlayerScreen() {
             disabled={!canControl}
             accessibilityLabel={upNext.length ? 'Next track' : 'Forward 15 seconds'}
           >
-            <SkipForward color="#050505" fill="#050505" size={29} />
+            <SkipForward color={palette.ink} fill={palette.ink} size={29} />
           </Pressable>
           <Pressable
             style={styles.secondaryControl}
             onPress={() => playback.setRepeat(!repeatOn)}
             accessibilityLabel="Toggle repeat"
           >
-            <Repeat2 color={repeatOn ? palette.red : '#050505'} size={21} />
+            <Repeat2 color={repeatOn ? palette.red : palette.ink} size={21} />
             {repeatOn ? <View style={styles.activeDot} /> : null}
           </Pressable>
         </View>
@@ -755,24 +755,24 @@ export default function AudioPlayerScreen() {
             <View style={styles.sheetHandle} />
             <View style={[styles.sheetHeading, styles.playlistHeading]}>
               <Text style={styles.sheetTitle}>{addedPlaylist ? 'Added to playlist' : 'Add to playlist'}</Text>
-              <Pressable onPress={() => setPlaylistModalOpen(false)} accessibilityLabel="Close playlist sheet"><X color="#858585" size={22} /></Pressable>
+              <Pressable onPress={() => setPlaylistModalOpen(false)} accessibilityLabel="Close playlist sheet"><X color={palette.muted} size={22} /></Pressable>
             </View>
             {addedPlaylist ? (
               <>
-                <View style={styles.playlistSuccess}><CheckCircle2 color="#278065" size={21} /><Text style={styles.playlistSuccessText}>{title} was added to {addedPlaylist.name}.</Text></View>
+                <View style={styles.playlistSuccess}><CheckCircle2 color={palette.success} size={21} /><Text style={styles.playlistSuccessText}>{title} was added to {addedPlaylist.name}.</Text></View>
                 <View style={styles.sheetTrackRow}>
-                  <View style={styles.sheetArtwork}>{addedPlaylist.coverArt ? <Image source={{ uri: addedPlaylist.coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : <ListMusic color="#2B5FC0" size={22} />}</View>
+                  <View style={styles.sheetArtwork}>{addedPlaylist.coverArt ? <Image source={{ uri: addedPlaylist.coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : <ListMusic color={palette.blue} size={22} />}</View>
                   <View style={styles.sheetTrackCopy}><Text style={styles.sheetTrackTitle} numberOfLines={1}>{addedPlaylist.name}</Text><Text style={styles.sheetTrackMeta}>By you · {addedPlaylist.trackCount || addedPlaylist.tracks.length} tracks</Text></View>
-                  <CheckCircle2 color="#858585" size={23} />
+                  <CheckCircle2 color={palette.muted} size={23} />
                 </View>
                 <Pressable style={styles.playlistViewButton} onPress={() => { setPlaylistModalOpen(false); push({ pathname: '/collection', params: { collectionId: addedPlaylist.id } }); }}><Text style={styles.playlistViewText}>View {addedPlaylist.name}</Text></Pressable>
                 <Pressable style={styles.playlistDoneButton} onPress={() => setPlaylistModalOpen(false)}><Text style={styles.playlistDoneText}>Done</Text></Pressable>
               </>
             ) : <>
             <View style={styles.sheetTrackRow}>
-              <View style={styles.sheetArtwork}>{coverArt ? <Image source={{ uri: coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : <Music2 color="#2B5FC0" size={22} />}</View>
+              <View style={styles.sheetArtwork}>{coverArt ? <Image source={{ uri: coverArt }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : <Music2 color={palette.blue} size={22} />}</View>
               <View style={styles.sheetTrackCopy}><Text style={styles.sheetTrackTitle} numberOfLines={1}>{title}</Text><Text style={styles.sheetTrackMeta} numberOfLines={1}>{stationName}</Text></View>
-              <Music2 color="#858585" size={23} />
+              <Music2 color={palette.muted} size={23} />
             </View>
             <Text style={styles.playlistPrompt}>Choose a playlist</Text>
             {creatingPlaylist ? <View style={styles.newPlaylistRow}>
@@ -812,7 +812,7 @@ export default function AudioPlayerScreen() {
                     <Text style={styles.playlistName} numberOfLines={1}>{playlist.name}</Text>
                     <Text style={styles.playlistMeta}>By you · {playlist.trackCount || playlist.tracks.length} tracks</Text>
                   </View>
-                  {playlistBusyId === playlist.id ? <ActivityIndicator color={palette.blue} size="small" /> : <Plus color="#858585" size={23} />}
+                  {playlistBusyId === playlist.id ? <ActivityIndicator color={palette.blue} size="small" /> : <Plus color={palette.muted} size={23} />}
                 </Pressable>
               ))}
               </ScrollView>
@@ -932,7 +932,7 @@ export default function AudioPlayerScreen() {
             </View>
             <Text style={styles.shareUrl} selectable numberOfLines={2}>{audioId ? `https://echoo.digi02.org/listen/audio/${encodeURIComponent(audioId)}` : ''}</Text>
             <Pressable style={styles.copyLinkButton} onPress={() => { void shareTrack().then(() => setShareCopied(true)).catch(() => setActionError('Could not share this audio.')); }}><Text style={styles.copyLinkText}>Share link</Text></Pressable>
-            {shareCopied ? <View style={styles.copyNotice}><Check color="#278065" size={22} /><Text style={styles.copyNoticeText}>Share options opened</Text></View> : null}
+            {shareCopied ? <View style={styles.copyNotice}><Check color={palette.success} size={22} /><Text style={styles.copyNoticeText}>Share options opened</Text></View> : null}
             <Pressable style={styles.primaryDone} onPress={() => setShareAudioOpen(false)}><Text style={styles.primaryDoneText}>Done</Text></Pressable>
           </Pressable>
         </Pressable>
@@ -1056,7 +1056,7 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   statusText: { color: 'rgba(255,255,255,0.78)', fontSize: 11.5, fontWeight: '700' },
   errorText: { color: palette.red, fontSize: 11.5, lineHeight: 16, textAlign: 'center', marginTop: 9 },
   recoveryState: { alignItems: 'stretch', paddingTop: 38 },
-  recoveryNotice: { minHeight: 68, borderRadius: 12, backgroundColor: '#FCE8EC', paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  recoveryNotice: { minHeight: 68, borderRadius: 12, backgroundColor: palette.dangerSoft, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
   recoveryNoticeIcon: { color: palette.red, fontSize: 21, fontWeight: '800' },
   recoveryNoticeText: { flex: 1, color: palette.red, fontSize: 12.5, lineHeight: 18, fontWeight: '700' },
   recoveryHint: { color: 'rgba(255,255,255,0.72)', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 18, paddingHorizontal: 8 },
@@ -1088,7 +1088,7 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 34,
-    backgroundColor: '#050505',
+    backgroundColor: palette.blue,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1099,7 +1099,7 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.surfaceRaised,
   },
   footerActions: {
     marginTop: 10,
@@ -1131,18 +1131,18 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   upNextPanel: {
     marginTop: 24,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.86)',
+    backgroundColor: palette.surfaceRaised,
     padding: 16,
   },
   upNextHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  upNextTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 16 },
-  upNextCount: { color: '#666666', fontFamily: 'DMSans_500Medium', fontSize: 11 },
+  upNextTitle: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 16 },
+  upNextCount: { color: palette.muted, fontFamily: 'DMSans_500Medium', fontSize: 11 },
   upNextRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 10 },
   upNextArt: { width: 44, height: 44, borderRadius: 7, overflow: 'hidden', backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   upNextCopy: { flex: 1, minWidth: 0 },
-  upNextTrack: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 13 },
-  upNextMeta: { color: '#666666', fontFamily: 'DMSans_400Regular', fontSize: 11, marginTop: 2 },
-  upNextEmpty: { color: '#666666', fontFamily: 'DMSans_400Regular', fontSize: 12, paddingVertical: 8 },
+  upNextTrack: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 13 },
+  upNextMeta: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 11, marginTop: 2 },
+  upNextEmpty: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 12, paddingVertical: 8 },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.52)',
@@ -1152,7 +1152,7 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     height: '52.5%',
     borderTopLeftRadius: 26,
     borderTopRightRadius: 26,
-    backgroundColor: '#F9FBFF',
+    backgroundColor: palette.background,
     paddingHorizontal: 24,
     paddingTop: 10,
     paddingBottom: 24,
@@ -1183,25 +1183,25 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 16,
   },
-  sheetTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 22, marginBottom: 0 },
+  sheetTitle: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 22, marginBottom: 0 },
   sheetHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   playlistHeading: { minHeight: 34, marginBottom: 13 },
   sheetClose: { color: palette.muted, fontSize: 34, lineHeight: 34, fontWeight: '400', marginTop: -12 },
   sheetTrackRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   sheetArtwork: { width: 62, height: 58, borderRadius: 5, overflow: 'hidden', backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   sheetTrackCopy: { flex: 1, minWidth: 0 },
-  sheetTrackTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 15 },
-  sheetTrackMeta: { color: '#868686', fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 4 },
-  playlistPrompt: { color: '#868686', fontFamily: 'DMSans_400Regular', fontSize: 13, marginBottom: 12 },
+  sheetTrackTitle: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 15 },
+  sheetTrackMeta: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 4 },
+  playlistPrompt: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 13, marginBottom: 12 },
   playlistChoices: { maxHeight: 148, flexGrow: 0 },
-  createPlaylistOutline: { height: 56, borderRadius: 28, borderWidth: 1, borderColor: '#858585', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginTop: 8 },
-  createPlaylistOutlineText: { color: '#2B5FC0', fontFamily: 'DMSans_700Bold', fontSize: 15 },
-  playlistSuccess: { minHeight: 44, borderRadius: 10, paddingHorizontal: 12, marginBottom: 16, backgroundColor: '#E7F2EC', flexDirection: 'row', alignItems: 'center', gap: 9 },
-  playlistSuccessText: { flex: 1, color: '#278065', fontFamily: 'DMSans_400Regular', fontSize: 12.5 },
-  playlistViewButton: { height: 56, borderRadius: 28, backgroundColor: '#2B5FC0', alignItems: 'center', justifyContent: 'center' },
+  createPlaylistOutline: { height: 56, borderRadius: 28, borderWidth: 1, borderColor: palette.muted, backgroundColor: palette.surfaceRaised, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  createPlaylistOutlineText: { color: palette.blue, fontFamily: 'DMSans_700Bold', fontSize: 15 },
+  playlistSuccess: { minHeight: 44, borderRadius: 10, paddingHorizontal: 12, marginBottom: 16, backgroundColor: palette.successSoft, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  playlistSuccessText: { flex: 1, color: palette.success, fontFamily: 'DMSans_400Regular', fontSize: 12.5 },
+  playlistViewButton: { height: 56, borderRadius: 28, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   playlistViewText: { color: '#FFFFFF', fontFamily: 'DMSans_700Bold', fontSize: 15 },
   playlistDoneButton: { height: 55, alignItems: 'center', justifyContent: 'center', marginTop: 14 },
-  playlistDoneText: { color: '#2B5FC0', fontFamily: 'DMSans_700Bold', fontSize: 15 },
+  playlistDoneText: { color: palette.blue, fontFamily: 'DMSans_700Bold', fontSize: 15 },
   infoDuration: { color: palette.muted, fontSize: 12.5, marginBottom: 24 },
   infoHeading: { color: palette.ink, fontSize: 15, fontWeight: '900', marginBottom: 7 },
   infoBody: { color: palette.muted, fontSize: 13.5, lineHeight: 20 },
@@ -1210,10 +1210,10 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   outlineDone: { minHeight: 56, borderRadius: 28, borderWidth: 1, borderColor: palette.muted, alignItems: 'center', justifyContent: 'center', marginTop: 28 },
   outlineDoneText: { color: palette.blue, fontSize: 15, fontWeight: '900' },
   copyLinkButton: { minHeight: 56, borderRadius: 28, backgroundColor: palette.surfaceRaised, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
-  shareUrl: { color: '#555555', fontFamily: 'DMSans_400Regular', fontSize: 12, marginTop: 12 },
+  shareUrl: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 12, marginTop: 12 },
   copyLinkText: { color: palette.blue, fontSize: 15, fontWeight: '900' },
-  copyNotice: { minHeight: 58, borderRadius: 12, backgroundColor: '#E7F2EC', marginTop: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  copyNoticeText: { color: '#278065', fontSize: 14, fontWeight: '800' },
+  copyNotice: { minHeight: 58, borderRadius: 12, backgroundColor: palette.successSoft, marginTop: 14, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  copyNoticeText: { color: palette.success, fontSize: 14, fontWeight: '800' },
   primaryDone: { minHeight: 56, borderRadius: 28, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center', marginTop: 28 },
   primaryDoneText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
   sheetSubtitle: { color: palette.muted, fontSize: 12, marginTop: -10, marginBottom: 14 },
@@ -1265,6 +1265,6 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
     overflow: 'hidden',
   },
   playlistCopy: { flex: 1, minWidth: 0 },
-  playlistName: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 15 },
-  playlistMeta: { color: '#868686', fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 4 },
+  playlistName: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 15 },
+  playlistMeta: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 4 },
 });

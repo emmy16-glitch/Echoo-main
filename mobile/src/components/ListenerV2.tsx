@@ -389,7 +389,7 @@ export function ListenerMiniPlayer() {
 
   return (
     <View style={[styles.miniPlayer, onHome && styles.homeMiniPlayer, { bottom: bottomOffset }]}>
-      {onHome ? <LinearGradient colors={['#536783', '#A9BBD7']} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.homeMiniGradient} /> : null}
+      {onHome ? <LinearGradient colors={[palette.blueDeep, palette.night2]} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.homeMiniGradient} /> : null}
       <Pressable style={styles.miniOpenArea} onPress={openPlayer} accessibilityLabel="Open player">
         <View style={[styles.miniArt, onHome && styles.homeMiniArt]}>
           {current.coverArt ? (
@@ -511,8 +511,8 @@ const makeStyles = (palette: EchooColors) =>
     toast: { borderRadius: 8, borderWidth: 1, borderColor: `${palette.red}55`, backgroundColor: `${palette.red}14`, paddingHorizontal: 12, paddingVertical: 10, marginTop: 10 },
     toastInfo: { borderColor: `${palette.blue}55`, backgroundColor: `${palette.blue}14` },
     toastText: { color: palette.ink, fontSize: 12, lineHeight: 17, fontWeight: '700', textAlign: 'center' },
-    primaryButton: { marginTop: 15, height: 42, borderRadius: 13, backgroundColor: palette.blue, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
-    primaryButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
+    primaryButton: { marginTop: 15, height: 42, borderRadius: 13, backgroundColor: palette.blueSoft, borderWidth: 1, borderColor: `${palette.blue}2E`, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
+    primaryButtonText: { color: palette.blue, fontSize: 13, fontWeight: '900' },
     authCard: { backgroundColor: palette.surfaceRaised, borderRadius: 20, borderWidth: 1, borderColor: palette.line, padding: 16, alignItems: 'center', gap: 12 },
     authIcon: { width: 54, height: 54, borderRadius: 18, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
     authCopy: { alignItems: 'center' },
@@ -527,7 +527,7 @@ const makeStyles = (palette: EchooColors) =>
     listSubtitle: { color: palette.muted, fontSize: 11.5, marginTop: 3 },
     listMeta: { color: palette.muted, fontSize: 11, fontWeight: '700', marginRight: 6 },
     miniPlayer: { position: 'absolute', left: 10, right: 10, minHeight: 68, borderRadius: 8, backgroundColor: palette.surfaceRaised, borderWidth: 1, borderColor: palette.lineStrong, flexDirection: 'row', alignItems: 'center', padding: 8, paddingBottom: 11, shadowColor: '#000', shadowOpacity: 0.28, shadowRadius: 18, shadowOffset: { width: 0, height: 7 }, elevation: 14 },
-    homeMiniPlayer: { left: 24, right: 24, minHeight: 96, borderRadius: 23, borderWidth: 1, borderColor: '#D5E0F0', padding: 16, paddingBottom: 22, backgroundColor: '#A9BBD7', overflow: 'hidden', shadowOpacity: 0.12 },
+    homeMiniPlayer: { left: 24, right: 24, minHeight: 96, borderRadius: 23, borderWidth: 1, borderColor: palette.line, padding: 16, paddingBottom: 22, backgroundColor: palette.blueDeep, overflow: 'hidden', shadowOpacity: 0.12 },
     homeMiniGradient: { ...StyleSheet.absoluteFillObject },
     homeMiniArt: { width: 66, height: 60, borderRadius: 8 },
     homeMiniTitle: { color: '#FFFFFF', fontFamily: 'DMSans_700Bold', fontSize: 16 },

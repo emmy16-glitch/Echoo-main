@@ -1,4 +1,5 @@
 import express from 'express';
+import { startPushDeliveryWorker } from './services/pushDeliveryWorker.js';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -43,6 +44,7 @@ import {
 import { checkFfmpegCapability } from './services/audioTrimService.js';
 
 const app = express();
+let stopPushDeliveryWorker;
 
 // Staging/preview deployments sit behind local reverse proxies (Vite preview
 // proxy, Cloudflare tunnel) that set X-Forwarded-For. Trust loopback proxies
@@ -587,6 +589,7 @@ async function startServer() {
     // requests. Request-driven recording finalization remains available there.
     if (!isServerlessRuntime) {
       startOrphanSweep();
+      stopPushDeliveryWorker = startPushDeliveryWorker();
       startBroadcastProcessingWorker(io);
     }
 
@@ -620,6 +623,7 @@ const shutdown = async (signal) => {
   socketBroadcastInflight.clear();
   clearLiveKitWebhookTimers();
   stopOrphanSweep();
+  stopPushDeliveryWorker?.();
   stopBroadcastProcessingWorker();
   await closeLiveKitRecordingWebSocket().catch(error => {
     console.error('[Echoo Recording] interrupted recorder shutdown:', error?.message || error);

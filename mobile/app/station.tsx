@@ -2,6 +2,8 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
+import { useLatestRequest } from '@/src/navigation/useLatestRequest';
+import { subscribeSessionChanges } from '@/src/services/sessionLifecycle';
 import { useGuardedRouter } from '@/src/navigation/useGuardedRouter';
 import {
   ChevronLeft,
@@ -24,7 +26,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AudioRowActions } from '@/src/components/AudioRowActions';
@@ -80,6 +82,9 @@ function compactNumber(value = 0) {
 }
 
 export default function StationScreen() {
+  const requests = useLatestRequest();
+  const liveRequests = useLatestRequest();
+  const insets = useSafeAreaInsets();
   const { router, push } = useGuardedRouter();
   const params = useLocalSearchParams<{ stationId?: string; tab?: StationTab }>();
   const stationId = String(params.stationId || '');
@@ -106,6 +111,8 @@ export default function StationScreen() {
   const lastLiveRefreshAtRef = useRef(0);
 
   const load = useCallback(async (force = false, silent = false) => {
+    const active = requests.begin();
+    const liveActive = liveRequests.begin();
     if (!stationId) {
       setError('Station ID is missing.');
       setLoading(false);
@@ -128,18 +135,21 @@ export default function StationScreen() {
         getLiveBroadcastForStation(stationId, { force }).catch(() => null),
       ]);
 
+      if (!active()) return;
+
       setSignedIn(session);
       setStation(nextStation);
-      setLive(nextLive);
+      if (liveActive()) setLive(nextLive);
 
       const ownerId = nextStation?.owner?.id || '';
       const [audioRows, collectionRows] = await Promise.all([
         getPublicAudioByCreator(ownerId, { force }).catch((audioError) => {
-          setContentError(friendlyErrorMessage(audioError, 'Could not load station content.'));
+          if (active()) setContentError(friendlyErrorMessage(audioError, 'Could not load station content.'));
           return [];
         }),
         getPublicCollectionsForStation(stationId, { force }).catch(() => []),
       ]);
+      if (!active()) return;
       setPublishedAudio(audioRows);
       setCollections(collectionRows);
 
@@ -148,41 +158,55 @@ export default function StationScreen() {
         const followed = await getFollowedStations({ force }).catch(() => []);
         nextFollowing = followed.some((item: EchooStation) => item.id === stationId);
       }
+      if (!active()) return;
       setFollowing(nextFollowing);
 
       stationScreenCache.set(stationId, {
         station: nextStation,
-        live: nextLive,
+        live: liveActive() ? nextLive : stationScreenCache.get(stationId)?.live || null,
         publishedAudio: audioRows,
         collections: collectionRows,
         signedIn: session,
         following: nextFollowing,
       });
     } catch (loadError: any) {
+      if (!active()) return;
       setError(friendlyErrorMessage(loadError, 'Could not load this station.'));
     } finally {
-      setLoading(false);
-      setContentLoading(false);
-      setRefreshing(false);
+      if (active()) {
+        setLoading(false);
+        setContentLoading(false);
+        setRefreshing(false);
+      }
     }
-  }, [stationId]);
+  }, [stationId, requests, liveRequests]);
 
   useEffect(() => {
+    const cached = stationScreenCache.get(stationId);
+    setStation(cached?.station || null);
+    setLive(cached?.live || null);
+    setPublishedAudio(cached?.publishedAudio || []);
+    setCollections(cached?.collections || []);
+    setFollowing(false);
+    setSignedIn(false);
     load(false, Boolean(stationScreenCache.get(stationId)));
-  }, [load, stationId]);
+    return () => { requests.invalidate(); liveRequests.invalidate(); refreshingLiveRef.current = false; };
+  }, [load, stationId, requests, liveRequests]);
 
   const refreshLiveStatus = useCallback(async () => {
     if (!stationId || refreshingLiveRef.current) return;
+    const active = liveRequests.begin();
     refreshingLiveRef.current = true;
     try {
       const nextLive = await getLiveBroadcastForStation(stationId, { force: true }).catch(() => null);
+      if (!active()) return;
       setLive(nextLive);
       const cached = stationScreenCache.get(stationId);
       if (cached) stationScreenCache.set(stationId, { ...cached, live: nextLive });
     } finally {
       refreshingLiveRef.current = false;
     }
-  }, [stationId]);
+  }, [stationId, liveRequests]);
 
   useFocusEffect(
     useCallback(() => {
@@ -195,6 +219,11 @@ export default function StationScreen() {
       };
 
       refreshQuietly();
+      const unsubscribeSession = subscribeSessionChanges(() => {
+        setSignedIn(false);
+        setFollowing(false);
+        void load(false, true);
+      });
       const interval = setInterval(refreshQuietly, STATION_LIVE_REFRESH_MS);
       const subscription = AppState.addEventListener('change', (nextAppState) => {
         const returnedToApp =
@@ -206,8 +235,9 @@ export default function StationScreen() {
       return () => {
         clearInterval(interval);
         subscription.remove();
+        unsubscribeSession();
       };
-    }, [refreshLiveStatus])
+    }, [refreshLiveStatus, load])
   );
 
   const toggleFollow = async () => {
@@ -293,7 +323,7 @@ export default function StationScreen() {
 
   const openAudio = async (track: EchooAudio, collection?: EchooPlaylist) => {
     const index = Math.max(0, stationAudioQueue.findIndex((item) => item.id === track.id));
-    await playback.playAudioQueue(stationAudioQueue, index);
+    void playback.playAudioQueue(stationAudioQueue, index).catch(() => undefined);
     push({
       pathname: '/audio-player',
       params: {
@@ -412,16 +442,18 @@ export default function StationScreen() {
           />
         }
       >
-        {loading && !station ? <><Pressable style={styles.fallbackBack} onPress={() => router.back()} accessibilityLabel="Go back"><ChevronLeft color="#050505" size={26} /></Pressable><View style={styles.skeletonInset}><StationSkeleton /></View></> : null}
+        {loading && !station ? <><Pressable style={styles.fallbackBack} onPress={() => router.back()} accessibilityLabel="Go back"><ChevronLeft color={palette.ink} size={26} /></Pressable><View style={styles.skeletonInset}><StationSkeleton /></View></> : null}
 
         {!loading && error && !station ? (
-          <ListenerEmptyState
-            title="Station unavailable"
-            subtitle={error}
-            action="Try again"
-            onAction={() => load(true)}
-            icon={<Radio color={palette.blue} size={25} />}
-          />
+          <View style={[styles.errorStateInset, { paddingTop: Math.max(insets.top + 24, 64) }]}>
+            <ListenerEmptyState
+              title="Station unavailable"
+              subtitle={error}
+              action="Try again"
+              onAction={() => load(true)}
+              icon={<Radio color={palette.blue} size={25} />}
+            />
+          </View>
         ) : null}
 
         {!loading && station ? (
@@ -432,15 +464,14 @@ export default function StationScreen() {
               ) : (
                 <LinearGradient colors={[palette.blue, palette.night2]} style={StyleSheet.absoluteFillObject} />
               )}
-              <LinearGradient colors={['rgba(0,0,0,0.03)', 'rgba(0,0,0,0.02)', 'rgba(255,255,255,0.2)', '#F9FBFF']} locations={[0, 0.44, 0.8, 1]} style={StyleSheet.absoluteFillObject} />
-              <Pressable style={styles.heroBack} onPress={() => router.back()} accessibilityLabel="Go back"><ChevronLeft color="#050505" size={25} strokeWidth={2.5} /></Pressable>
+              <Pressable style={[styles.heroBack, { top: insets.top + 8 }]} onPress={() => router.back()} accessibilityLabel="Go back"><ChevronLeft color={palette.ink} size={25} strokeWidth={2.5} /></Pressable>
+            </View>
               <View style={styles.heroInfo}>
-                <Text style={styles.heroName}>{station.name} <Text style={styles.heroHandle}>@{station.slug || station.name.toLowerCase().replace(/\s+/g, '')}</Text></Text>
+                <Text style={styles.heroName}>{station.name}</Text>
+                <Text style={styles.heroHandle}>@{station.slug || station.name.toLowerCase().replace(/\s+/g, '')}</Text>
                 <Text style={styles.heroStats}>{compactNumber(station.followerCount)} followers  ·  {publishedAudio.length} audios</Text>
                 <View style={styles.bioRow}><Text style={styles.heroBio} numberOfLines={3}>{station.description || station.category || 'Live audio, teachings, conversations and collections.'}</Text><Pressable style={styles.followButton} onPress={toggleFollow} disabled={followBusy} accessibilityRole="button" accessibilityLabel={following ? 'Unfollow channel' : 'Follow channel'}>{followBusy ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.followText}>{following ? 'Following' : 'Follow'}</Text>}</Pressable></View>
               </View>
-            </View>
-
             {error ? <ListenerToast message={error} /> : null}
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRail}>
@@ -530,7 +561,7 @@ function CollectionRow({ collection, onPress, palette }: {
         )}
       </View>
       <View style={styles.collectionCopy}><Text style={styles.collectionTitle} numberOfLines={1}>{collection.name}</Text><Text style={styles.collectionMeta} numberOfLines={1}>{collection.trackCount ?? collection.tracks.length} audios</Text></View>
-      <MoreVertical color="#050505" size={21} />
+      <MoreVertical color={palette.ink} size={21} />
     </Pressable>
   );
 }
@@ -581,19 +612,20 @@ function CompactEmpty({ icon, title, text, palette }: {
 }
 
 const createStyles = (palette: EchooColors) => StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F9FBFF' },
+  safeArea: { flex: 1, backgroundColor: palette.background },
   content: { paddingBottom: 140 },
+  errorStateInset: { paddingHorizontal: 24 },
   fallbackBack: { marginTop: 48, marginLeft: 24, width: 42, height: 42, justifyContent: 'center' },
   skeletonInset: { marginHorizontal: 24 },
-  hero: { height: 400, backgroundColor: palette.surfaceMuted, overflow: 'hidden' },
-  heroBack: { position: 'absolute', top: 50, left: 24, width: 30, height: 30, borderRadius: 15, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
-  heroInfo: { position: 'absolute', left: 24, right: 24, bottom: 6 },
-  heroName: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 23, letterSpacing: -0.6 },
-  heroHandle: { color: '#050505', fontFamily: 'DMSans_500Medium', fontSize: 13 },
-  heroStats: { color: '#555555', fontFamily: 'DMSans_400Regular', fontSize: 12, marginTop: 4 },
+  hero: { height: 280, backgroundColor: palette.surfaceMuted, overflow: 'hidden' },
+  heroBack: { position: 'absolute', top: 50, left: 24, width: 30, height: 30, borderRadius: 15, backgroundColor: palette.surfaceRaised, alignItems: 'center', justifyContent: 'center' },
+  heroInfo: { paddingHorizontal: 24, paddingTop: 18, paddingBottom: 16, backgroundColor: palette.background },
+  heroName: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 23, letterSpacing: -0.6 },
+  heroHandle: { color: palette.muted, fontFamily: 'DMSans_500Medium', fontSize: 13, marginTop: 4 },
+  heroStats: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 12, marginTop: 4 },
   bioRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginTop: 6 },
-  heroBio: { color: '#5F5F5F', fontFamily: 'DMSans_400Regular', fontSize: 13, lineHeight: 17, flex: 1 },
-  followButton: { width: 78, minHeight: 38, borderRadius: 20, backgroundColor: '#050505', alignItems: 'center', justifyContent: 'center' },
+  heroBio: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 13, lineHeight: 17, flex: 1 },
+  followButton: { width: 78, minHeight: 38, borderRadius: 20, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   followText: { color: '#FFFFFF', fontFamily: 'DMSans_500Medium', fontSize: 13 },
   nav: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   navActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -605,41 +637,41 @@ const createStyles = (palette: EchooColors) => StyleSheet.create({
   profileRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 18 },
   avatar: { width: 86, height: 86, borderRadius: 43, overflow: 'hidden', backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   profileCopy: { flex: 1, minWidth: 0 },
-  stationName: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 24, lineHeight: 29, letterSpacing: -0.6 },
-  handle: { color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 14, marginTop: 3 },
-  statsLine: { color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 12, marginTop: 5 },
-  bio: { color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 13, lineHeight: 19, marginTop: 14 },
+  stationName: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 24, lineHeight: 29, letterSpacing: -0.6 },
+  handle: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 14, marginTop: 3 },
+  statsLine: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 12, marginTop: 5 },
+  bio: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 13, lineHeight: 19, marginTop: 14 },
   actionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16 },
   liveButton: { flex: 1, minHeight: 48, borderRadius: 24, backgroundColor: palette.blue, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   liveButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
   inlineError: { color: palette.red, fontSize: 11.5, lineHeight: 16, textAlign: 'center', marginTop: 9 },
   tabRail: { gap: 20, paddingTop: 14, paddingHorizontal: 24 },
   tabButton: { minHeight: 42, alignItems: 'center', justifyContent: 'flex-start' },
-  tabText: { color: '#999999', fontFamily: 'DMSans_700Bold', fontSize: 14 },
-  tabTextActive: { color: '#2B5FC0' },
-  tabIndicator: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, borderRadius: 1, backgroundColor: '#2B5FC0' },
+  tabText: { color: palette.faint, fontFamily: 'DMSans_700Bold', fontSize: 14 },
+  tabTextActive: { color: palette.blue },
+  tabIndicator: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 2, borderRadius: 1, backgroundColor: palette.blue },
   tabPanel: { paddingTop: 18, gap: 22, paddingHorizontal: 24 },
   section: { gap: 4 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 20 },
-  sectionAction: { color: '#2B5FC0', fontFamily: 'DMSans_700Bold', fontSize: 13 },
+  sectionTitle: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 20 },
+  sectionAction: { color: palette.blue, fontFamily: 'DMSans_700Bold', fontSize: 13 },
   listStack: { paddingTop: 16, gap: 11, paddingHorizontal: 24 },
   audioRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5 },
   audioArt: { width: 66, height: 58, borderRadius: 5, overflow: 'hidden', backgroundColor: palette.blueSoft, alignItems: 'center', justifyContent: 'center' },
   audioCopy: { flex: 1, minWidth: 0 },
-  audioTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 15 },
-  audioSubtitle: { color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 4 },
+  audioTitle: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 15 },
+  audioSubtitle: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 4 },
   durationLine: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   durationText: { color: palette.faint, fontSize: 10.5, fontWeight: '700' },
-  rowAction: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#2B5FC0', alignItems: 'center', justifyContent: 'center' },
+  rowAction: { width: 24, height: 24, borderRadius: 12, backgroundColor: palette.blue, alignItems: 'center', justifyContent: 'center' },
   collectionRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5 },
   collectionArt: { width: 66, height: 58, borderRadius: 5, overflow: 'hidden', backgroundColor: palette.blueSoft },
   collectionBadge: { display: 'none' },
   collectionBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900' },
   collectionCopy: { flex: 1, minWidth: 0 },
-  collectionTitle: { color: '#050505', fontFamily: 'DMSans_700Bold', fontSize: 15 },
-  collectionMeta: { color: '#858585', fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 5 },
-  liveFeature: { minHeight: 92, borderRadius: 18, backgroundColor: '#E7EFFC', flexDirection: 'row', alignItems: 'center', padding: 13, gap: 12 },
+  collectionTitle: { color: palette.ink, fontFamily: 'DMSans_700Bold', fontSize: 15 },
+  collectionMeta: { color: palette.muted, fontFamily: 'DMSans_400Regular', fontSize: 13, marginTop: 5 },
+  liveFeature: { minHeight: 92, borderRadius: 18, backgroundColor: palette.blueSoft, flexDirection: 'row', alignItems: 'center', padding: 13, gap: 12 },
   liveFeatureIcon: { width: 50, height: 50, borderRadius: 8, backgroundColor: `${palette.red}16`, alignItems: 'center', justifyContent: 'center' },
   liveFeatureCopy: { flex: 1, minWidth: 0 },
   livePill: { alignSelf: 'flex-start', minHeight: 20, borderRadius: 4, backgroundColor: `${palette.red}20`, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 7 },

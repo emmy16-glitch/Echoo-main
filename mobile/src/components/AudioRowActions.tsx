@@ -108,7 +108,7 @@ export function AudioRowActions({
   }, [downloaded, track.id]);
 
   const toggleSaved = async () => {
-    if (!track.id || !(await requireSession())) return;
+    if (busy || !track.id || !(await requireSession())) return;
     setBusy('save');
     setMessage('');
     try {
@@ -133,7 +133,7 @@ export function AudioRowActions({
   };
 
   const downloadTrack = async () => {
-    if (!track.id || !(await requireSession())) return;
+    if (busy || !track.id || !(await requireSession())) return;
     setBusy('download');
     setDownloadProgress(1);
     setMessage('');
@@ -180,7 +180,7 @@ export function AudioRowActions({
   };
 
   const addToPlaylist = async (playlist: EchooPlaylist) => {
-    if (!track.id) return;
+    if (busy || !track.id) return;
     setBusy(playlist.id);
     setMessage('');
     try {
@@ -205,7 +205,7 @@ export function AudioRowActions({
 
   const createAndAddPlaylist = async () => {
     const cleanName = newPlaylistName.trim();
-    if (!track.id || !cleanName) return;
+    if (busy || !track.id || !cleanName) return;
     setBusy('new');
     setMessage('');
     try {
