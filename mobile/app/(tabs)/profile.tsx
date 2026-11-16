@@ -61,7 +61,9 @@ export default function ProfileScreen() {
     <View style={styles.rowCopy}><Text style={styles.rowTitle}>{title}</Text><Text style={styles.rowSubtitle}>{subtitle}</Text></View><ChevronRight color={palette.muted} size={22} />
   </Pressable>;
   return <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}><ScrollView ref={scrollRef} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={palette.blue} colors={[palette.blue]} />}>
-    <View style={styles.header}><Pressable onPress={() => router.back()} accessibilityLabel="Go back"><ArrowLeft color={palette.ink} size={24} /></Pressable><Text style={styles.headerTitle}>Profile</Text><Pressable onPress={() => push(user ? '/settings' : '/auth')} accessibilityRole="button"><Text style={styles.headerAction}>Settings</Text></Pressable></View>
+
+
+''    <View style={styles.header}><Pressable onPress={() => router.back()} accessibilityLabel="Go back"><ArrowLeft color={palette.ink} size={24} /></Pressable><Text style={styles.headerTitle}>Profile</Text><Pressable onPress={() => push(user ? '/settings' : '/auth')} accessibilityRole="button"><Text style={styles.headerAction}>Settings</Text></Pressable></View>
     {loading && !user ? <View style={styles.skeleton}><ListenerSkeletonRows count={3} /></View> : null}
     {!loading ? <View style={styles.identity}>
       <View style={styles.avatar}>{user?.avatar ? <Image source={{ uri: user.avatar }} style={StyleSheet.absoluteFillObject} contentFit="cover" /> : <Text style={styles.initial}>{(user?.displayName || user?.username || 'Guest').charAt(0).toUpperCase()}</Text>}</View>
