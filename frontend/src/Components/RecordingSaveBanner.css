@@ -122,8 +122,10 @@
   width: min(560px, calc(100vw - 24px));
   border-color: #b9c8ff;
   background: #f7f9ff;
+  pointer-events: none;
 }
 .echoo-save-banner.is-device-choice > svg { color: #265dff; }
+.echoo-save-banner.is-device-choice button { pointer-events: auto; }
 .echoo-save-banner-choices {
   display: flex;
   flex: 1 1 auto;

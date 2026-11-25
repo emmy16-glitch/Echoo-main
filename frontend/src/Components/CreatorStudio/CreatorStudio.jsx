@@ -859,7 +859,6 @@ const CreatorStudioBody = () => {
         open={uploadOpen}
         onClose={() => setUploadOpen(false)}
         onComplete={() => {
-          setNotice('Recording saved to Echoo.');
           window.dispatchEvent(new CustomEvent('echoo:creator-state-changed'));
           setRefreshKey((value) => value + 1);
         }}
