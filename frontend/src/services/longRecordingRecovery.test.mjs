@@ -48,28 +48,14 @@ test('persistent recording progress survives navigation, refresh and network fai
   assert.match(source, /retryAutosave\(broadcastId\)/);
   assert.match(source, /retryRecordingFinalization\(broadcastId\)/);
   assert.match(source, /Restoring the last verified recording state/);
-  assert.match(studio, /<ServerRecordingProgress compact=\{activeNav === 'Broadcast'\}/);
+  assert.match(studio, /activeNav !== 'Broadcast' && \(\s*<div className="studio-persistent-recording">\s*<ServerRecordingProgress \/>/);
   assert.match(broadcast, /echoo:recording-track-broadcast/);
 });
 
-test('live recording progress does not push End Broadcast below the viewport', async () => {
+test('server recording notification is not shown on the Broadcast workspace', async () => {
   const studio = await read('../Components/CreatorStudio/CreatorStudio.jsx');
-  const styles = await read('../Components/CreatorStudio/CreatorBroadcastApproved.css');
-  const panel = await read('../Components/CreatorStudio/ServerRecordingProgress.jsx');
-  assert.match(studio, /studio-persistent-recording is-live-workspace/);
-  assert.match(studio, /<ServerRecordingProgress compact=\{activeNav === 'Broadcast'\}/);
-  assert.match(styles, /\.studio-persistent-recording\.is-live-workspace \{/);
-  assert.match(styles, /position: fixed;/);
-  assert.match(panel, /compact && live && !expanded/);
-  assert.match(panel, /setExpanded\(true\)/);
-});
-
-test('recording progress never intercepts the live Reconnect audio button', async () => {
-  const panel = await read('../Components/CreatorStudio/ServerRecordingProgress.jsx');
-  const css = await read('../Components/CreatorStudio/CreatorBroadcastApproved.css');
-  assert.match(panel, /if \(compact\) return null;/);
-  assert.match(css, /studio-persistent-recording\.is-live-workspace > \* \{ pointer-events: none;/);
-  assert.match(css, /studio-persistent-recording\.is-live-workspace button \{ pointer-events: auto;/);
+  assert.match(studio, /activeNav !== 'Broadcast' && \(/);
+  assert.doesNotMatch(studio, /studio-persistent-recording is-live-workspace/);
 });
 
 test('a linked replay must be physically verified before deleting OPFS recovery', async () => {
