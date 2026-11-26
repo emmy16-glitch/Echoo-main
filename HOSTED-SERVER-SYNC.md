@@ -64,13 +64,12 @@ Restart the backend after deploying a change to this CORS contract.
 
 ## Task 2 — Configure LiveKit Cloud
 
-> Real credentials below (provided by the project owner for this exact
-> purpose). Put them in the server's environment only — never commit them,
-> never print them in logs, never echo them into chat.
+> Configure the API key and secret in the server environment only — never
+> commit them, print them in logs, or echo them into chat.
 
 ```env
-LIVEKIT_URL=wss://echoo-cdpcubcr.livekit.cloud
-LIVEKIT_PUBLIC_URL=wss://echoo-cdpcubcr.livekit.cloud
+LIVEKIT_URL=wss://echoooo-05pdhvvh.livekit.cloud
+LIVEKIT_PUBLIC_URL=wss://echoooo-05pdhvvh.livekit.cloud
 LIVEKIT_API_KEY=<set-in-server-environment>
 LIVEKIT_API_SECRET=<set-in-server-environment>
 ```
