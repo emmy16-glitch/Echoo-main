@@ -23,7 +23,7 @@ test('live push names the followed station in its title', async (t) => {
   });
   Station.findById = (stationId) => {
     assert.equal(String(stationId), 'station-id');
-    return { select: async () => ({ name: 'Layers of Truth' }) };
+    return { select: async () => ({ name: 'Grace FM' }) };
   };
   PushDelivery.bulkWrite = async (operations) => {
     queuedMessages = operations.map((operation) => operation.updateOne.update.$setOnInsert.message);
@@ -39,6 +39,6 @@ test('live push names the followed station in its title', async (t) => {
   });
 
   assert.equal(queuedMessages.length, 1);
-  assert.equal(queuedMessages[0].title, 'Layers of Truth channel is live');
-  assert.equal(queuedMessages[0].data.stationName, 'Layers of Truth');
+  assert.equal(queuedMessages[0].title, 'Grace FM channel is live');
+  assert.equal(queuedMessages[0].data.stationName, 'Grace FM');
 });
