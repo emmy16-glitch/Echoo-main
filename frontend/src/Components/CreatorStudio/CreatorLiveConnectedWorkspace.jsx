@@ -15,7 +15,11 @@ import batch2Service from '../../services/batch2Service';
 import batch3Service from '../../services/batch3Service';
 import { buildMediaUrl } from '../../services/api';
 import {
+  connectGuestInput,
+  connectSecondInput,
+  disconnectMixerChannel,
   ensureEchooMixerOutputTrack,
+  ensureHostInput,
   getEchooMixerState,
   getMixerChannelTrack,
   setMasterMuted,
@@ -54,6 +58,8 @@ import './CreatorBroadcastApproved.css';
 
 const pad = (value) => String(value).padStart(2, '0');
 const RECORDING_UPLOAD_EVENT = 'echoo:recording-upload';
+const LIVE_BROADCAST_RESUME_KEY = 'echoo:live-broadcast-resume:v1';
+const RESUMABLE_MICROPHONE_CHANNELS = new Set(['host', 'channel2', 'guest']);
 const RECORDING_FINALIZATION_WARNING =
   'Broadcast ended, but recording finalization needs attention. Echoo will preserve any available recovery copy while the server recording is checked.';
 
@@ -74,6 +80,53 @@ const isMissingBroadcastError = (error) =>
   );
 
 const entityId = (value) => value?.id || value?._id || '';
+
+const readLiveBroadcastResume = () => {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(LIVE_BROADCAST_RESUME_KEY) || 'null');
+    if (
+      !saved ||
+      typeof saved.broadcastId !== 'string' ||
+      !Array.isArray(saved.sources)
+    ) return null;
+    return saved;
+  } catch (error) {
+    console.warn('[Echoo Live] could not read broadcast reload recovery state:', error?.message || error);
+    return null;
+  }
+};
+
+const saveLiveBroadcastResume = (broadcastId, snapshot, sourceIds) => {
+  try {
+    sessionStorage.setItem(LIVE_BROADCAST_RESUME_KEY, JSON.stringify({
+      broadcastId: String(broadcastId),
+      sources: sourceIds.map((channelId) => ({
+        channelId,
+        deviceId: String(snapshot?.channels?.[channelId]?.deviceId || ''),
+      })),
+    }));
+  } catch (error) {
+    console.warn('[Echoo Live] could not save broadcast reload recovery state:', error?.message || error);
+  }
+};
+
+const clearLiveBroadcastResume = () => {
+  try {
+    sessionStorage.removeItem(LIVE_BROADCAST_RESUME_KEY);
+  } catch (error) {
+    console.warn('[Echoo Live] could not clear broadcast reload recovery state:', error?.message || error);
+  }
+};
+
+const canAutoResumeMicrophones = (resume, broadcastId) => Boolean(
+  resume &&
+  Array.isArray(resume.sources) &&
+  String(resume.broadcastId || '') === String(broadcastId || '') &&
+  resume.sources.length > 0 &&
+  resume.sources.every((source) =>
+    RESUMABLE_MICROPHONE_CHANNELS.has(source?.channelId)
+  )
+);
 
 const percentToRatio = (value, fallback = 0) => {
   const number = Number(value);
@@ -179,6 +232,7 @@ const CreatorLiveConnectedWorkspace = ({
   const endingDialogRef = useRef(null);
   const keepLiveButtonRef = useRef(null);
   const endingRequestRef = useRef(false);
+  const autoResumeAttemptedRef = useRef('');
   const offAirNoticeTimeoutRef = useRef(null);
   const bootstrapRetryRef = useRef(0);
   const bootstrapRetryTimerRef = useRef(null);
@@ -192,6 +246,7 @@ const CreatorLiveConnectedWorkspace = ({
   }, [onClearPreparedBroadcast]);
 
   const markOffAir = useCallback((notice = 'Broadcast ended. Your workstation is still ready.') => {
+    clearLiveBroadcastResume();
     window.clearTimeout(offAirNoticeTimeoutRef.current);
     setCurrentLiveBroadcast(null);
     setSavedBroadcast(null);
@@ -270,6 +325,8 @@ const CreatorLiveConnectedWorkspace = ({
           clearPreparedBroadcast();
           return;
         }
+
+        if (broadcastResult.status === 'fulfilled') clearLiveBroadcastResume();
 
         // An ending row means listeners are already meant to be off air.
         // Never trap the creator in a full-screen ending/loading state while
@@ -915,6 +972,7 @@ const CreatorLiveConnectedWorkspace = ({
       };
       setSavedBroadcast(liveBroadcast);
       setCurrentLiveBroadcast(liveBroadcast);
+      saveLiveBroadcastResume(broadcast.id, liveMixerSnapshot, liveSourceIds);
       setElapsed(0);
       setBroadcasts((current) => current.map(
         (item) => String(item.id) === String(liveBroadcast.id) ? liveBroadcast : item
@@ -1179,7 +1237,7 @@ const CreatorLiveConnectedWorkspace = ({
     }
   };
 
-  const retryAudioConnection = async () => {
+  const retryAudioConnection = useCallback(async () => {
     if (!currentLiveBroadcast?.id || goingLive || ending) return;
 
     const broadcastId = currentLiveBroadcast.id;
@@ -1208,8 +1266,29 @@ const CreatorLiveConnectedWorkspace = ({
       // broadcast instead of leaving the creator and listeners in a permanent
       // "Reconnecting" state.
       if (!recovered) {
-        const liveMixerSnapshot = getEchooMixerState();
-        const liveSourceIds = getValidAudioSourceIds(liveMixerSnapshot);
+        let liveMixerSnapshot = getEchooMixerState();
+        let liveSourceIds = getValidAudioSourceIds(liveMixerSnapshot);
+        const resume = readLiveBroadcastResume();
+        if (!liveSourceIds.length && canAutoResumeMicrophones(resume, broadcastId)) {
+          const restoredChannels = [];
+          try {
+            for (const source of resume.sources) {
+              if (source.channelId === 'host') {
+                await ensureHostInput(source.deviceId);
+              } else if (source.channelId === 'channel2') {
+                await connectSecondInput(source.deviceId);
+              } else if (source.channelId === 'guest') {
+                await connectGuestInput(source.deviceId);
+              }
+              restoredChannels.push(source.channelId);
+            }
+          } catch (restoreError) {
+            restoredChannels.forEach(disconnectMixerChannel);
+            throw restoreError;
+          }
+          liveMixerSnapshot = getEchooMixerState();
+          liveSourceIds = getValidAudioSourceIds(liveMixerSnapshot);
+        }
         if (!liveSourceIds.length) {
           throw new Error(
             'Your browser audio was disconnected. Use Add audio to share the browser tab again, then choose Reconnect live audio.'
@@ -1252,7 +1331,21 @@ const CreatorLiveConnectedWorkspace = ({
     } finally {
       setGoingLive(false);
     }
-  };
+  }, [currentLiveBroadcast?.id, ending, goingLive, realtimeQualityProfile]);
+
+  useEffect(() => {
+    const broadcastId = String(currentLiveBroadcast?.id || '');
+    if (loading || !broadcastId || autoResumeAttemptedRef.current === broadcastId) return;
+
+    const resume = readLiveBroadcastResume();
+    if (!canAutoResumeMicrophones(resume, broadcastId)) return;
+
+    const publisher = getLiveKitPublishingState();
+    if (publisher.connected && String(publisher.broadcastId || '') === broadcastId) return;
+
+    autoResumeAttemptedRef.current = broadcastId;
+    void retryAudioConnection();
+  }, [loading, currentLiveBroadcast?.id, retryAudioConnection]);
 
   // Never replace the Broadcast workspace with a connection screen. The
   // mixer/workstation renders immediately while account data hydrates in the
